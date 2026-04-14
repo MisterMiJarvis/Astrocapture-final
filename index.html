@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-09BXW7PS9M"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-09BXW7PS9M');
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AstroCapture | Astrophotography Portfolio & Blog</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="AstroCapture: An astrophotography blog and portfolio featuring high-quality deep sky object captures, processing tutorials, and a real-time astronomy index." />
+    <meta name="keywords" content="astrophotography, astronomy, deep sky objects, nebulae, galaxies, stargazing, space photography, telescope" />
+    <meta name="author" content="AstroCapture" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://astrocapture.app" />
+    <link id="favicon-link" rel="icon" href="https://www.nasa.gov/wp-content/uploads/2023/08/stsci-01h8x6x79r6f1h0g9y8c99t2tr.png" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://astrocapture.app" />
+    <meta property="og:title" content="AstroCapture | Astrophotography Portfolio & Blog" />
+    <meta property="og:description" content="Exploring the cosmos one frame at a time. High-quality astrophotography, tutorials, and a real-time astronomy index." />
+    <meta property="og:image" content="https://www.nasa.gov/wp-content/uploads/2023/08/stsci-01h8x6x79r6f1h0g9y8c99t2tr.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://astrocapture.app" />
+    <meta property="twitter:title" content="AstroCapture | Astrophotography Portfolio & Blog" />
+    <meta property="twitter:description" content="Exploring the cosmos one frame at a time. High-quality astrophotography, tutorials, and a real-time astronomy index." />
+    <meta property="twitter:image" content="https://www.nasa.gov/wp-content/uploads/2023/08/stsci-01h8x6x79r6f1h0g9y8c99t2tr.png" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Manrope', 'sans-serif'],
+            },
+            colors: {
+              background: '#0a0f1a',
+              surface: '#111827',
+              primary: '#3b82f6',
+              'primary-hover': '#2563eb',
+              secondary: '#1f2937',
+              'secondary-hover': '#374151',
+              border: '#1f2937',
+              text: '#d1d5db',
+              'text-secondary': '#6b7280',
+            },
+            animation: {
+              'twinkle': 'twinkle 4s ease-in-out infinite',
+              'ken-burns': 'ken-burns 20s ease-out infinite alternate',
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
+            },
+            keyframes: {
+              twinkle: {
+                '0%, 100%': { opacity: 0.1 },
+                '50%': { opacity: 0.6 },
+              },
+              'ken-burns': {
+                '0%': { transform: 'scale(1)' },
+                '100%': { transform: 'scale(1.15)' },
+              },
+              fadeIn: {
+                '0%': { opacity: 0, transform: 'translateY(10px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #0a0f1a;
+        color: #d1d5db;
+        overflow-x: hidden;
+      }
+      
+      ::-webkit-scrollbar {
+        width: 10px;
+        background: #0a0f1a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1f2937;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #374151;
+      }
+      
+      .star {
+        position: absolute;
+        background: #d1d5db;
+        border-radius: 50%;
+        width: 1px;
+        height: 1px;
+      }
+
+      /* Styles for Date Picker in dark mode */
+      input[type="date"] {
+        color-scheme: dark;
+      }
+      input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.6) brightness(1.5);
+        cursor: pointer;
+      }
+
+      /* Styles for Rich Text Content */
+      .prose-styles h2 { 
+        font-family: 'Manrope', sans-serif;
+        font-size: 1.875rem; /* text-3xl */
+        font-weight: 800;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        color: #d1d5db;
+        border-bottom: 1px solid #1f2937;
+        padding-bottom: 0.5rem;
+      }
+      .prose-styles p {
+        margin-bottom: 1rem;
+        line-height: 1.75;
+        color: #6b7280;
+      }
+      .prose-styles ul, .prose-styles ol {
+        margin-bottom: 1rem;
+        padding-left: 1.5rem;
+        color: #6b7280;
+      }
+      .prose-styles ul { list-style-type: disc; }
+      .prose-styles ol { list-style-type: decimal; }
+      .prose-styles li { margin-bottom: 0.5rem; }
+      .prose-styles a {
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .prose-styles a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+    "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

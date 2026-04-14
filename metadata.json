@@ -1,0 +1,7 @@
+{
+  "name": "AstroCapture",
+  "description": "A specialized astrophotography blog and portfolio manager with AI-assisted descriptions and real-time stargazing weather conditions.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
