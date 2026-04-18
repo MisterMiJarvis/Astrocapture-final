@@ -1,0 +1,57 @@
+[
+  {
+    "id": "NGC 224",
+    "commonName": "Andromeda Galaxy",
+    "objectType": "Galaxy",
+    "constellation": "Andromeda",
+    "rightAscension": "00:42:44",
+    "declination": "+41:16:09",
+    "magnitude": 3.44,
+    "difficulty": "Easy",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/M31_Lanoue.png/640px-M31_Lanoue.png"
+  },
+  {
+    "id": "NGC 1976",
+    "commonName": "Orion Nebula",
+    "objectType": "Nebula",
+    "constellation": "Orion",
+    "rightAscension": "05:35:17",
+    "declination": "-05:23:28",
+    "magnitude": 4.0,
+    "difficulty": "Easy",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/600px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg"
+  },
+  {
+    "id": "NGC 4565",
+    "commonName": "Needle Galaxy",
+    "objectType": "Galaxy",
+    "constellation": "Coma Berenices",
+    "rightAscension": "12:36:20",
+    "declination": "+25:59:16",
+    "magnitude": 9.6,
+    "difficulty": "Medium",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/NGC_4565.jpg/640px-NGC_4565.jpg"
+  },
+  {
+    "id": "NGC 7000",
+    "commonName": "North America Nebula",
+    "objectType": "Nebula",
+    "constellation": "Cygnus",
+    "rightAscension": "20:58:47",
+    "declination": "+44:20:00",
+    "magnitude": 4.0,
+    "difficulty": "Medium",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/NGC7000_North_America_Nebula.jpg/640px-NGC7000_North_America_Nebula.jpg"
+  },
+  {
+    "id": "NGC 7293",
+    "commonName": "Helix Nebula",
+    "objectType": "Nebula",
+    "constellation": "Aquarius",
+    "rightAscension": "22:29:38",
+    "declination": "-20:50:13",
+    "magnitude": 7.6,
+    "difficulty": "Medium",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/NGC7293_%282004%29.jpg/640px-NGC7293_%282004%29.jpg"
+  }
+]

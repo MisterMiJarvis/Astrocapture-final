@@ -440,7 +440,7 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; children: R
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div 
         ref={scrollableContentRef} 
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface border border-border rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+        className="absolute left-1/2 -translate-x-1/2 top-[5vh] max-h-[90vh] bg-surface border border-border rounded-lg shadow-2xl w-full max-w-3xl overflow-y-auto"
       > 
         <div className="bg-background/80 backdrop-blur-md text-text p-4 flex justify-between items-center border-b border-border sticky top-0 z-10">
            <h2 className="text-lg font-bold font-display">{title || 'System Window'}</h2>

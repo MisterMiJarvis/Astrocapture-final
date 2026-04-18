@@ -13,10 +13,10 @@ import { FirebaseConfig } from '../types';
 // ==================================================================
 
 export const FIREBASE_CONFIG: FirebaseConfig = {
-  apiKey: "AIzaSyDothRCrv1E1Vo-V5LFHV0w-7c6LDuliSE",
-  authDomain: "astrocapture-47f98.firebaseapp.com",
-  projectId: "astrocapture-47f98",
-  storageBucket: "astrocapture-47f98.firebasestorage.app",
-  messagingSenderId: "398787897424",
-  appId: "1:398787897424:web:01f99f10f0cd5db86e8955"
+  apiKey: "AIzaSyDmb259QULY44rGeqR2nM_o4-A2UgirjEw",
+  authDomain: "astrocapture-7c2cc.firebaseapp.com",
+  projectId: "astrocapture-7c2cc",
+  storageBucket: "astrocapture-7c2cc.firebasestorage.app",
+  messagingSenderId: "484857379446",
+  appId: "1:484857379446:web:11a7c1d039c7037ebb3d57"
 };
