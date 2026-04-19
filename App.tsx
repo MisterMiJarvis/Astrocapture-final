@@ -10,6 +10,7 @@ import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUp
 import { GearReviewsView } from './components/GearReviewsView';
 import { GearSettingsForm } from './components/GearSettingsForm';
 import { EquipmentTrackerForm } from './components/EquipmentTrackerForm';
+import { ObservationPlannerView } from './components/ObservationPlannerView';
 import { AstroEquipment } from './types';
 import { DEFAULT_EQUIPMENT } from './services/equipmentService';
 import { 
@@ -428,6 +429,7 @@ const App = () => {
         'image-of-the-day': ViewState.IMAGE_OF_THE_DAY,
         'image-wall': ViewState.WALL_OF_IMAGES,
         'astro-index': ViewState.ASTRO_INDEX,
+        'planner': ViewState.OBSERVATION_PLANNER,
         'about': ViewState.ABOUT,
       };
       if (pageMap[url.toLowerCase()] !== undefined) handleNav(pageMap[url.toLowerCase()]);
@@ -486,6 +488,7 @@ const App = () => {
               <NavButton active={view === ViewState.POST_PROCESSING} onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</NavButton>
               <NavButton active={view === ViewState.ASTRO_INDEX} onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Index</NavButton>
               <NavButton active={view === ViewState.BEST_TARGETS} onClick={() => handleNav(ViewState.BEST_TARGETS)}>Astro Targets</NavButton>
+              <NavButton active={view === ViewState.OBSERVATION_PLANNER} onClick={() => handleNav(ViewState.OBSERVATION_PLANNER)}>Planner</NavButton>
               <GlobalSearch posts={posts} processingPosts={processingPosts} onNavigate={handleSearchNavigate} />
             </div>
             <div className="md:hidden">
@@ -504,6 +507,7 @@ const App = () => {
               <MobileNavButton onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Index</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.BEST_TARGETS)}>Astro Targets</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.OBSERVATION_PLANNER)}>Planner</MobileNavButton>
             </div>
           </div>
         )}
@@ -519,6 +523,7 @@ const App = () => {
         {view === ViewState.ABOUT && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AboutView config={aboutConfig} /></div>}
         {view === ViewState.ASTRO_INDEX && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AstroIndexView /></div>}
         {view === ViewState.BEST_TARGETS && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><BestTargetsView equipment={equipment} /></div>}
+        {view === ViewState.OBSERVATION_PLANNER && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><ObservationPlannerView equipment={equipment} /></div>}
         {view === ViewState.LICENSE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LicenseView config={licenseConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.LEGAL_NOTICE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LegalNoticeView config={legalNoticeConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.ADMIN_LOGIN && <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LoginView onLogin={() => setView(ViewState.ADMIN_DASHBOARD)} /></div>}

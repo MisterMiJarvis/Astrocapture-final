@@ -15,6 +15,7 @@ export enum ViewState {
   BEST_TARGETS,
   WALL_OF_IMAGES,
   GEAR_REVIEWS,
+  OBSERVATION_PLANNER,
 }
 
 export interface HeroSlide {
@@ -336,4 +337,43 @@ export interface NightlyForecast {
   moonPhase: string;
   condition: 'Excellent' | 'Good' | 'Fair' | 'Poor';
   summary: string;
+}
+
+// Observation Planner types
+export interface ObservationTarget {
+  id: string;
+  objectId: string;       // DeepSkyObject.id e.g. "M31"
+  commonName: string;
+  objectType: string;
+  constellation: string;
+  magnitude: number | null;
+  angularSizeArcmin: { width: number; height: number };
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  notes: string;
+  completed: boolean;
+  completedDate?: string;  // ISO date when imaged
+  acquisitionHours?: number; // total hours captured so far
+  targetHours?: number;      // goal integration time
+  imageUrl?: string;
+}
+
+export interface ObservationSession {
+  id: string;
+  date: string;           // ISO date planned
+  location: {
+    name: string;
+    lat: number;
+    lon: number;
+  };
+  moonIllumination: number;
+  sunsetTime: string;
+  darknessStart: string;
+  darknessEnd: string;
+  sunriseTime: string;
+  targets: ObservationTarget[];
+  status: 'planned' | 'in_progress' | 'completed' | 'cancelled' | 'weathered_out';
+  weatherSummary?: string;
+  notes: string;
+  cloudCover?: number;    // %
+  seeing?: string;        // seeing condition
 }

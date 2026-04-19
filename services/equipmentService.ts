@@ -42,7 +42,7 @@ export function calculateImageScale(
 export function checkTargetFit(
     targetSizeArcmin: { width: number; height: number } | undefined,
     fovArcmin: { widthArcmin: number; heightArcmin: number }
-): { fit: 'perfect' | 'good' | 'tight' | 'too_large'; ratio: number } {
+): { fit: 'perfect' | 'good' | 'tight' | 'too_large'; ratio: number; fillPercentage?: number } {
     if (!targetSizeArcmin) {
         return { fit: 'perfect', ratio: 0 }; // Unknown size, assume it fits
     }
@@ -55,10 +55,10 @@ export function checkTargetFit(
     // Check if target fits within the FOV (considering rotation)
     const ratio = Math.max(targetMax / fovMax, targetMin / fovMin);
 
-    if (ratio > 1.0) return { fit: 'too_large', ratio: Math.round(ratio * 100) / 100 };
-    if (ratio > 0.9) return { fit: 'tight', ratio: Math.round(ratio * 100) / 100 };
-    if (ratio > 0.7) return { fit: 'good', ratio: Math.round(ratio * 100) / 100 };
-    return { fit: 'perfect', ratio: Math.round(ratio * 100) / 100 };
+    if (ratio > 1.0) return { fit: 'too_large', ratio: Math.round(ratio * 100) / 100, fillPercentage: Math.round((1/ratio) * 100) };
+    if (ratio > 0.9) return { fit: 'tight', ratio: Math.round(ratio * 100) / 100, fillPercentage: Math.round(ratio * 100) };
+    if (ratio > 0.7) return { fit: 'good', ratio: Math.round(ratio * 100) / 100, fillPercentage: Math.round(ratio * 100) };
+    return { fit: 'perfect', ratio: Math.round(ratio * 100) / 100, fillPercentage: Math.round(ratio * 100) };
 }
 
 /**
