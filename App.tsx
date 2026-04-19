@@ -9,6 +9,9 @@ import { initializeFirebase, isFirebaseInitialized, login, logout, getAuthInstan
 import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUploader, Lightbox, DraggableListItem, FileUploader, AiContentModal, Select, ToggleSwitch, ScrollToTopButton, SocialShare, CookieBanner } from './components/Shared';
 import { GearReviewsView } from './components/GearReviewsView';
 import { GearSettingsForm } from './components/GearSettingsForm';
+import { EquipmentTrackerForm } from './components/EquipmentTrackerForm';
+import { AstroEquipment } from './types';
+import { DEFAULT_EQUIPMENT } from './services/equipmentService';
 import { 
   Camera, Wind, User, Lock, Plus, Trash2, Edit2, LogOut, Menu, X, Info, 
   LayoutDashboard, Newspaper, Sliders, Settings2,
@@ -19,7 +22,7 @@ import {
   Search, GripVertical, Copy, Globe, Database, Key, Moon, Sun,
   RotateCw, MoveUp, SlidersHorizontal, Star, ThumbsUp,
   Smile, Frown, Milestone, AlertCircle, Target, ArrowDown, ArrowUp, Tag, RotateCcw, Zap, File as FileIcon, AudioWaveform, Layers,
-  Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon
+  Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon, Radio, Mountain, Monitor, EyeOff
 } from 'lucide-react';
 import { fetchImageOfTheDay } from './services/nasaApiService';
 import { fetchAstrobinImageOfTheDay } from './services/astrobinApiService';
@@ -240,6 +243,7 @@ const App = () => {
   const [logoUrl, setLogoUrl] = React.useState<string>(INITIAL_DATA.logoUrl);
   const [faviconUrl, setFaviconUrl] = React.useState<string>(INITIAL_DATA.faviconUrl);
   const [gearItems, setGearItems] = React.useState<EquipmentItem[]>([]);
+  const [equipment, setEquipment] = React.useState<AstroEquipment[]>(DEFAULT_EQUIPMENT);
   
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -303,6 +307,11 @@ const App = () => {
       subscribeToCollection('processingPosts', (data) => setProcessingPosts((data as ProcessingPost[]).sort((a, b) => new Date(b.captureDate).getTime() - new Date(a.captureDate).getTime()))),
       subscribeToCollection('processing_logs', (data) => setProcessingLogs(data as ProcessingLog[])),
       subscribeToCollection('gear', (data) => setGearItems(data as EquipmentItem[])),
+      subscribeToCollection('my_equipment', (data) => {
+        if (data && data.length > 0) {
+          setEquipment(data as AstroEquipment[]);
+        }
+      }),
       subscribeToSettings('heroSlides', (data) => {
         const slides = data?.slides || INITIAL_DATA.heroSlides;
         if (Array.isArray(slides)) {
@@ -509,11 +518,11 @@ const App = () => {
         {view === ViewState.GEAR_REVIEWS && <GearReviewsView items={gearItems} />}
         {view === ViewState.ABOUT && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AboutView config={aboutConfig} /></div>}
         {view === ViewState.ASTRO_INDEX && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AstroIndexView /></div>}
-        {view === ViewState.BEST_TARGETS && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><BestTargetsView /></div>}
+        {view === ViewState.BEST_TARGETS && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><BestTargetsView equipment={equipment} /></div>}
         {view === ViewState.LICENSE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LicenseView config={licenseConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.LEGAL_NOTICE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LegalNoticeView config={legalNoticeConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.ADMIN_LOGIN && <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LoginView onLogin={() => setView(ViewState.ADMIN_DASHBOARD)} /></div>}
-        {view === ViewState.ADMIN_DASHBOARD && isLoggedIn && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AdminDashboard {...{posts, processingPosts, heroSlides, aboutConfig, logoUrl, faviconUrl, footerConfig, processingConfig, licenseConfig, legalNoticeConfig, cookieBannerConfig, gearItems}} onLogout={handleLogout} onReset={handleReset} /></div>}
+        {view === ViewState.ADMIN_DASHBOARD && isLoggedIn && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AdminDashboard {...{posts, processingPosts, heroSlides, aboutConfig, logoUrl, faviconUrl, footerConfig, processingConfig, licenseConfig, legalNoticeConfig, cookieBannerConfig, gearItems, equipment}} onLogout={handleLogout} onReset={handleReset} /></div>}
       </main>
       <Footer config={footerConfig} isLoggedIn={isLoggedIn} onNavigateToLicense={() => handleNav(ViewState.LICENSE)} onNavigateToLegalNotice={() => handleNav(ViewState.LEGAL_NOTICE)} onNavigateToAdmin={() => handleNav(isLoggedIn ? ViewState.ADMIN_DASHBOARD : ViewState.ADMIN_LOGIN)} onNavigateToAbout={() => handleNav(ViewState.ABOUT)} />
       <Lightbox isOpen={lightboxState.isOpen} onClose={closeLightbox} items={lightboxState.items} startIndex={lightboxState.startIndex} />
@@ -1358,7 +1367,7 @@ const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   );
 };
 
-type AdminPanel = 'gallery' | 'articles' | 'global' | 'hero' | 'about' | 'articlesPage' | 'footer' | 'license' | 'imageWall' | 'cookieBanner' | 'legalNotice' | 'gear';
+type AdminPanel = 'gallery' | 'articles' | 'global' | 'hero' | 'about' | 'articlesPage' | 'footer' | 'license' | 'imageWall' | 'cookieBanner' | 'legalNotice' | 'gear' | 'equipment';
 
 const AdminDashboard: React.FC<{
   posts: Post[];
@@ -1373,6 +1382,7 @@ const AdminDashboard: React.FC<{
   legalNoticeConfig: LegalNoticeConfig;
   cookieBannerConfig: CookieBannerConfig;
   gearItems: EquipmentItem[];
+  equipment: AstroEquipment[];
   onLogout: () => void;
   onReset: () => void;
 }> = (props) => {
@@ -1389,6 +1399,7 @@ const AdminDashboard: React.FC<{
   );
 
   const [isSavingGear, setIsSavingGear] = React.useState(false);
+  const [isSavingEquipment, setIsSavingEquipment] = React.useState(false);
 
   const handleSaveGear = async (items: EquipmentItem[]) => {
       setIsSavingGear(true);
@@ -1426,6 +1437,36 @@ const AdminDashboard: React.FC<{
       }
   };
 
+  const handleSaveEquipment = async (items: AstroEquipment[]) => {
+      setIsSavingEquipment(true);
+      try {
+        const auth = getAuthInstance();
+        if (!auth?.currentUser) {
+            throw new Error("You must be logged in to save changes.");
+        }
+
+        const currentIds = new Set(props.equipment.map(i => i.id));
+        const newIds = new Set(items.map(i => i.id));
+        
+        for (const item of props.equipment) {
+            if (!newIds.has(item.id)) {
+                await deleteCollectionItem('my_equipment', item.id);
+            }
+        }
+        
+        for (const item of items) {
+            await saveCollectionItem('my_equipment', item.id, item);
+        }
+        
+        alert('Equipment saved successfully!');
+      } catch (error: any) {
+        console.error("Error saving equipment:", error);
+        alert(`Failed to save equipment: ${error.message}`);
+      } finally {
+        setIsSavingEquipment(false);
+      }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
       <aside className="lg:col-span-1 bg-surface border border-border rounded-lg p-4 self-start">
@@ -1434,6 +1475,7 @@ const AdminDashboard: React.FC<{
           <PanelButton panel="gallery" icon={<LayoutDashboard size={18} />}>Gallery</PanelButton>
           <PanelButton panel="articles" icon={<Newspaper size={18} />}>Articles & Tutorials</PanelButton>
           <PanelButton panel="gear" icon={<Wrench size={18} />}>Gear Reviews</PanelButton>
+          <PanelButton panel="equipment" icon={<Radio size={18} />}>My Equipment</PanelButton>
         </div>
 
         <div className="mt-4 pt-4 border-t border-border">
@@ -1467,7 +1509,14 @@ const AdminDashboard: React.FC<{
                 isSaving={isSavingGear} 
             />
         )}
-        {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && (
+        {activePanel === 'equipment' && (
+            <EquipmentTrackerForm
+                initialData={props.equipment}
+                onSave={handleSaveEquipment}
+                isSaving={isSavingEquipment}
+            />
+        )}
+        {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && activePanel !== 'equipment' && (
           <AdminSettingsPanel
             key={activePanel}
             activeSection={activePanel}

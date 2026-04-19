@@ -10,7 +10,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/M99s_crop.jpg/330px-M99s_crop.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 5,
+      "height": 4
+    }
   },
   {
     "id": "NGC 4736",
@@ -23,7 +27,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Messier_94.jpg/330px-Messier_94.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 7,
+      "height": 5
+    }
   },
   {
     "id": "NGC 4569",
@@ -36,7 +44,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Messier_90_-_HST.png/330px-Messier_90_-_HST.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 10,
+      "height": 4
+    }
   },
   {
     "id": "NGC 4486",
@@ -49,7 +61,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Messier_87_Hubble_WikiSky.jpg/330px-Messier_87_Hubble_WikiSky.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 7
+    }
   },
   {
     "id": "NGC 1039",
@@ -62,7 +78,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/M34_Mazur.jpg/330px-M34_Mazur.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 35,
+      "height": 35
+    }
   },
   {
     "id": "NGC 6205",
@@ -75,7 +95,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/M13-Globular-Cluster.png/330px-M13-Globular-Cluster.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 20,
+      "height": 20
+    }
   },
   {
     "id": "NGC 1976",
@@ -88,7 +112,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/330px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 85,
+      "height": 60
+    }
   },
   {
     "id": "NGC 224",
@@ -101,7 +129,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Andromeda_Galaxy_2025.png/330px-Andromeda_Galaxy_2025.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 190,
+      "height": 60
+    }
   },
   {
     "id": "NGC 1432",
@@ -114,7 +146,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Maia-20-Tau-in-Pleiades_PL.jpg/330px-Maia-20-Tau-in-Pleiades_PL.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 110,
+      "height": 110
+    }
   },
   {
     "id": "NGC 6523",
@@ -127,7 +163,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/VST_images_the_Lagoon_Nebula.jpg/330px-VST_images_the_Lagoon_Nebula.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 90,
+      "height": 40
+    }
   },
   {
     "id": "NGC 6853",
@@ -140,7 +180,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Messier_27_%281%29.jpg/330px-Messier_27_%281%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 6
+    }
   },
   {
     "id": "NGC 5194",
@@ -153,7 +197,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Messier51_sRGB.jpg/330px-Messier51_sRGB.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 11,
+      "height": 7
+    }
   },
   {
     "id": "NGC 6720",
@@ -166,7 +214,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Webb_captures_detailed_beauty_of_Ring_Nebula_%28NIRCam_image%29_%28weic2320b%29.jpg/330px-Webb_captures_detailed_beauty_of_Ring_Nebula_%28NIRCam_image%29_%28weic2320b%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 2,
+      "height": 2
+    }
   },
   {
     "id": "NGC 3031",
@@ -179,7 +231,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Messier_81_HST.jpg/330px-Messier_81_HST.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 27,
+      "height": 14
+    }
   },
   {
     "id": "NGC 3034",
@@ -192,7 +248,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/M82_HST_ACS_2006-14-a-large_web.jpg/330px-M82_HST_ACS_2006-14-a-large_web.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 11,
+      "height": 5
+    }
   },
   {
     "id": "NGC 5457",
@@ -205,7 +265,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/M101_hires_STScI-PRC2006-10a.jpg/330px-M101_hires_STScI-PRC2006-10a.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 29,
+      "height": 27
+    }
   },
   {
     "id": "NGC 4594",
@@ -218,7 +282,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/Sombrero_Galaxy_%28heic2506a%29.jpg/330px-Sombrero_Galaxy_%28heic2506a%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 4
+    }
   },
   {
     "id": "NGC 6611",
@@ -231,7 +299,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Eagle_Nebula_from_ESO.jpg/330px-Eagle_Nebula_from_ESO.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 35,
+      "height": 28
+    }
   },
   {
     "id": "NGC 6514",
@@ -244,7 +316,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Trifid_Nebula_%28noirlab2521ah%29.jpg/330px-Trifid_Nebula_%28noirlab2521ah%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 28,
+      "height": 22
+    }
   },
   {
     "id": "NGC 598",
@@ -257,7 +333,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/VST_snaps_a_very_detailed_view_of_the_Triangulum_Galaxy.jpg/330px-VST_snaps_a_very_detailed_view_of_the_Triangulum_Galaxy.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 73,
+      "height": 43
+    }
   },
   {
     "id": "NGC 1952",
@@ -270,7 +350,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/330px-Crab_Nebula.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 6,
+      "height": 4
+    }
   },
   {
     "id": "NGC 7089",
@@ -283,7 +367,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Messier2_-_HST_-_Potw1913a.jpg/330px-Messier2_-_HST_-_Potw1913a.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 16,
+      "height": 16
+    }
   },
   {
     "id": "NGC 5272",
@@ -296,7 +384,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/Messier_3_-_Adam_Block_-_Mount_Lemmon_SkyCenter_-_University_of_Arizona.jpg/330px-Messier_3_-_Adam_Block_-_Mount_Lemmon_SkyCenter_-_University_of_Arizona.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 18,
+      "height": 18
+    }
   },
   {
     "id": "NGC 6121",
@@ -309,7 +401,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Globular_star_cluster_Messier_4.jpg/330px-Globular_star_cluster_Messier_4.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 26,
+      "height": 26
+    }
   },
   {
     "id": "NGC 5904",
@@ -322,7 +418,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/M5-Messier-5.png/330px-M5-Messier-5.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 17,
+      "height": 17
+    }
   },
   {
     "id": "NGC 6405",
@@ -335,7 +435,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Messier_6_-_The_Butterfly_Cluster.jpg/330px-Messier_6_-_The_Butterfly_Cluster.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 25,
+      "height": 25
+    }
   },
   {
     "id": "NGC 6475",
@@ -348,7 +452,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/The_star_cluster_Messier_7.jpg/330px-The_star_cluster_Messier_7.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 80,
+      "height": 80
+    }
   },
   {
     "id": "NGC 6333",
@@ -361,7 +469,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Globular_cluster_Messier_9_%28captured_by_the_Hubble_Space_Telescope%29.tif/lossy-page1-330px-Globular_cluster_Messier_9_%28captured_by_the_Hubble_Space_Telescope%29.tif.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 9
+    }
   },
   {
     "id": "NGC 6254",
@@ -374,7 +486,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/M10_H%C3%B6cherl.jpg/330px-M10_H%C3%B6cherl.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 15,
+      "height": 15
+    }
   },
   {
     "id": "NGC 6705",
@@ -387,7 +503,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Eso1430a.jpg/330px-Eso1430a.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 14,
+      "height": 14
+    }
   },
   {
     "id": "NGC 6218",
@@ -400,7 +520,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/M12_Adam_Block.jpg/330px-M12_Adam_Block.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 15,
+      "height": 15
+    }
   },
   {
     "id": "NGC 6402",
@@ -413,7 +537,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Messier_14.jpg/330px-Messier_14.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 11,
+      "height": 11
+    }
   },
   {
     "id": "NGC 7078",
@@ -426,7 +554,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/M15_Globular_Cluster_from_the_Mount_Lemmon_SkyCenter_Schulman_Telescope_courtesy_Adam_Block.jpg/330px-M15_Globular_Cluster_from_the_Mount_Lemmon_SkyCenter_Schulman_Telescope_courtesy_Adam_Block.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 18,
+      "height": 18
+    }
   },
   {
     "id": "NGC 6618",
@@ -439,7 +571,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/VST_image_of_the_spectacular_star-forming_region_Messier_17_%28Omega_Nebula%29.jpg/330px-VST_image_of_the_spectacular_star-forming_region_Messier_17_%28Omega_Nebula%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 40,
+      "height": 22
+    }
   },
   {
     "id": "NGC 6494",
@@ -452,7 +588,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/M23_Open_Star_Cluster.png/330px-M23_Open_Star_Cluster.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 27,
+      "height": 27
+    }
   },
   {
     "id": "NGC 6603",
@@ -465,7 +605,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Caustiche.jpg/330px-Caustiche.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 90,
+      "height": 90
+    }
   },
   {
     "id": "NGC 6913",
@@ -478,7 +622,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Messier_29.jpg/330px-Messier_29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 10,
+      "height": 10
+    }
   },
   {
     "id": "NGC 7099",
@@ -491,7 +639,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/M30_NASA.jpg/330px-M30_NASA.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 11,
+      "height": 11
+    }
   },
   {
     "id": "NGC 221",
@@ -504,7 +656,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/M32_Francione_inverted.jpg/330px-M32_Francione_inverted.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 5
+    }
   },
   {
     "id": "NGC 2168",
@@ -517,7 +673,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/M35_and_NGC_2158.png/330px-M35_and_NGC_2158.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 28,
+      "height": 28
+    }
   },
   {
     "id": "NGC 1960",
@@ -530,7 +690,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/M36-pinwheel-cluster.png/330px-M36-pinwheel-cluster.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 12,
+      "height": 12
+    }
   },
   {
     "id": "NGC 2099",
@@ -543,7 +707,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/M37_Mazur_full.jpg/330px-M37_Mazur_full.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 24,
+      "height": 24
+    }
   },
   {
     "id": "NGC 1912",
@@ -556,7 +724,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/IC_410_-_IC_417_-_NGC_1912_in_Auriga.jpg/330px-IC_410_-_IC_417_-_NGC_1912_in_Auriga.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 21,
+      "height": 21
+    }
   },
   {
     "id": "NGC 7092",
@@ -569,7 +741,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/M39-Star-Cluster.png/330px-M39-Star-Cluster.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 32,
+      "height": 32
+    }
   },
   {
     "id": "NGC 2287",
@@ -582,7 +758,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/M41-Open-Cluster-of-Stars.png/330px-M41-Open-Cluster-of-Stars.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 38,
+      "height": 38
+    }
   },
   {
     "id": "NGC 1982",
@@ -595,7 +775,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/M43_HST.jpg/330px-M43_HST.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 20,
+      "height": 15
+    }
   },
   {
     "id": "NGC 2682",
@@ -608,7 +792,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/M67_Mazur.jpg/330px-M67_Mazur.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 95,
+      "height": 95
+    }
   },
   {
     "id": "NGC 1435",
@@ -621,7 +809,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Pleiades_Spitzer_big.jpg/330px-Pleiades_Spitzer_big.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 30,
+      "height": 30
+    }
   },
   {
     "id": "NGC 2422",
@@ -634,7 +826,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Noao-m47.jpg/330px-Noao-m47.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 30,
+      "height": 30
+    }
   },
   {
     "id": "NGC 2548",
@@ -647,7 +843,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/M48_Mazur.jpg/330px-M48_Mazur.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 54,
+      "height": 54
+    }
   },
   {
     "id": "NGC 4472",
@@ -660,7 +860,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Messier_94-Rubin_Observatory.png/330px-Messier_94-Rubin_Observatory.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 11,
+      "height": 9
+    }
   },
   {
     "id": "NGC 2323",
@@ -673,7 +877,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/M50_Open_Star_Cluster.png/330px-M50_Open_Star_Cluster.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 16,
+      "height": 16
+    }
   },
   {
     "id": "NGC 5055",
@@ -686,7 +894,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/M63_%28NGC_5055%29.jpg/330px-M63_%28NGC_5055%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 13,
+      "height": 8
+    }
   },
   {
     "id": "NGC 4826",
@@ -699,7 +911,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/NGC_4826_-_HST.png/330px-NGC_4826_-_HST.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 10,
+      "height": 5
+    }
   },
   {
     "id": "NGC 3623",
@@ -712,7 +928,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Messier_65_through_the_years.jpg/330px-Messier_65_through_the_years.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 10,
+      "height": 3
+    }
   },
   {
     "id": "NGC 3627",
@@ -725,7 +945,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Phot-33c-03-fullres.jpg/330px-Phot-33c-03-fullres.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 4
+    }
   },
   {
     "id": "NGC 3628",
@@ -738,7 +962,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/NGC_3628.png/330px-NGC_3628.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 15,
+      "height": 4
+    }
   },
   {
     "id": "NGC 4560",
@@ -751,7 +979,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/SN1994D.jpg/330px-SN1994D.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 5
+    }
   },
   {
     "id": "NGC 7789",
@@ -764,7 +996,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Ngc_7789_carolines_rose_2024_10_04_95x180s_iso640_bortle4.jpg/330px-Ngc_7789_carolines_rose_2024_10_04_95x180s_iso640_bortle4.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 25,
+      "height": 25
+    }
   },
   {
     "id": "NGC 6543",
@@ -777,7 +1013,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Looking_at_the_Cat%E2%80%99s_Eye_Nebula_with_Hubble_%28potm2602b%29.jpg/330px-Looking_at_the_Cat%E2%80%99s_Eye_Nebula_with_Hubble_%28potm2602b%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 0.5,
+      "height": 0.3
+    }
   },
   {
     "id": "NGC 4621",
@@ -790,7 +1030,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Messier59_-_HST_-_Potw1921a.jpg/330px-Messier59_-_HST_-_Potw1921a.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 5,
+      "height": 3
+    }
   },
   {
     "id": "NGC 6093",
@@ -803,7 +1047,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/A_Swarm_of_Ancient_Stars_-_GPN-2000-000930.jpg/330px-A_Swarm_of_Ancient_Stars_-_GPN-2000-000930.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 9
+    }
   },
   {
     "id": "NGC 4833",
@@ -816,7 +1064,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/A_sky_full_of_stars_NGC_4833.jpg/330px-A_sky_full_of_stars_NGC_4833.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 12,
+      "height": 12
+    }
   },
   {
     "id": "NGC 4559",
@@ -829,7 +1081,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/NGC4559_-_SDSS_DR14_%28panorama%29.jpg/330px-NGC4559_-_SDSS_DR14_%28panorama%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 6,
+      "height": 3
+    }
   },
   {
     "id": "NGC 4406",
@@ -842,7 +1098,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Beacon_of_Light_Messier_86.jpg/330px-Beacon_of_Light_Messier_86.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 6
+    }
   },
   {
     "id": "NGC 6981",
@@ -855,7 +1115,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/M72_Hubble_WikiSky.jpg/330px-M72_Hubble_WikiSky.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 6,
+      "height": 6
+    }
   },
   {
     "id": "NGC 6818",
@@ -868,7 +1132,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Ngc6818.jpg/330px-Ngc6818.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 0.5,
+      "height": 0.5
+    }
   },
   {
     "id": "NGC 650-651",
@@ -881,7 +1149,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Little_Dumbbell_Nebula_M76_by_Goran_Nilsson%2C_Wim_van_Berlo_%26_Liverpool_Telescope.jpg/330px-Little_Dumbbell_Nebula_M76_by_Goran_Nilsson%2C_Wim_van_Berlo_%26_Liverpool_Telescope.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 2.5,
+      "height": 1.5
+    }
   },
   {
     "id": "NGC 752",
@@ -894,7 +1166,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/NGC_752.png/330px-NGC_752.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 5
+    }
   },
   {
     "id": "NGC 2068",
@@ -907,7 +1183,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Messier_78.jpg/330px-Messier_78.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 6
+    }
   },
   {
     "id": "NGC 1904",
@@ -920,7 +1200,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/A_snowstorm_of_stars.jpg/330px-A_snowstorm_of_stars.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 9
+    }
   },
   {
     "id": "NGC 6210",
@@ -933,7 +1217,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/NGC_6210_HST.tif/lossy-page1-330px-NGC_6210_HST.tif.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 0.5,
+      "height": 0.5
+    }
   },
   {
     "id": "NGC 3115",
@@ -946,7 +1234,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/NGC_3115.jpg/330px-NGC_3115.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 3
+    }
   },
   {
     "id": "NGC 5866",
@@ -959,7 +1251,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Ngc5866_hst_big.png/330px-Ngc5866_hst_big.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 6,
+      "height": 3
+    }
   },
   {
     "id": "NGC 5024",
@@ -972,7 +1268,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Messier53_-_SDSS_DR14_%28panorama%29.jpg/330px-Messier53_-_SDSS_DR14_%28panorama%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 13,
+      "height": 13
+    }
   },
   {
     "id": "NGC 6715",
@@ -985,7 +1285,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Messier_54_HST.jpg/330px-Messier_54_HST.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 9,
+      "height": 9
+    }
   },
   {
     "id": "NGC 6809",
@@ -998,7 +1302,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Messier_55_VISTA.jpg/330px-Messier_55_VISTA.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 19,
+      "height": 19
+    }
   },
   {
     "id": "NGC 6779",
@@ -1011,7 +1319,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Messier_56_Hubble_WikiSky.jpg/330px-Messier_56_Hubble_WikiSky.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 7,
+      "height": 7
+    }
   },
   {
     "id": "NGC 628",
@@ -1024,7 +1336,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/PESSTO_Snaps_Supernova_in_Messier_74.jpg/330px-PESSTO_Snaps_Supernova_in_Messier_74.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 10,
+      "height": 9
+    }
   },
   {
     "id": "NGC 6656",
@@ -1037,7 +1353,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/The_crammed_centre_of_Messier_22.jpg/330px-The_crammed_centre_of_Messier_22.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 32,
+      "height": 32
+    }
   },
   {
     "id": "NGC 281",
@@ -1050,7 +1370,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/PacMan_Nebula%2C_NGC_281.jpg/330px-PacMan_Nebula%2C_NGC_281.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 35,
+      "height": 30
+    }
   },
   {
     "id": "NGC 6960",
@@ -1063,7 +1387,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Veil_Nebula_-_NGC6960.jpg/330px-Veil_Nebula_-_NGC6960.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 70,
+      "height": 10
+    }
   },
   {
     "id": "NGC 6992",
@@ -1076,7 +1404,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Veil_Nebula_-_NGC6960.jpg/330px-Veil_Nebula_-_NGC6960.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 60,
+      "height": 8
+    }
   },
   {
     "id": "NGC 7000",
@@ -1089,7 +1421,11 @@
     "difficulty": "Easy",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/NGC_7000_%2B_IC_5070.jpg/330px-NGC_7000_%2B_IC_5070.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 120,
+      "height": 100
+    }
   },
   {
     "id": "IC 434",
@@ -1102,7 +1438,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Barnard_33.jpg/330px-Barnard_33.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 60,
+      "height": 40
+    }
   },
   {
     "id": "NGC 2024",
@@ -1115,7 +1455,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Flame-Nebula.jpg/330px-Flame-Nebula.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 30,
+      "height": 30
+    }
   },
   {
     "id": "NGC 7331",
@@ -1128,7 +1472,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/NGC_7331_Acquired_with_the_Schulman_Telescope_at_the_Mount_Lemmon_SkyCenter.jpg/330px-NGC_7331_Acquired_with_the_Schulman_Telescope_at_the_Mount_Lemmon_SkyCenter.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 11,
+      "height": 4
+    }
   },
   {
     "id": "NGC 1068",
@@ -1141,7 +1489,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Messier_77_spiral_galaxy_by_HST.jpg/330px-Messier_77_spiral_galaxy_by_HST.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 8,
+      "height": 5
+    }
   },
   {
     "id": "NGC 7479",
@@ -1154,7 +1506,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Caldwell_44.jpg/330px-Caldwell_44.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 4,
+      "height": 2
+    }
   },
   {
     "id": "IC 405",
@@ -1167,7 +1523,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Flaming_Star_Nebula%2C_IC_405.png/330px-Flaming_Star_Nebula%2C_IC_405.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 35,
+      "height": 25
+    }
   },
   {
     "id": "IC 410",
@@ -1180,7 +1540,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/IC410_SHO.jpg/330px-IC410_SHO.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 40,
+      "height": 30
+    }
   },
   {
     "id": "NGC 2403",
@@ -1193,7 +1557,11 @@
     "difficulty": "Medium",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/NGC2403-Subaru-HST-L.jpg/330px-NGC2403-Subaru-HST-L.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 22,
+      "height": 13
+    }
   },
   {
     "id": "NGC 891",
@@ -1206,7 +1574,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/NGC891HunterWilson.jpg/330px-NGC891HunterWilson.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 13,
+      "height": 3
+    }
   },
   {
     "id": "NGC 4038",
@@ -1219,7 +1591,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Antennae_Galaxies_reloaded.jpg/330px-Antennae_Galaxies_reloaded.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 4,
+      "height": 3
+    }
   },
   {
     "id": "NGC 2261",
@@ -1232,7 +1608,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Hubble%27s_Variable_Nebula_-_NGC_2261.png/330px-Hubble%27s_Variable_Nebula_-_NGC_2261.png",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 4,
+      "height": 2
+    }
   },
   {
     "id": "NGC 4631",
@@ -1245,7 +1625,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/NGC_4631_-_Hubble.jpg/330px-NGC_4631_-_Hubble.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 15,
+      "height": 3
+    }
   },
   {
     "id": "NGC 4676",
@@ -1258,7 +1642,11 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Merging_galaxies_NGC_4676_%28captured_by_the_Hubble_Space_Telescope%29.jpg/330px-Merging_galaxies_NGC_4676_%28captured_by_the_Hubble_Space_Telescope%29.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 4,
+      "height": 2
+    }
   },
   {
     "id": "NGC 7635",
@@ -1271,6 +1659,10 @@
     "difficulty": "Hard",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/The_Bubble_Nebula_-_NGC_7635_-_Heic1608a.jpg/330px-The_Bubble_Nebula_-_NGC_7635_-_Heic1608a.jpg",
     "distance": null,
-    "distanceUnit": "ly"
+    "distanceUnit": "ly",
+    "angularSize": {
+      "width": 15,
+      "height": 10
+    }
   }
 ]

@@ -1,18 +1,20 @@
 import React from 'react';
-import { DeepSkyObject, MappedAstronomyData, NightlyForecast, AstroForecastHour } from '../types';
+import { DeepSkyObject, MappedAstronomyData, NightlyForecast, AstroForecastHour, AstroEquipment } from '../types';
 import { fetchAstronomyData } from '../services/astronomyApiService';
 import { mapAstronomyData } from '../services/astronomyDataMapper';
 import { fetchNightlyForecast, fetchAstroForecast } from '../services/weatherService';
 import { mapNightlyForecast, mapAndFilterImagingWindow } from '../services/weatherDataMapper';
 import { NightlyForecastView } from './NightlyForecastView';
-import { ChevronLeft, ChevronRight, MapPin, Calendar, Star, Info, ExternalLink, Clock, ArrowUp, Filter, ArrowDownUp, SlidersHorizontal, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Calendar, Star, Info, ExternalLink, Clock, ArrowUp, Filter, ArrowDownUp, SlidersHorizontal, Target, Crosshair } from 'lucide-react';
 import { Button, Select, Lightbox, Modal } from './Shared';
 import { parseRA, parseDec, calculateImagingWindow, ImagingWindowResult } from '../services/astronomyUtils';
 import { fetchDeepSkyCatalog, filterCatalogRoughly } from '../services/catalogService';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import { getSetupFOV, checkTargetFit } from '../services/equipmentService';
 
 interface BestTargetsViewProps {
-    onNavigate: (view: any) => void;
+    onNavigate?: (view: any) => void;
+    equipment?: AstroEquipment[];
 }
 
 interface EnrichedTarget extends DeepSkyObject {
@@ -20,7 +22,7 @@ interface EnrichedTarget extends DeepSkyObject {
     darknessWindow?: { start: Date; end: Date };
 }
 
-export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) => {
+export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate, equipment = [] }) => {
     const [locationSource, setLocationSource] = React.useState<'current' | 'saintEtienne' | 'pradelles' | ''>('');
     const [coordinates, setCoordinates] = React.useState<{ lat: number; lon: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = React.useState(false);
@@ -30,6 +32,7 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) 
     const [selectedType, setSelectedType] = React.useState<string>('all');
     const [selectedDifficulty, setSelectedDifficulty] = React.useState<string>('all');
     const [showDifficultyHelp, setShowDifficultyHelp] = React.useState(false);
+    const [fovFilter, setFovFilter] = React.useState<boolean>(false); // FOV-based filter toggle
     const [sortBy, setSortBy] = React.useState<'duration' | 'transit' | 'mag'>('duration');
     const [minAltitude, setMinAltitude] = React.useState<number>(30);
 
@@ -300,7 +303,18 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) 
 
             // Filter out targets that are not visible (max altitude < minAltitude)
             // Also filter out targets with 0 duration (bad weather or never rises)
-            const actuallyVisibleTargets = enrichedTargets.filter(t => t.imagingWindow.maxAlt >= minAltitude && t.imagingWindow.duration > 0);
+            let actuallyVisibleTargets = enrichedTargets.filter(t => t.imagingWindow.maxAlt >= minAltitude && t.imagingWindow.duration > 0);
+
+            // FOV-based filter: remove targets that are too large for the primary setup
+            if (fovFilter && equipment.length > 0) {
+                const setupInfo = getSetupFOV(equipment);
+                if (setupInfo.fov) {
+                    actuallyVisibleTargets = actuallyVisibleTargets.filter(t => {
+                        const fit = checkTargetFit(t.angularSize, setupInfo.fov!);
+                        return fit.fit !== 'too_large'; // Keep targets that fit or are smaller than FOV
+                    });
+                }
+            }
 
             // Sort logic
             actuallyVisibleTargets.sort((a, b) => {
@@ -318,7 +332,7 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) 
             // Limit to top 50 to prevent rendering issues if the list is still huge
             setBestTargets(actuallyVisibleTargets.slice(0, 50));
         }
-    }, [coordinates, mappedAstroData, selectedDate, currentBortle, selectedType, selectedDifficulty, sortBy, minAltitude, hourlyWeather, fullCatalog]);
+    }, [coordinates, mappedAstroData, selectedDate, currentBortle, selectedType, selectedDifficulty, sortBy, minAltitude, hourlyWeather, fullCatalog, fovFilter, equipment]);
 
 
     const handleImageClick = (url: string, alt: string) => {
@@ -476,6 +490,7 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) 
                                 </Select>
                             </div>
 
+                            {" "}
                             {/* Min Altitude */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-medium text-text-secondary">
@@ -495,6 +510,33 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) 
                                     <span className="text-xs text-text-secondary">60°</span>
                                 </div>
                             </div>
+
+                            {/* FOV Filter */}
+                            {equipment.length > 0 && (() => {
+                                const setupInfo = getSetupFOV(equipment);
+                                return setupInfo.fov ? (
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+                                            <Crosshair size={16} /> FOV Filter
+                                        </label>
+                                        <button
+                                            onClick={() => setFovFilter(!fovFilter)}
+                                            className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                                                fovFilter ? 'bg-primary text-white' : 'bg-surface-light text-text-secondary hover:bg-primary/10 hover:text-primary'
+                                            }`}
+                                        >
+                                            <Crosshair size={14} />
+                                            {fovFilter ? 'Fits My Setup' : 'All Targets'}
+                                        </button>
+                                        <p className='text-xs text-text-secondary'>
+                                            {setupInfo.telescope?.name} + {setupInfo.camera?.name}
+                                            <br />
+                                            FOV: {setupInfo.fov.widthArcmin}&apos; × {setupInfo.fov.heightArcmin}&apos;
+                                            {setupInfo.imageScale && ` | ${setupInfo.imageScale}"/px`}
+                                        </p>
+                                    </div>
+                                ) : null;
+                            })()}
                         </div>
                     </div>
                 )}
@@ -554,6 +596,24 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate }) 
                                                         <span className="text-xs font-mono text-text-secondary border border-border px-1.5 py-0.5 rounded">
                                                             {target.constellation}
                                                         </span>
+                                                        {/* FOV Fit Badge */}
+                                                        {fovFilter && equipment.length > 0 && (() => {
+                                                            const setupInfo = getSetupFOV(equipment);
+                                                            if (!setupInfo.fov) return null;
+                                                            const fit = checkTargetFit(target.angularSize, setupInfo.fov);
+                                                            const colors = {
+                                                                perfect: 'bg-emerald-500/20 text-emerald-400',
+                                                                good: 'bg-green-500/20 text-green-400',
+                                                                tight: 'bg-yellow-500/20 text-yellow-400',
+                                                                too_large: 'bg-red-500/20 text-red-400'
+                                                            };
+                                                            return (
+                                                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${colors[fit.fit]}`}>
+                                                                    {fit.fit === 'perfect' ? '✓' : fit.fit === 'good' ? '≈' : fit.fit === 'tight' ? '⚠' : '✗'}
+                                                                    {target.angularSize ? `${target.angularSize.width}'` : ''}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                                 <p className="text-primary font-medium">{target.commonName}</p>

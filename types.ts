@@ -66,6 +66,37 @@ export interface DeepSkyObject {
     ageUnit: string;
     image?: string;
     difficulty?: 'Easy' | 'Medium' | 'Hard';
+    angularSize?: { width: number; height: number }; // arcminutes
+}
+
+// Equipment with FOV-relevant specs for the Equipment Tracker feature
+export interface AstroEquipment {
+    id: string;
+    name: string;
+    category: 'Telescope' | 'Camera' | 'Mount' | 'Filter' | 'Accessory' | 'Software';
+    imageUrl: string;
+    // Telescope specs
+    focalLength?: number;      // mm
+    aperture?: number;         // mm
+    fRatio?: number;           // f/x
+    telescopeType?: string;    // Refractor, Reflector, Catadioptric, etc.
+    // Camera specs  
+    sensorWidth?: number;      // mm
+    sensorHeight?: number;     // mm
+    pixelSize?: number;        // micrometers
+    resolution?: string;      // e.g. "3008x3008"
+    cameraType?: string;       // Cooled CCD, DSLR, etc.
+    // Mount specs
+    payloadCapacity?: number;  // kg
+    mountType?: string;        // EQ, Alt-Az, etc.
+    // Filter specs
+    filterType?: string;       // Broadband, Narrowband, etc.
+    bandwidth?: number;        // nm
+    // General
+    specs: string;
+    description: string;
+    rating: number;
+    isPersonal: boolean;       // true = owned, false = shared/remote observatory
 }
 
 export interface WorkflowStep {
