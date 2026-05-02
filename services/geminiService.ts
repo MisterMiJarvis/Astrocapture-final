@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 // Initialize the Gemini AI client
 // The API key is guaranteed to be in process.env.API_KEY per environment setup
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY, httpOptions: { apiVersion: 'v1alpha' } });
 
 export const generateObjectDescription = async (objectName: string): Promise<string> => {
   try {

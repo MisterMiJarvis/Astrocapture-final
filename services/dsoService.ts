@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { DeepSkyObject } from '../types';
 import { getDocument, saveCollectionItem } from './firebase';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY, httpOptions: { apiVersion: 'v1alpha' } });
 const CACHE_COLLECTION = 'dso_cache';
 
 export const fetchDsoData = async (objectName: string): Promise<DeepSkyObject | null> => {
