@@ -28,6 +28,14 @@ export enum ViewState {
   NOVA_EQUIPMENT_CALC,
   // Telescopius API Testing
   TELESCOPIUS_TEST,
+  // APLS v3 — Module 2
+  APLS_MODULE2,
+  // APLS v3 — Modules 1,3,4,5,6
+  APLS_MODULE1,
+  APLS_MODULE3,
+  APLS_MODULE4,
+  APLS_MODULE5,
+  APLS_MODULE6,
 }
 
 export interface HeroSlide {
@@ -443,4 +451,147 @@ export interface AstroCaptureV2Data {
   equipment: EquipmentProfile[];
   sessions: ObservationSession[];
   askHalHistory: AskHalMessage[];
+}
+
+// ============================================================================
+// APLS v3 — Module 2 : Équipement, Échantillonnage & Guidage
+// ============================================================================
+
+/** Profil de rig complet (tube + réducteur + capteur) */
+export interface AplsRigProfile {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  // Tube
+  telescope: {
+    focalLength: number;      // mm (focale native)
+    aperture: number;         // mm (diamètre ouverture)
+    fRatio: number;           // f/D
+    type: 'Refractor' | 'Reflector' | 'SCT' | 'RC' | 'CDK';
+  };
+  // Modificateur optique
+  opticModifier: {
+    type: 'Reducer' | 'Corrector' | 'Reducer-Corrector' | 'Flattener' | 'Barlow' | 'None';
+    factor: number;           // 0.6 = réducteur 0.6×
+    effectiveFocalLength: number; // calculé : F × factor
+  };
+  // Capteur d'imagerie
+  imagingCamera: {
+    name: string;
+    sensorWidth: number;      // mm
+    sensorHeight: number;     // mm
+    pixelSize: number;        // μm
+    resolutionX: number;
+    resolutionY: number;
+    readNoise: number;        // e⁻
+    quantumEfficiency: number; // 0-1
+    isColor: boolean;
+    hasCooling: boolean;
+    binningAcquisition: number;      // 1 ou 2 (Binning matériel à la capture)
+  };
+  // Caméra de guidage
+  guidingCamera?: {
+    name: string;
+    pixelSize: number;        // μm
+    binning: number;          // 1×1, 2×2
+    mode: 'GuideScope' | 'OAG';
+  };
+  // Monture
+  mount: {
+    name: string;
+    type: string;
+    maxPayload: number;       // kg
+  };
+}
+
+/** Échantillonnage calculé */
+export interface AplsSamplingResult {
+  imagingPixelScale: number;    // "/pixel (inclut binningAcquisition)
+  guidingPixelScale?: number;   // "/pixel
+  ratioImagingToGuiding: number;
+  fovWidth: number;             // arcmin
+  fovHeight: number;            // arcmin
+  fovDiagonal: number;          // arcmin
+  isOversampled: boolean;
+  isUndersampled: boolean;
+  recommendation: AplsSamplingRecommendation;
+}
+
+/** Recommandation d'échantillonnage */
+export interface AplsSamplingRecommendation {
+  status: 'ideal' | 'undersampled_critical' | 'undersampled_moderate' | 'oversampled';
+  drizzleRecommendation: '2x_aggressive' | '2x' | '1x' | 'none' | 'bin2x2';
+  pixelDrop?: number;
+  explanation: string;
+  ditherRequired: boolean;
+  ditherMinPixels: number;
+}
+
+/** Setup de guidage avec calculs */
+export interface AplsGuidingSetup {
+  cameraPixelSize: number;      // μm
+  binning: number;
+  focalLength: number;          // mm (focale lunette guide ou OAG)
+  pixelScale: number;           // "/pixel (calculé)
+  ditherPixels: number;         // pixels à entrer dans PHD2/NINA/ASIAIR
+  ditherArcseconds: number;     // décalage physique en "/dither
+}
+
+/** Masque d'horizon local */
+export interface AplsHorizonMask {
+  id: string;
+  name: string;
+  locationId?: string;
+  points: AplsHorizonPoint[];       // [ {az: 0, alt: 10}, {az: 45, alt: 15}, ... ]
+  format: 'csv' | 'yaml' | 'telescopius';
+}
+
+export interface AplsHorizonPoint {
+  azimuth: number;    // degrés 0-360
+  altitude: number;   // degrés 0-90
+}
+
+// ============================================================================
+// APLS v3 — Module 5 : Environnement, Filtres & Calculateur d'Exposition
+// ============================================================================
+
+export type AplsFilterType = 'UV_IR_Cut' | 'L_Ultimate' | 'LPS_D2' | 'Ha' | 'OIII' | 'SII' | 'RGB' | 'Luminance';
+
+export interface AplsFilterProfile {
+  type: AplsFilterType;
+  name: string;
+  bandwidthNm: number;          // largeur de bande en nm
+  transmission: number;         // τ (0-1)
+  skySuppression: number;       // 0-1
+  color: string;                // hex pour UI
+  description: string;
+  useCases: string[];
+  moonCompatible: boolean;
+  recommendedTargets: string[];
+}
+
+export interface AplsExposureParams {
+  skyMagnitude: number;           // mag/arcsec² (SQM)
+  aperture: number;                 // mm
+  pixelSize: number;                // μm
+  focalLength: number;              // mm
+  quantumEfficiency: number;        // 0-1
+  filterTransmission: number;       // τ
+  readNoise: number;                // e⁻
+  kFactor: number;                  // 5 ou 10
+  // Calculés
+  fluxSky: number;                  // Φ_sky
+  apertureArea: number;             // m²
+  bSky: number;                     // e⁻/px/sec
+  tOptimum: number;                 // secondes
+}
+
+export interface AplsExposureResult {
+  subExposureTime: number;          // secondes optimales
+  totalSubsForSNR: number;          // nombre de poses pour SNR cible
+  totalIntegrationTime: number;   // minutes totales
+  bSky: number;                     // e⁻/px/sec
+  swampingFactor: number;         // B_sky / RN²
+  recommendation: string;
+  warning?: string;
 }

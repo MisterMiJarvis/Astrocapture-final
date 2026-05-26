@@ -216,6 +216,62 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_gallery_post ON processing_gallery_images(post_id);
   CREATE INDEX IF NOT EXISTS idx_mosaic_name ON mosaic_plans(name);
   CREATE INDEX IF NOT EXISTS idx_log_type ON log_analyses(log_type);
+
+  -- ===========================================
+  -- APLS v3 — Module 2 : Rig Profiles
+  -- ===========================================
+  CREATE TABLE IF NOT EXISTS apls_rig_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    is_default INTEGER DEFAULT 0,
+    -- Tube
+    telescope_name TEXT,
+    telescope_focal_length REAL,
+    telescope_aperture REAL,
+    telescope_f_ratio REAL,
+    telescope_type TEXT,
+    -- Modificateur optique
+    modifier_type TEXT DEFAULT 'None',
+    modifier_factor REAL DEFAULT 1.0,
+    effective_focal_length REAL,
+    -- Capteur
+    sensor_width REAL,
+    sensor_height REAL,
+    pixel_size REAL,
+    resolution_x INTEGER,
+    resolution_y INTEGER,
+    read_noise REAL,
+    quantum_efficiency REAL,
+    is_color INTEGER DEFAULT 1,
+    has_cooling INTEGER DEFAULT 0,
+    binning_acquisition INTEGER DEFAULT 1,  /* 1 ou 2 */
+    -- Guidage
+    guiding_camera_name TEXT,
+    guiding_pixel_size REAL,
+    guiding_binning INTEGER DEFAULT 1,
+    guiding_mode TEXT DEFAULT 'GuideScope',
+    -- Monture
+    mount_name TEXT,
+    mount_type TEXT,
+    mount_max_payload REAL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  -- ===========================================
+  -- APLS v3 — Module 2 : Horizon Masks
+  -- ===========================================
+  CREATE TABLE IF NOT EXISTS apls_horizon_masks (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    location_id TEXT,
+    format TEXT DEFAULT 'csv',
+    points_json TEXT NOT NULL,  -- JSON array de {az, alt}
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_apls_rigs_default ON apls_rig_profiles(is_default);
+  CREATE INDEX IF NOT EXISTS idx_apls_horizons_loc ON apls_horizon_masks(location_id);
 `);
 
 export default db;

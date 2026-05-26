@@ -1498,6 +1498,333 @@ app.get('/api/ask-hal', async (c) => {
   }
 });
 
+// =====================
+// APLS v3 — Module 2 : Rig Profiles
+// =====================
+
+function parseAplsRig(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    isDefault: Boolean(row.is_default),
+    telescope: {
+      focalLength: row.telescope_focal_length,
+      aperture: row.telescope_aperture,
+      fRatio: row.telescope_f_ratio,
+      type: row.telescope_type || 'Refractor',
+    },
+    opticModifier: {
+      type: row.modifier_type || 'None',
+      factor: row.modifier_factor || 1.0,
+      effectiveFocalLength: row.effective_focal_length,
+    },
+    imagingCamera: {
+      name: row.telescope_name || '',
+      sensorWidth: row.sensor_width,
+      sensorHeight: row.sensor_height,
+      pixelSize: row.pixel_size,
+      resolutionX: row.resolution_x,
+      resolutionY: row.resolution_y,
+      readNoise: row.read_noise,
+      quantumEfficiency: row.quantum_efficiency,
+      isColor: Boolean(row.is_color),
+      hasCooling: Boolean(row.has_cooling),
+      binningAcquisition: row.binning_acquisition || 1,
+    },
+    guidingCamera: row.guiding_camera_name ? {
+      name: row.guiding_camera_name,
+      pixelSize: row.guiding_pixel_size,
+      binning: row.guiding_binning || 1,
+      mode: row.guiding_mode || 'GuideScope',
+    } : undefined,
+    mount: {
+      name: row.mount_name || '',
+      type: row.mount_type || '',
+      maxPayload: row.mount_max_payload,
+    },
+  };
+}
+
+app.get('/api/apls/rigs', (c) => {
+  const rows = db.prepare('SELECT * FROM apls_rig_profiles ORDER BY name ASC').all();
+  return c.json((rows as any[]).map(parseAplsRig));
+});
+
+app.get('/api/apls/rigs/:id', (c) => {
+  const row = db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
+  if (!row) return c.json({ error: 'Rig not found' }, 404);
+  return c.json(parseAplsRig(row));
+});
+
+app.post('/api/apls/rigs', auth, async (c) => {
+  const body = await c.req.json();
+  const id = body.id || crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  // Auto-compute effective focal length if not provided
+  const effFocal = body.opticModifier?.effectiveFocalLength
+    || (body.telescope?.focalLength || 0) * (body.opticModifier?.factor || 1.0);
+
+  db.prepare(`INSERT INTO apls_rig_profiles (
+    id, name, is_default,
+    telescope_name, telescope_focal_length, telescope_aperture, telescope_f_ratio, telescope_type,
+    modifier_type, modifier_factor, effective_focal_length,
+    sensor_width, sensor_height, pixel_size, resolution_x, resolution_y,
+    read_noise, quantum_efficiency, is_color, has_cooling, binning_acquisition,
+    guiding_camera_name, guiding_pixel_size, guiding_binning, guiding_mode,
+    mount_name, mount_type, mount_max_payload,
+    created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, body.name || 'New Rig', body.isDefault ? 1 : 0,
+    body.telescope?.name || '', body.telescope?.focalLength || 0, body.telescope?.aperture || 0,
+    body.telescope?.fRatio || 0, body.telescope?.type || 'Refractor',
+    body.opticModifier?.type || 'None', body.opticModifier?.factor || 1.0, effFocal,
+    body.imagingCamera?.sensorWidth || 0, body.imagingCamera?.sensorHeight || 0,
+    body.imagingCamera?.pixelSize || 0, body.imagingCamera?.resolutionX || 0,
+    body.imagingCamera?.resolutionY || 0, body.imagingCamera?.readNoise || 0,
+    body.imagingCamera?.quantumEfficiency || 0, body.imagingCamera?.isColor ? 1 : 0,
+    body.imagingCamera?.hasCooling ? 1 : 0, body.imagingCamera?.binningAcquisition || 1,
+    body.guidingCamera?.name || null, body.guidingCamera?.pixelSize || null,
+    body.guidingCamera?.binning || null, body.guidingCamera?.mode || null,
+    body.mount?.name || '', body.mount?.type || '', body.mount?.maxPayload || 0,
+    now, now
+  );
+
+  return c.json(parseAplsRig(db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(id)));
+});
+
+app.put('/api/apls/rigs/:id', auth, async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const now = new Date().toISOString();
+
+  const effFocal = body.opticModifier?.effectiveFocalLength
+    || (body.telescope?.focalLength || 0) * (body.opticModifier?.factor || 1.0);
+
+  db.prepare(`UPDATE apls_rig_profiles SET
+    name = ?, is_default = ?,
+    telescope_name = ?, telescope_focal_length = ?, telescope_aperture = ?, telescope_f_ratio = ?, telescope_type = ?,
+    modifier_type = ?, modifier_factor = ?, effective_focal_length = ?,
+    sensor_width = ?, sensor_height = ?, pixel_size = ?, resolution_x = ?, resolution_y = ?,
+    read_noise = ?, quantum_efficiency = ?, is_color = ?, has_cooling = ?, binning_acquisition = ?,
+    guiding_camera_name = ?, guiding_pixel_size = ?, guiding_binning = ?, guiding_mode = ?,
+    mount_name = ?, mount_type = ?, mount_max_payload = ?,
+    updated_at = ?
+    WHERE id = ?`).run(
+    body.name || '', body.isDefault ? 1 : 0,
+    body.telescope?.name || '', body.telescope?.focalLength || 0, body.telescope?.aperture || 0,
+    body.telescope?.fRatio || 0, body.telescope?.type || 'Refractor',
+    body.opticModifier?.type || 'None', body.opticModifier?.factor || 1.0, effFocal,
+    body.imagingCamera?.sensorWidth || 0, body.imagingCamera?.sensorHeight || 0,
+    body.imagingCamera?.pixelSize || 0, body.imagingCamera?.resolutionX || 0,
+    body.imagingCamera?.resolutionY || 0, body.imagingCamera?.readNoise || 0,
+    body.imagingCamera?.quantumEfficiency || 0, body.imagingCamera?.isColor ? 1 : 0,
+    body.imagingCamera?.hasCooling ? 1 : 0, body.imagingCamera?.binningAcquisition || 1,
+    body.guidingCamera?.name || null, body.guidingCamera?.pixelSize || null,
+    body.guidingCamera?.binning || null, body.guidingCamera?.mode || null,
+    body.mount?.name || '', body.mount?.type || '', body.mount?.maxPayload || 0,
+    now, id
+  );
+
+  return c.json(parseAplsRig(db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(id)));
+});
+
+app.delete('/api/apls/rigs/:id', auth, (c) => {
+  db.prepare('DELETE FROM apls_rig_profiles WHERE id = ?').run(c.req.param('id'));
+  return c.json({ ok: true });
+});
+
+// Sampling calculation endpoint
+app.post('/api/apls/rigs/:id/calculate-sampling', async (c) => {
+  const rig = db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
+  if (!rig) return c.json({ error: 'Rig not found' }, 404);
+
+  const r = rig as any;
+  const pixelSize = r.pixel_size || 0;
+  const effFocal = r.effective_focal_length || r.telescope_focal_length || 1;
+  const binning = r.binning_acquisition || 1;
+
+  // E_imaging = (pixel_size_natif * binning) * 206.265 / F_eff
+  const pixelScale = ((pixelSize * binning) * 206.265) / effFocal;
+
+  const sensorW = r.sensor_width || 0;
+  const sensorH = r.sensor_height || 0;
+  const fovW = (sensorW * 206.265) / effFocal;
+  const fovH = (sensorH * 206.265) / effFocal;
+  const fovDiag = Math.sqrt(fovW * fovW + fovH * fovH);
+
+  let recommendation: any;
+  if (pixelScale > 2.5) {
+    recommendation = {
+      status: 'undersampled_critical',
+      drizzleRecommendation: '2x_aggressive',
+      explanation: 'Sous-échantillonnage critique. Étoiles carrées. Drizzle 2× + dithering agressif.',
+      ditherRequired: true, ditherMinPixels: 5
+    };
+  } else if (pixelScale > 1.5) {
+    recommendation = {
+      status: 'undersampled_moderate',
+      drizzleRecommendation: '2x',
+      pixelDrop: 0.7,
+      explanation: 'Sous-échantillonnage modéré. Drizzle 2× avec Pixel Drop 0.7.',
+      ditherRequired: true, ditherMinPixels: 3
+    };
+  } else if (pixelScale > 0.8) {
+    recommendation = {
+      status: 'ideal',
+      drizzleRecommendation: 'none',
+      explanation: 'Zone idéale. Pas de Drizzle nécessaire.',
+      ditherRequired: true, ditherMinPixels: 3
+    };
+  } else {
+    recommendation = {
+      status: 'oversampled',
+      drizzleRecommendation: 'bin2x2',
+      explanation: 'Sur-échantillonnage. Drizzle déconseillé. Binning 2×2 recommandé.',
+      ditherRequired: false, ditherMinPixels: 0
+    };
+  }
+
+  return c.json({
+    imagingPixelScale: parseFloat(pixelScale.toFixed(3)),
+    fovWidth: parseFloat(fovW.toFixed(2)),
+    fovHeight: parseFloat(fovH.toFixed(2)),
+    fovDiagonal: parseFloat(fovDiag.toFixed(2)),
+    isOversampled: pixelScale < 0.8,
+    isUndersampled: pixelScale > 1.5,
+    recommendation,
+  });
+});
+
+// Guiding calculation endpoint
+app.post('/api/apls/rigs/:id/calculate-guiding', async (c) => {
+  const rig = db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
+  if (!rig) return c.json({ error: 'Rig not found' }, 404);
+
+  const body = await c.req.json();
+  const r = rig as any;
+
+  const guideFocal = body.guidingFocalLength || r.guiding_focal_length || r.telescope_focal_length || 1;
+  const guidePixelSize = body.guidingPixelSize || r.guiding_pixel_size || r.pixel_size || 1;
+  const guideBinning = body.guidingBinning || r.guiding_binning || 1;
+
+  const imagingPixelScale = ((r.pixel_size * (r.binning_acquisition || 1)) * 206.265) / (r.effective_focal_length || r.telescope_focal_length || 1);
+  const guidingPixelScale = ((guidePixelSize * guideBinning) * 206.265) / guideFocal;
+  const ratio = imagingPixelScale / guidingPixelScale;
+
+  const ditherPrincipalPixels = body.ditherPrincipalPixels || 3;
+  const ditherGuidePixels = Math.ceil(ditherPrincipalPixels * ratio);
+  const ditherArcseconds = ditherGuidePixels * guidingPixelScale;
+
+  return c.json({
+    imagingPixelScale: parseFloat(imagingPixelScale.toFixed(3)),
+    guidingPixelScale: parseFloat(guidingPixelScale.toFixed(3)),
+    ratioImagingToGuiding: parseFloat(ratio.toFixed(2)),
+    isValid: ratio < 0.2, // < 1:5
+    message: ratio < 0.2
+      ? `Ratio ${ratio.toFixed(2)} OK (< 1:5)`
+      : `Ratio ${ratio.toFixed(2)} trop élevé. Guide scope trop court ou capteur guidage trop gros.`,
+    ditherPixels: ditherGuidePixels,
+    ditherArcseconds: parseFloat(ditherArcseconds.toFixed(2)),
+  });
+});
+
+// =====================
+// APLS v3 — Module 2 : Horizon Masks
+// =====================
+
+function parseHorizonMask(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    locationId: row.location_id,
+    format: row.format || 'csv',
+    points: JSON.parse(row.points_json || '[]'),
+  };
+}
+
+app.get('/api/apls/horizons', (c) => {
+  const rows = db.prepare('SELECT * FROM apls_horizon_masks ORDER BY name ASC').all();
+  return c.json((rows as any[]).map(parseHorizonMask));
+});
+
+app.get('/api/apls/horizons/:id', (c) => {
+  const row = db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'));
+  if (!row) return c.json({ error: 'Horizon mask not found' }, 404);
+  return c.json(parseHorizonMask(row));
+});
+
+app.post('/api/apls/horizons', auth, async (c) => {
+  const body = await c.req.json();
+  const id = body.id || crypto.randomUUID();
+  db.prepare(`INSERT INTO apls_horizon_masks (id, name, location_id, format, points_json)
+    VALUES (?, ?, ?, ?, ?)`).run(
+    id, body.name || 'New Horizon', body.locationId || null, body.format || 'csv',
+    JSON.stringify(body.points || [])
+  );
+  return c.json(parseHorizonMask(db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(id)));
+});
+
+app.put('/api/apls/horizons/:id', auth, async (c) => {
+  const body = await c.req.json();
+  db.prepare(`UPDATE apls_horizon_masks SET
+    name = ?, location_id = ?, format = ?, points_json = ? WHERE id = ?`).run(
+    body.name || '', body.locationId || null, body.format || 'csv',
+    JSON.stringify(body.points || []), c.req.param('id')
+  );
+  return c.json(parseHorizonMask(db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'))));
+});
+
+app.delete('/api/apls/horizons/:id', auth, (c) => {
+  db.prepare('DELETE FROM apls_horizon_masks WHERE id = ?').run(c.req.param('id'));
+  return c.json({ ok: true });
+});
+
+app.post('/api/apls/horizons/:id/import', auth, async (c) => {
+  const body = await c.req.json();
+  const raw = body.raw || '';
+  let points: Array<{azimuth: number; altitude: number}> = [];
+
+  if (body.format === 'csv') {
+    const lines = raw.split('\n').filter((l: string) => l.trim() && !l.startsWith('#'));
+    for (const line of lines) {
+      const parts = line.split(/[,;\t]/).map((s: string) => parseFloat(s.trim())).filter((n: number) => !isNaN(n));
+      if (parts.length >= 2) {
+        points.push({ azimuth: parts[0], altitude: parts[1] });
+      }
+    }
+  } else if (body.format === 'yaml') {
+    const lines = raw.split('\n').filter((l: string) => l.trim());
+    for (const line of lines) {
+      const m = line.match(/az(?:imuth)?[:\s]+(\d+(?:\.\d+)?)/i);
+      const m2 = line.match(/alt(?:itude)?[:\s]+(\d+(?:\.\d+)?)/i);
+      if (m && m2) {
+        points.push({ azimuth: parseFloat(m[1]), altitude: parseFloat(m[2]) });
+      }
+    }
+  }
+
+  db.prepare(`UPDATE apls_horizon_masks SET points_json = ? WHERE id = ?`).run(
+    JSON.stringify(points), c.req.param('id')
+  );
+
+  return c.json({ points, count: points.length });
+});
+
+app.get('/api/apls/horizons/:id/export', (c) => {
+  const row = db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'));
+  if (!row) return c.json({ error: 'Not found' }, 404);
+  const points = JSON.parse((row as any).points_json || '[]');
+  // Telescopius format: CSV with Azimuth,Altitude
+  let csv = '# Horizon mask for Telescopius\n# Format: Azimuth(deg),Altitude(deg)\n';
+  for (const p of points) {
+    csv += `${p.azimuth.toFixed(1)},${p.altitude.toFixed(1)}\n`;
+  }
+  return new Response(csv, {
+    headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${(row as any).name.replace(/\s+/g, '_')}_horizon.csv"` }
+  });
+});
+
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

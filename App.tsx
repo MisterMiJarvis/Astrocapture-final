@@ -33,6 +33,12 @@ const EquipmentTrackerForm = React.lazy(() => import('./components/EquipmentTrac
 const LazyLoginView = React.lazy(() => import('./components/LoginView'));
 const NightlyForecastView = React.lazy(() => import('./components/NightlyForecastView'));
 const WeatherDisplayView = React.lazy(() => import('./components/WeatherDisplayView'));
+const AplsModule2View = React.lazy(() => import('./components/AplsModule2View'));
+const AplsModule1View = React.lazy(() => import('./src/components/Module1'));
+const AplsModule3View = React.lazy(() => import('./src/components/Module3'));
+const AplsModule4View = React.lazy(() => import('./src/components/Module4'));
+const AplsModule5View = React.lazy(() => import('./src/components/Module5'));
+const AplsModule6View = React.lazy(() => import('./src/components/Module6'));
 
 const NavButton: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
   <button
@@ -435,7 +441,7 @@ const App = () => {
   };
 
   const handleNav = (target: ViewState) => {
-    if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES].includes(target)) {
+    if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6].includes(target)) {
       setSelectedTag(null);
       setSelectedPostId(null);
       setSelectedProcessingPostId(null);
@@ -480,6 +486,12 @@ const App = () => {
         'image-wall': ViewState.WALL_OF_IMAGES,
         'astro-index': ViewState.ASTRO_INDEX,
         'about': ViewState.ABOUT,
+        'apls-module1': ViewState.APLS_MODULE1,
+        'apls-module2': ViewState.APLS_MODULE2,
+        'apls-module3': ViewState.APLS_MODULE3,
+        'apls-module4': ViewState.APLS_MODULE4,
+        'apls-module5': ViewState.APLS_MODULE5,
+        'apls-module6': ViewState.APLS_MODULE6,
       };
       if (pageMap[url.toLowerCase()] !== undefined) handleNav(pageMap[url.toLowerCase()]);
     }
@@ -531,6 +543,12 @@ const App = () => {
               <NavButton active={view === ViewState.WALL_OF_IMAGES} onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</NavButton>
               <NavButton active={view === ViewState.POST_PROCESSING} onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</NavButton>
               <NavButton active={view === ViewState.ASTRO_INDEX} onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</NavButton>
+              <NavButton active={view === ViewState.APLS_MODULE2} onClick={() => handleNav(ViewState.APLS_MODULE2)}>Equipment</NavButton>
+              <NavButton active={view === ViewState.APLS_MODULE1} onClick={() => handleNav(ViewState.APLS_MODULE1)}>Dashboard</NavButton>
+              <NavButton active={view === ViewState.APLS_MODULE3} onClick={() => handleNav(ViewState.APLS_MODULE3)}>Framing</NavButton>
+              <NavButton active={view === ViewState.APLS_MODULE4} onClick={() => handleNav(ViewState.APLS_MODULE4)}>Planner</NavButton>
+              <NavButton active={view === ViewState.APLS_MODULE5} onClick={() => handleNav(ViewState.APLS_MODULE5)}>Exposure</NavButton>
+              <NavButton active={view === ViewState.APLS_MODULE6} onClick={() => handleNav(ViewState.APLS_MODULE6)}>Analysis</NavButton>
               <GlobalSearch posts={posts} processingPosts={processingPosts} onNavigate={handleSearchNavigate} />
             </div>
             <div className="md:hidden">
@@ -548,6 +566,12 @@ const App = () => {
               <MobileNavButton onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE2)}>Equipment</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE1)}>Dashboard</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE3)}>Framing</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE4)}>Planner</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE5)}>Exposure</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE6)}>Analysis</MobileNavButton>
             </div>
           </div>
         )}
@@ -567,6 +591,12 @@ const App = () => {
         {view === ViewState.LEGAL_NOTICE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LegalNoticeView config={legalNoticeConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.ADMIN_LOGIN && <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LazyLoginView onLogin={(token) => { setIsLoggedIn(true); setView(ViewState.ADMIN_DASHBOARD); }} /></div>}
         {view === ViewState.ADMIN_DASHBOARD && isLoggedIn && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AdminDashboard {...{posts, processingPosts, heroSlides, aboutConfig, logoUrl, faviconUrl, footerConfig, processingConfig, licenseConfig, legalNoticeConfig, cookieBannerConfig, gearItems, equipment}} onLogout={handleLogout} onReset={handleReset} /></div>}
+        {view === ViewState.APLS_MODULE2 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 2...</div>}><AplsModule2View /></React.Suspense>}
+        {view === ViewState.APLS_MODULE1 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 1...</div>}><AplsModule1View /></React.Suspense>}
+        {view === ViewState.APLS_MODULE3 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 3...</div>}><AplsModule3View /></React.Suspense>}
+        {view === ViewState.APLS_MODULE4 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 4...</div>}><AplsModule4View /></React.Suspense>}
+        {view === ViewState.APLS_MODULE5 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 5...</div>}><AplsModule5View /></React.Suspense>}
+        {view === ViewState.APLS_MODULE6 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 6...</div>}><AplsModule6View /></React.Suspense>}
       </main>
       <Footer config={footerConfig} isLoggedIn={isLoggedIn} onNavigateToLicense={() => handleNav(ViewState.LICENSE)} onNavigateToLegalNotice={() => handleNav(ViewState.LEGAL_NOTICE)} onNavigateToAdmin={() => handleNav(isLoggedIn ? ViewState.ADMIN_DASHBOARD : ViewState.ADMIN_LOGIN)} onNavigateToAbout={() => handleNav(ViewState.ABOUT)} />
       <Lightbox isOpen={lightboxState.isOpen} onClose={closeLightbox} items={lightboxState.items} startIndex={lightboxState.startIndex} />
