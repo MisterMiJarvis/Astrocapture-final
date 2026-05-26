@@ -95,9 +95,8 @@ The application features a custom design system with dark-mode-first aesthetics,
 | jose | JWT handling |
 
 ### External APIs
-- **OpenWeatherMap** — Weather data
+- **Open-Meteo** — Weather data & astronomy seeing forecasts
 - **SunCalc** — Sun/moon position calculations
-- **7Timer** — Astronomy seeing forecasts
 - **Telescopius** — Deep-sky object data & framing
 
 ---
