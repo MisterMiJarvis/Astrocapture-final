@@ -2,7 +2,7 @@ import { ObservationTarget, ObservationSession, DeepSkyObject, AstroEquipment } 
 import { calculateAltAz, calculateLST } from './astronomyUtils';
 import { getSetupFOV, checkTargetFit } from './equipmentService';
 
-// Firestore collection name
+// Observation data
 export const SESSIONS_COLLECTION = 'observation_sessions';
 export const TARGETS_COLLECTION = 'observation_targets';
 

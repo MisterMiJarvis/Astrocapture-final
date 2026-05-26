@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './src/index.css';
 import App from './App';
 
 // Register Service Worker for caching
@@ -19,8 +20,8 @@ if ('serviceWorker' in navigator) {
         .then(registration => {
           console.log('AstroCapture Service Worker registered with scope:', registration.scope);
         })
-        .catch(error => {
-          console.error('Service Worker registration failed:', error);
+        .catch(() => {
+          // Service Worker registration failed (likely HTTPS scope issue or missing file) - skip silently
         });
     } catch (error) {
       console.error('An unexpected error occurred during Service Worker registration setup:', error);

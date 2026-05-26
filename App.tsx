@@ -4,25 +4,19 @@ import React from 'react';
 import { ViewState, Post, AboutConfig, FooterConfig, AppData, ProcessingPost, ProcessingConfig, LicenseConfig, LegalNoticeConfig, CookieBannerConfig, APOD, AstrobinImage, DeepSkyObject, ProcessingLog, WorkflowStep, AcquisitionLogEntry, HeroSlide, ImageEntry, AstronomyData, MappedAstronomyData, AstroForecastHour, EquipmentItem, NightlyForecast } from './types';
 import { MessierObject, MESSIER_CATALOG } from './data/messierCatalog';
 import { INITIAL_DATA } from './initialData';
-import { generateObjectDescription, generateArticleContent } from './services/geminiService';
-import { initializeFirebase, isFirebaseInitialized, login, logout, getAuthInstance, subscribeToSettings, subscribeToCollection, saveSettings, saveCollectionItem, deleteCollectionItem, uploadFile, seedDatabase, getDocument } from './services/firebase';
-import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUploader, Lightbox, DraggableListItem, FileUploader, AiContentModal, Select, ToggleSwitch, ScrollToTopButton, SocialShare, CookieBanner } from './components/Shared';
-import { GearReviewsView } from './components/GearReviewsView';
-import { GearSettingsForm } from './components/GearSettingsForm';
-import { EquipmentTrackerForm } from './components/EquipmentTrackerForm';
-import { ObservationPlannerView } from './components/ObservationPlannerView';
-import { AstroEquipment } from './types';
+import { initializeFirebase, isFirebaseInitialized, login, logout, getAuthInstance, subscribeToSettings, subscribeToCollection, saveSettings, saveCollectionItem, deleteCollectionItem, uploadFile, getDocument, invalidateTokenCache } from './services/api';
+import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUploader, Lightbox, DraggableListItem, FileUploader, Select, ToggleSwitch, ScrollToTopButton, SocialShare, CookieBanner } from './components/Shared';
 import { DEFAULT_EQUIPMENT } from './services/equipmentService';
-import { 
-  Camera, Wind, User, Lock, Plus, Trash2, Edit2, LogOut, Menu, X, Info, 
+import {
+  Camera, Wind, User, Lock, Plus, Trash2, Edit2, LogOut, Menu, X, Info,
   LayoutDashboard, Newspaper, Sliders, Settings2,
-  Calendar as CalendarIcon, Aperture, Telescope, Sparkles, MapPin, 
-  LayoutTemplate, Upload, Twitter, Facebook, Link as LinkIcon, Settings, 
-  ZoomIn, Instagram, Youtube, Download, FileJson, Save, Image as ImageIcon, 
-  Code, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, ShieldCheck, 
+  Calendar as CalendarIcon, Aperture, Telescope, MapPin,
+  LayoutTemplate, Upload, Twitter, Facebook, Link as LinkIcon, Settings,
+  ZoomIn, Instagram, Youtube, Download, FileJson, Save, Image as ImageIcon,
+  Code, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, ShieldCheck,
   Search, GripVertical, Copy, Globe, Database, Key, Moon, Sun,
   RotateCw, MoveUp, SlidersHorizontal, Star, ThumbsUp,
-  Smile, Frown, Milestone, AlertCircle, Target, ArrowDown, ArrowUp, Tag, RotateCcw, Zap, File as FileIcon, AudioWaveform, Layers,
+  Smile, Frown, Milestone, AlertCircle, Target, ArrowDown, ArrowUp, Tag, RotateCcw, Maximize2, Minimize2, Zap, File as FileIcon, AudioWaveform, Layers,
   Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon, Radio, Mountain, Monitor, EyeOff
 } from 'lucide-react';
 import { fetchImageOfTheDay } from './services/nasaApiService';
@@ -32,12 +26,13 @@ import { fetchAstroForecast, fetchNightlyForecast } from './services/weatherServ
 import { fetchAstronomyData } from './services/astronomyApiService';
 import { mapAstronomyData } from './services/astronomyDataMapper';
 import { mapAndFilterImagingWindow, mapNightlyForecast } from './services/weatherDataMapper';
-import { NightlyForecastView } from './components/NightlyForecastView';
-import { WeatherDisplayView } from './components/WeatherDisplayView';
-
-import { BestTargetsView } from './components/BestTargetsView';
-
-// --- Components ---
+// Lazy load heavy views
+const GearReviewsView = React.lazy(() => import('./components/GearReviewsView'));
+const GearSettingsForm = React.lazy(() => import('./components/GearSettingsForm'));
+const EquipmentTrackerForm = React.lazy(() => import('./components/EquipmentTrackerForm'));
+const LazyLoginView = React.lazy(() => import('./components/LoginView'));
+const NightlyForecastView = React.lazy(() => import('./components/NightlyForecastView'));
+const WeatherDisplayView = React.lazy(() => import('./components/WeatherDisplayView'));
 
 const NavButton: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
   <button
@@ -62,15 +57,23 @@ const MobileNavButton: React.FC<{ onClick: () => void; children: React.ReactNode
   </button>
 );
 
+const AstroDataCard: React.FC<{ icon: React.ReactNode; label: string; value: string; }> = ({ icon, label, value }) => (
+  <div className="bg-background border border-border/50 p-4 rounded-lg flex flex-col items-center justify-center text-center gap-2 transition-colors hover:border-primary/50">
+    <div className="text-primary">{icon}</div>
+    <span className="text-xs text-text-secondary uppercase font-semibold tracking-wider">{label}</span>
+    <span className="text-lg font-bold font-mono">{value}</span>
+  </div>
+);
+
 const DeveloperError: React.FC = () => (
     <div className="fixed inset-0 bg-background z-50 flex items-center justify-center p-8">
         <div className="text-center bg-surface border border-border rounded-lg p-8 max-w-lg">
             <h1 className="text-2xl font-display text-red-400 mb-4">Configuration Needed</h1>
             <p className="text-text-secondary">
-                The Firebase project credentials have not been set.
+                The API server is not reachable.
             </p>
             <p className="text-sm mt-4 text-text-secondary">
-                To run this application, the site owner must add their Firebase configuration to the <code className="bg-background p-1 border border-border rounded-md">services/firebaseConfig.ts</code> file.
+                Please ensure the AstroCapture API server is running on port 3002.
             </p>
         </div>
     </div>
@@ -107,7 +110,7 @@ const TargetDetailModal: React.FC<{ target: MessierObject | null; onClose: () =>
              <span className="font-bold text-text">{target.size}</span>
           </div>
         </div>
-        
+
         {target.bestSeason && (
             <div className="bg-surface p-4 rounded-lg border border-border">
                 <h3 className="text-xs font-bold text-text-secondary uppercase mb-2">Best Season</h3>
@@ -155,19 +158,19 @@ const GlobalSearch: React.FC<{
     if (!query || query.length < 2) return [];
     const lowerQuery = query.toLowerCase();
 
-    const postResults = posts.filter(p => 
-      (p.title && p.title.toLowerCase().includes(lowerQuery)) || 
+    const postResults = posts.filter(p =>
+      (p.title && p.title.toLowerCase().includes(lowerQuery)) ||
       (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
       (p.tags && p.tags.some(t => t && t.toLowerCase().includes(lowerQuery)))
     ).map(p => ({ type: 'post' as const, item: p }));
 
-    const processingResults = processingPosts.filter(p => 
-      (p.title && p.title.toLowerCase().includes(lowerQuery)) || 
+    const processingResults = processingPosts.filter(p =>
+      (p.title && p.title.toLowerCase().includes(lowerQuery)) ||
       (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
       (p.tags && p.tags.some(t => t && t.toLowerCase().includes(lowerQuery)))
     ).map(p => ({ type: 'processing' as const, item: p }));
 
-    const targetResults = MESSIER_CATALOG.filter(t => 
+    const targetResults = MESSIER_CATALOG.filter(t =>
       (t.messier && t.messier.toLowerCase().includes(lowerQuery)) ||
       (t.ngc && t.ngc.toLowerCase().includes(lowerQuery)) ||
       (t.commonName && t.commonName.toLowerCase().includes(lowerQuery)) ||
@@ -227,7 +230,35 @@ const GlobalSearch: React.FC<{
 const App = () => {
   const [view, setView] = React.useState<ViewState>(ViewState.GALLERY);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [authChecked, setAuthChecked] = React.useState(false);
+
+  // Check auth on mount
+  React.useEffect(() => {
+    const token = localStorage.getItem('astrocapture_token');
+    if (token) {
+      // Verify token with backend
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (res.ok) {
+          setIsAuthenticated(true);
+          invalidateTokenCache(); // Ensure the API token cache is fresh
+        } else {
+          localStorage.removeItem('astrocapture_token');
+        }
+        setAuthChecked(true);
+      })
+      .catch(() => {
+        localStorage.removeItem('astrocapture_token');
+        setAuthChecked(true);
+      });
+    } else {
+      setAuthChecked(true);
+    }
+  }, []);
+
   // State initialization
   const [dbConnected, setDbConnected] = React.useState(false);
   const [showDevError, setShowDevError] = React.useState(false);
@@ -245,7 +276,7 @@ const App = () => {
   const [faviconUrl, setFaviconUrl] = React.useState<string>(INITIAL_DATA.faviconUrl);
   const [gearItems, setGearItems] = React.useState<EquipmentItem[]>([]);
   const [equipment, setEquipment] = React.useState<AstroEquipment[]>(DEFAULT_EQUIPMENT);
-  
+
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [cookieConsent, setCookieConsent] = React.useState<boolean | null>(null);
@@ -287,17 +318,18 @@ const App = () => {
   };
 
   React.useEffect(() => {
-    const success = initializeFirebase();
-    if (success) setDbConnected(true); else setShowDevError(true);
-    setIsLoading(false);
+    // Check API connectivity
+    fetch('/api/health').then(r => r.ok ? setDbConnected(true) : setShowDevError(true)).catch(() => setShowDevError(true)).finally(() => setIsLoading(false));
   }, []);
 
   React.useEffect(() => {
     if (!dbConnected) return;
-    const auth = getAuthInstance();
-    if (auth) {
-      const unsubscribe = auth.onAuthStateChanged((user) => setIsLoggedIn(!!user));
-      return () => unsubscribe();
+    // Check if already logged in (token exists)
+    const token = localStorage.getItem('astrocapture_token');
+    if (token) {
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? setIsLoggedIn(true) : (localStorage.removeItem('astrocapture_token'), setIsLoggedIn(false)))
+        .catch(() => setIsLoggedIn(false));
     }
   }, [dbConnected]);
 
@@ -351,6 +383,17 @@ const App = () => {
     return () => subs.forEach(unsub => unsub());
   }, [dbConnected]);
 
+  // Listen for data refresh events from save handlers
+  React.useEffect(() => {
+    const handleRefresh = () => {
+      // Force re-subscribe by toggling dbConnected
+      setDbConnected(false);
+      setTimeout(() => setDbConnected(true), 100);
+    };
+    window.addEventListener('astrocapture-refresh', handleRefresh);
+    return () => window.removeEventListener('astrocapture-refresh', handleRefresh);
+  }, []);
+
   React.useEffect(() => {
     const faviconLink = document.getElementById('favicon-link') as HTMLLinkElement | null;
     if (faviconLink && faviconUrl) {
@@ -384,6 +427,13 @@ const App = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('astrocapture_token');
+    setIsAuthenticated(false);
+    logout();
+    setView(ViewState.GALLERY);
+  };
+
   const handleNav = (target: ViewState) => {
     if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES].includes(target)) {
       setSelectedTag(null);
@@ -395,10 +445,10 @@ const App = () => {
     setIsMobileMenuOpen(false);
     window.scrollTo(0, 0);
   };
-  
+
   const handleViewPost = (postId: string) => { setSelectedPostId(postId); setView(ViewState.POST_DETAIL); window.scrollTo(0, 0); };
   const handleViewProcessingPost = (postId: string) => { setSelectedProcessingPostId(postId); setView(ViewState.PROCESSING_POST_DETAIL); window.scrollTo(0, 0); };
-  
+
   const handleSearchNavigate = (type: 'post' | 'processing' | 'target', id: string) => {
     if (type === 'post') {
       handleViewPost(id);
@@ -412,7 +462,7 @@ const App = () => {
 
   const handleBackToGallery = () => { setSelectedPostId(null); setView(ViewState.GALLERY); };
   const handleBackToProcessing = () => { setSelectedProcessingPostId(null); setView(ViewState.POST_PROCESSING); };
-  
+
   const handleHeroLink = (url: string) => {
     if (!url) return;
     if (url.startsWith('post:')) {
@@ -429,28 +479,20 @@ const App = () => {
         'image-of-the-day': ViewState.IMAGE_OF_THE_DAY,
         'image-wall': ViewState.WALL_OF_IMAGES,
         'astro-index': ViewState.ASTRO_INDEX,
-        'planner': ViewState.OBSERVATION_PLANNER,
         'about': ViewState.ABOUT,
       };
       if (pageMap[url.toLowerCase()] !== undefined) handleNav(pageMap[url.toLowerCase()]);
     }
   };
 
-  const handleLogout = React.useCallback(() => {
-    logout();
-    setView(ViewState.GALLERY);
-  }, []);
-
   const handleReset = React.useCallback(async () => {
-    if (confirm('Overwrite database with Factory Default content? This cannot be undone.')) {
-      await seedDatabase(INITIAL_DATA);
-      alert('Database seeded with default content.');
+    if (confirm('Reset all content to defaults? This cannot be undone.')) {
+      // Seed via API is handled server-side
+      alert('Use the API seed script instead: cd api && npm run seed');
     }
   }, []);
 
 
-  if (showDevError) return <DeveloperError />;
-  
   const selectedPost = posts.find(p => p.id === selectedPostId);
   const selectedProcessingPost = processingPosts.find(p => p.id === selectedProcessingPostId);
   const selectedProcessingLog = processingLogs.find(log => log.parentImageId === selectedPostId);
@@ -471,6 +513,8 @@ const App = () => {
     return [...processingPosts, ...gearPosts];
   }, [processingPosts, gearItems]);
 
+  if (showDevError) return <DeveloperError />;
+
   return (
     <div className="min-h-screen bg-background text-text font-sans flex flex-col">
       <StarBackground />
@@ -486,9 +530,7 @@ const App = () => {
               <NavButton active={view === ViewState.IMAGE_OF_THE_DAY} onClick={() => handleNav(ViewState.IMAGE_OF_THE_DAY)}>IOTD</NavButton>
               <NavButton active={view === ViewState.WALL_OF_IMAGES} onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</NavButton>
               <NavButton active={view === ViewState.POST_PROCESSING} onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</NavButton>
-              <NavButton active={view === ViewState.ASTRO_INDEX} onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Index</NavButton>
-              <NavButton active={view === ViewState.BEST_TARGETS} onClick={() => handleNav(ViewState.BEST_TARGETS)}>Astro Targets</NavButton>
-              <NavButton active={view === ViewState.OBSERVATION_PLANNER} onClick={() => handleNav(ViewState.OBSERVATION_PLANNER)}>Planner</NavButton>
+              <NavButton active={view === ViewState.ASTRO_INDEX} onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</NavButton>
               <GlobalSearch posts={posts} processingPosts={processingPosts} onNavigate={handleSearchNavigate} />
             </div>
             <div className="md:hidden">
@@ -505,28 +547,25 @@ const App = () => {
               <MobileNavButton onClick={() => handleNav(ViewState.IMAGE_OF_THE_DAY)}>IOTD</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Index</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.BEST_TARGETS)}>Astro Targets</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.OBSERVATION_PLANNER)}>Planner</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</MobileNavButton>
             </div>
           </div>
         )}
       </nav>
       <main className="flex-grow animate-fade-in pt-20">
         {view === ViewState.GALLERY && <GalleryView posts={posts} heroSlides={heroSlides} onNavigate={handleHeroLink} onViewPost={handleViewPost} selectedTag={selectedTag} setSelectedTag={setSelectedTag} />}
-        {view === ViewState.POST_DETAIL && <PostDetailView post={selectedPost} log={selectedProcessingLog} onBack={handleBackToGallery} onSelectTag={(tag) => { setSelectedTag(tag); setView(ViewState.GALLERY); }} onOpenLightbox={openLightbox} />}
+        {view === ViewState.POST_DETAIL && <PostDetailView post={selectedPost} log={selectedProcessingLog} posts={posts} onBack={handleBackToGallery} onSelectTag={(tag) => { setSelectedTag(tag); setView(ViewState.GALLERY); }} onOpenLightbox={openLightbox} onNavigateToPost={(postId) => { setSelectedPostId(postId); window.scrollTo(0, 0); }} />}
         {view === ViewState.POST_PROCESSING && <ProcessingView posts={allProcessingPosts} config={processingConfig} onViewPost={handleViewProcessingPost} selectedTag={selectedTag} setSelectedTag={setSelectedTag} />}
         {view === ViewState.PROCESSING_POST_DETAIL && <ProcessingPostDetailView post={selectedProcessingPost} onBack={handleBackToProcessing} onSelectTag={(tag) => { setSelectedTag(tag); setView(ViewState.POST_PROCESSING); }} onOpenLightbox={openLightbox} />}
         {view === ViewState.IMAGE_OF_THE_DAY && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><ImageOfTheDayView /></div>}
         {view === ViewState.WALL_OF_IMAGES && <ImageWallView posts={posts} processingPosts={processingPosts} onOpenLightbox={openLightbox} />}
-        {view === ViewState.GEAR_REVIEWS && <GearReviewsView items={gearItems} />}
+        {view === ViewState.GEAR_REVIEWS && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><GearReviewsView items={gearItems} /></React.Suspense>}
         {view === ViewState.ABOUT && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AboutView config={aboutConfig} /></div>}
         {view === ViewState.ASTRO_INDEX && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AstroIndexView /></div>}
-        {view === ViewState.BEST_TARGETS && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><BestTargetsView equipment={equipment} /></div>}
-        {view === ViewState.OBSERVATION_PLANNER && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><ObservationPlannerView equipment={equipment} /></div>}
+        {view === ViewState.LOGIN && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><LazyLoginView onLogin={(token) => { setIsAuthenticated(true); setView(ViewState.GALLERY); }} /></React.Suspense>}
         {view === ViewState.LICENSE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LicenseView config={licenseConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.LEGAL_NOTICE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LegalNoticeView config={legalNoticeConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
-        {view === ViewState.ADMIN_LOGIN && <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LoginView onLogin={() => setView(ViewState.ADMIN_DASHBOARD)} /></div>}
+        {view === ViewState.ADMIN_LOGIN && <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LazyLoginView onLogin={(token) => { setIsLoggedIn(true); setView(ViewState.ADMIN_DASHBOARD); }} /></div>}
         {view === ViewState.ADMIN_DASHBOARD && isLoggedIn && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AdminDashboard {...{posts, processingPosts, heroSlides, aboutConfig, logoUrl, faviconUrl, footerConfig, processingConfig, licenseConfig, legalNoticeConfig, cookieBannerConfig, gearItems, equipment}} onLogout={handleLogout} onReset={handleReset} /></div>}
       </main>
       <Footer config={footerConfig} isLoggedIn={isLoggedIn} onNavigateToLicense={() => handleNav(ViewState.LICENSE)} onNavigateToLegalNotice={() => handleNav(ViewState.LEGAL_NOTICE)} onNavigateToAdmin={() => handleNav(isLoggedIn ? ViewState.ADMIN_DASHBOARD : ViewState.ADMIN_LOGIN)} onNavigateToAbout={() => handleNav(ViewState.ABOUT)} />
@@ -534,10 +573,10 @@ const App = () => {
       <TargetDetailModal target={selectedTarget} onClose={() => setSelectedTarget(null)} />
       <ScrollToTopButton isVisible={showScrollToTop} onClick={handleScrollToTop} />
       {cookieConsent === null && cookieBannerConfig.enabled && (
-        <CookieBanner 
-          config={cookieBannerConfig} 
-          onAccept={handleCookieAccept} 
-          onDecline={handleCookieDecline} 
+        <CookieBanner
+          config={cookieBannerConfig}
+          onAccept={handleCookieAccept}
+          onDecline={handleCookieDecline}
         />
       )}
     </div>
@@ -579,7 +618,7 @@ const HeroSlider: React.FC<{ slides: HeroSlide[], onNavigate: (url: string) => v
       return () => clearInterval(timer);
     }
   }, [slides.length]);
-  
+
   if (!slides || slides.length === 0) return null;
 
   return (
@@ -587,22 +626,30 @@ const HeroSlider: React.FC<{ slides: HeroSlide[], onNavigate: (url: string) => v
       {/* Container for the images */}
       <div className="h-full w-full">
         {slides.map((slide, index) => (
-          <div 
+          <div
             key={slide.id}
             className="absolute top-0 left-0 w-full h-full transition-opacity duration-1000 ease-in-out"
-            style={{ 
+            style={{
               opacity: index === currentIndex ? 1 : 0,
               zIndex: index === currentIndex ? 10 : 5,
             }}
             aria-hidden={index !== currentIndex}
           >
-            <img 
-              src={slide.imageUrl} 
-              alt={slide.title} 
+            <img
+              src={slide.imageUrl}
+              alt={slide.title}
               className="w-full h-full object-cover animate-ken-burns"
-              loading={index === 0 ? 'eager' : 'lazy'}
+              loading="eager"
               fetchPriority={index === 0 ? 'high' : 'auto'}
               decoding="async"
+              onError={(e) => {
+                console.error('Hero image failed to load:', slide.imageUrl);
+                // Fallback: try to reload with .jpg extension
+                if (slide.imageUrl.endsWith('.webp')) {
+                  const jpgUrl = slide.imageUrl.replace('.webp', '.jpg');
+                  (e.target as HTMLImageElement).src = jpgUrl;
+                }
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-70"></div>
           </div>
@@ -658,15 +705,17 @@ const GalleryView: React.FC<{ posts: Post[]; heroSlides: HeroSlide[]; onNavigate
           {filteredPosts.map((post, index) => (
             <article key={post.id} className="group bg-surface border border-border rounded-lg overflow-hidden cursor-pointer hover:-translate-y-1 transition-all duration-300 shadow-lg" onClick={() => onViewPost(post.id)}>
               <div className="aspect-[4/5] overflow-hidden relative">
-                <img 
-                  src={post.imageUrl} 
-                  alt={post.title} 
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
-                  loading={index < 3 ? 'eager' : 'lazy'}
+                <img
+                  src={post.imageUrl}
+                  alt={post.title}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  loading={index < 2 ? 'eager' : 'lazy'}
                   decoding="async"
+                  width="600"
+                  height="750"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                
+
                 <div className="absolute top-3 left-3 flex flex-wrap gap-1">
                   {post.tags.slice(0, 3).map(tag => (
                     <span key={tag} className="text-xs capitalize font-bold bg-primary text-white px-2 py-1 rounded shadow-md">
@@ -691,7 +740,7 @@ const GalleryView: React.FC<{ posts: Post[]; heroSlides: HeroSlide[]; onNavigate
   );
 };
 
-const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | undefined, onBack: () => void, onSelectTag: (tag: string) => void, onOpenLightbox: (items: { url: string; alt: string }[], startIndex?: number) => void }> = ({ post, log, onBack, onSelectTag, onOpenLightbox }) => {
+const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | undefined, posts: Post[], onBack: () => void, onSelectTag: (tag: string) => void, onOpenLightbox: (items: { url: string; alt: string }[], startIndex?: number) => void, onNavigateToPost: (postId: string) => void }> = ({ post, log, posts, onBack, onSelectTag, onOpenLightbox, onNavigateToPost }) => {
   const [dsoData, setDsoData] = React.useState<DeepSkyObject | null>(null);
   const [isDsoLoading, setIsDsoLoading] = React.useState(true);
 
@@ -714,7 +763,7 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
     if (remainingMinutes > 0) result += `${remainingMinutes}m`;
     return result.trim() || '0m';
   };
-  
+
   const formatAge = (age: number | null, unit: string | null) => {
     if (!age || !unit) return 'N/A';
     const formattedAge = new Intl.NumberFormat().format(age);
@@ -723,9 +772,22 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
 
   if (!post) return <div className="text-center py-20"><h2 className="text-3xl font-display font-bold">Post Not Found</h2><Button onClick={onBack} variant="secondary" className="mt-6">Back to Gallery</Button></div>;
 
+  const currentIndex = posts.findIndex(p => p.id === post.id);
+  const prevPost = currentIndex > 0 ? posts[currentIndex - 1] : null;
+  const nextPost = currentIndex >= 0 && currentIndex < posts.length - 1 ? posts[currentIndex + 1] : null;
+
   return (
     <article className="pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <Button onClick={onBack} variant="secondary" className="mb-8 !text-sm"><ChevronLeft size={16} /> Back to Gallery</Button>
+      <div className="flex items-center gap-3 mb-8">
+        <Button onClick={onBack} variant="secondary" className="!text-sm"><ChevronLeft size={16} /> Back to Gallery</Button>
+        <div className="flex-1"></div>
+        {prevPost && (
+          <Button onClick={() => onNavigateToPost(prevPost.id)} variant="secondary" className="!text-sm"><ChevronLeft size={16} /> Previous</Button>
+        )}
+        {nextPost && (
+          <Button onClick={() => onNavigateToPost(nextPost.id)} variant="secondary" className="!text-sm">Next <ChevronRight size={16} /></Button>
+        )}
+      </div>
       <div className="border-b border-border pb-4 mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-5xl font-display font-extrabold">{post.title}</h1>
@@ -743,13 +805,13 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
           <SocialShare url={window.location.href} title={post.title} image={post.imageUrl} />
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
         <div className="lg:col-span-3">
           <div className="overflow-hidden relative group cursor-pointer rounded-lg shadow-2xl" onClick={() => onOpenLightbox([{ url: post.imageUrl, alt: post.title }])}>
-            <img 
-              src={post.imageUrl} 
-              alt={post.title} 
+            <img
+              src={post.imageUrl}
+              alt={post.title}
               className="w-full object-cover rounded-lg"
               fetchPriority="high"
               decoding="async"
@@ -773,7 +835,7 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
                             <div><span className="text-text-secondary block text-sm">Distance</span><span className="font-bold">{dsoData.distance ? `${dsoData.distance.toLocaleString()} ly` : 'N/A'}</span></div>
                             {dsoData.age && <div><span className="text-text-secondary block text-sm">Age</span><span className="font-bold">{formatAge(dsoData.age, dsoData.ageUnit)}</span></div>}
                         </div>
-                        
+
                         {dsoData.catalogDenominations && dsoData.catalogDenominations.length > 0 && (
                             <div className="border-t border-border pt-3">
                                 <span className="text-text-secondary block text-sm mb-2">Other Designations</span>
@@ -787,10 +849,26 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
                     </div>
                 ): <p className="text-sm text-text-secondary">No catalog data available.</p>}
             </section>
-            
+
             <div className="prose-styles text-text-secondary leading-relaxed" dangerouslySetInnerHTML={{ __html: post.description }}></div>
         </div>
       </div>
+
+      {/* Aladin Lite Sky Map - Full Width */}
+      {dsoData?.rightAscension && dsoData?.declination ? (
+        <section className="mt-8 bg-surface border border-border rounded-lg p-4">
+          <h2 className="font-display font-bold text-lg flex items-center gap-2 mb-2"><Globe size={16}/> Sky Map</h2>
+          <AladinLiteViewer
+            key={`${dsoData.rightAscension}-${dsoData.declination}`}
+            ra={dsoData.rightAscension}
+            dec={dsoData.declination}
+            fov={2.0}
+            name={post.objectName || post.title}
+          />
+        </section>
+      ) : isDsoLoading ? (
+        <div className="mt-8 text-center text-text-secondary animate-pulse">Loading sky map...</div>
+      ) : null}
 
       <div className="mt-12 pt-8 border-t border-border">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -844,8 +922,8 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
                         </Button>
                         )}
                         {post.rawDataUrl && (
-                        <Button onClick={() => window.open(post.rawDataUrl, '_blank', 'noopener,noreferrer')} variant="secondary" className="w-full">
-                            <Download size={16} /> Download Raw Data
+                        <Button onClick={() => window.open(post.rawDataUrl, '_blank', 'noopener,noreferrer')} variant="primary" className="w-full">
+                            <Download size={16} /> Download Raw Data <ExternalLink size={16} />
                         </Button>
                         )}
                     </div>
@@ -853,7 +931,7 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
             </div>
         </div>
       </div>
-      
+
       {log && <ProcessingLogView log={log} onOpenLightbox={onOpenLightbox} />}
     </article>
   );
@@ -875,9 +953,9 @@ const ProcessingLogView: React.FC<{ log: ProcessingLog, onOpenLightbox: (items: 
             <div className="flex-shrink-0 flex items-center gap-4">
               <span className="flex items-center justify-center w-10 h-10 rounded-full bg-background border border-border text-primary font-bold font-display text-lg">{step.stepOrder}</span>
               {step.screenshotUrl && (
-                <img 
-                  src={step.screenshotUrl} 
-                  alt={`Screenshot for ${step.toolName}`} 
+                <img
+                  src={step.screenshotUrl}
+                  alt={`Screenshot for ${step.toolName}`}
                   className="w-40 h-24 object-cover rounded-md border border-border cursor-pointer hover:border-primary transition"
                   onClick={() => onOpenLightbox([{ url: step.screenshotUrl!, alt: `Screenshot for ${step.toolName}` }])}
                   loading="lazy"
@@ -938,10 +1016,10 @@ const ProcessingView: React.FC<{ posts: ProcessingPost[], config: ProcessingConf
             {filteredPosts.map((post, index) => (
                 <article key={post.id} className="group bg-surface border border-border rounded-lg overflow-hidden cursor-pointer hover:-translate-y-1 transition-all duration-300 shadow-lg" onClick={() => onViewPost(post.id)}>
                     <div className="aspect-video overflow-hidden relative">
-                        <img 
-                          src={getPostThumbnail(post)} 
-                          alt={post.title} 
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                        <img
+                          src={getPostThumbnail(post)}
+                          alt={post.title}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                           loading={index < 3 ? 'eager' : 'lazy'}
                           decoding="async"
                         />
@@ -991,18 +1069,18 @@ const ImageComparisonSlider: React.FC<{ beforeImageUrl: string; afterImageUrl: s
     const rect = containerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     let newPosition = (x / rect.width) * 100;
-    
+
     if (newPosition < 0) newPosition = 0;
     if (newPosition > 100) newPosition = 100;
-    
+
     setSliderPosition(newPosition);
   }, []);
-  
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;
   };
-  
+
   const handleTouchStart = (e: React.TouchEvent) => {
     isDragging.current = true;
   };
@@ -1030,28 +1108,28 @@ const ImageComparisonSlider: React.FC<{ beforeImageUrl: string; afterImageUrl: s
 
   return (
     <div ref={containerRef} className="relative w-full aspect-video select-none overflow-hidden rounded-lg group">
-      <img 
-        src={afterImageUrl} 
-        alt={`After processing: ${title}`} 
+      <img
+        src={afterImageUrl}
+        alt={`After processing: ${title}`}
         className="block w-full h-full object-cover"
         decoding="async"
         fetchPriority="high"
       />
 
-      <div 
-        className="absolute top-0 left-0 h-full w-full max-w-full overflow-hidden" 
+      <div
+        className="absolute top-0 left-0 h-full w-full max-w-full overflow-hidden"
         style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
       >
-        <img 
-          src={beforeImageUrl} 
-          alt={`Before processing: ${title}`} 
+        <img
+          src={beforeImageUrl}
+          alt={`Before processing: ${title}`}
           className="block absolute top-0 left-0 w-full h-full object-cover"
           decoding="async"
           fetchPriority="high"
         />
       </div>
-      
-      <div 
+
+      <div
         className="absolute top-0 bottom-0 w-1 bg-white/50 cursor-ew-resize hover:bg-white transition-colors z-10"
         style={{ left: `calc(${sliderPosition}% - 0.5px)` }}
         onMouseDown={handleMouseDown}
@@ -1070,7 +1148,7 @@ const ImageComparisonSlider: React.FC<{ beforeImageUrl: string; afterImageUrl: s
 
 const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onBack: () => void, onSelectTag: (tag: string) => void, onOpenLightbox: (items: { url: string; alt: string }[], startIndex?: number) => void }> = ({ post, onBack, onSelectTag, onOpenLightbox }) => {
     if (!post) return <div className="text-center py-20"><h2 className="text-3xl font-display font-bold">Post Not Found</h2><Button onClick={onBack} variant="secondary" className="mt-6">Back to Gallery</Button></div>;
-    
+
     const getPostTypeLabel = (type: string) => {
         switch (type) {
             case 'before-after': return 'Before & After';
@@ -1109,30 +1187,30 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
             )}
 
             {post.postType === 'research' && post.featuredImageUrl && (
-                <img 
-                  src={post.featuredImageUrl} 
-                  alt={post.title} 
-                  className="w-full rounded-lg mb-8 shadow-2xl" 
-                  decoding="async" 
-                  fetchPriority="high" 
+                <img
+                  src={post.featuredImageUrl}
+                  alt={post.title}
+                  className="w-full rounded-lg mb-8 shadow-2xl"
+                  decoding="async"
+                  fetchPriority="high"
                 />
             )}
-            
+
             <div className="prose-styles text-text-secondary leading-relaxed mb-8" dangerouslySetInnerHTML={{ __html: post.description }}></div>
 
             {post.postType === 'gallery' && post.galleryImages && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {post.galleryImages.map((image, index) => (
-                        <div 
-                            key={image.id} 
-                            className="group cursor-pointer flex flex-col" 
+                        <div
+                            key={image.id}
+                            className="group cursor-pointer flex flex-col"
                             onClick={() => onOpenLightbox(post.galleryImages!.map(img => ({url: img.imageUrl, alt: img.caption})), index)}
                         >
                             <div className="overflow-hidden rounded-lg shadow-lg border border-border">
-                               <img 
-                                 src={image.imageUrl} 
-                                 alt={image.caption || post.title} 
-                                 className="w-full h-full object-cover aspect-square transition-transform duration-300 group-hover:scale-105" 
+                               <img
+                                 src={image.imageUrl}
+                                 alt={image.caption || post.title}
+                                 className="w-full h-full object-cover aspect-square transition-transform duration-300 group-hover:scale-105"
                                  loading="lazy"
                                  decoding="async"
                                />
@@ -1147,9 +1225,9 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
                 <div className="mb-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                         <div className="aspect-video overflow-hidden rounded-xl border border-border bg-black/20 relative">
-                            <img 
-                                src={post.gearReviewData.imageUrl} 
-                                alt={post.gearReviewData.name} 
+                            <img
+                                src={post.gearReviewData.imageUrl}
+                                alt={post.gearReviewData.name}
                                 className="w-full h-full object-cover"
                             />
                             <div className="absolute top-4 right-4 bg-black/60 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md flex items-center gap-1">
@@ -1164,7 +1242,7 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
                                 </span>
                                 <h2 className="text-3xl font-display font-bold mt-2">{post.gearReviewData.name}</h2>
                             </div>
-                            
+
                             <div className="bg-background/50 rounded-xl p-6 border border-border">
                                 <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Specs & Features</h3>
                                 <p className="text-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-sm">
@@ -1173,7 +1251,7 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="prose-styles">
                         <h3>Review</h3>
                         <p className="whitespace-pre-wrap">{post.gearReviewData.review}</p>
@@ -1204,10 +1282,10 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
     );
 };
 
-const ImageWallView: React.FC<{ 
-  posts: Post[], 
-  processingPosts: ProcessingPost[], 
-  onOpenLightbox: (items: { url: string; alt: string }[], startIndex: number) => void 
+const ImageWallView: React.FC<{
+  posts: Post[],
+  processingPosts: ProcessingPost[],
+  onOpenLightbox: (items: { url: string; alt: string }[], startIndex: number) => void
 }> = ({ posts, processingPosts, onOpenLightbox }) => {
   // Step 1: Memoize the collection of all images from props for performance.
   const allWallImages = React.useMemo(() => {
@@ -1243,7 +1321,7 @@ const ImageWallView: React.FC<{
           break;
       }
     });
-    
+
     return images;
   }, [posts, processingPosts]);
 
@@ -1270,15 +1348,15 @@ const ImageWallView: React.FC<{
       </header>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {shuffledImages.map((image, index) => (
-          <div 
+          <div
             key={image.id}
             className="group aspect-square bg-surface border border-border rounded-lg overflow-hidden cursor-pointer relative"
             onClick={() => onOpenLightbox(shuffledImages.map(i => ({url: i.url, alt: i.alt})), index)}
           >
-            <img 
-              src={image.url} 
-              alt={image.alt} 
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+            <img
+              src={image.url}
+              alt={image.alt}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading={index < 8 ? 'eager' : 'lazy'}
               decoding="async"
             />
@@ -1300,10 +1378,10 @@ const AboutView: React.FC<{ config: AboutConfig }> = ({ config }) => (
     </header>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="md:col-span-1">
-            <img 
-              src={config.imageUrl} 
-              alt={config.title || 'AstroCapture image'} 
-              className="rounded-lg shadow-2xl aspect-square object-cover" 
+            <img
+              src={config.imageUrl}
+              alt={config.title || 'AstroCapture image'}
+              className="rounded-lg shadow-2xl aspect-square object-cover"
               loading="lazy"
               decoding="async"
             />
@@ -1393,15 +1471,15 @@ const AdminDashboard: React.FC<{
 }> = (props) => {
   const [activePanel, setActivePanel] = React.useState<AdminPanel>('gallery');
 
-  const PanelButton: React.FC<{ panel: AdminPanel, icon: React.ReactNode, children: React.ReactNode }> = ({ panel, icon, children }) => (
-    <button 
-      onClick={() => setActivePanel(panel)}
-      className={`flex items-center gap-3 w-full p-3 rounded-md text-left transition-colors ${activePanel === panel ? 'bg-primary/20 text-text' : 'text-text-secondary hover:bg-surface'}`}
-    >
-      {icon}
-      <span className="font-semibold">{children}</span>
-    </button>
-  );
+const PanelButton: React.FC<{ panel: AdminPanel, icon: React.ReactNode, children: React.ReactNode }> = ({ panel, icon, children }) => (
+  <button
+    onClick={() => setActivePanel(panel)}
+    className={`flex items-center gap-3 w-full p-3 rounded-md text-left transition-colors ${activePanel === panel ? 'bg-primary/20 text-text' : 'text-text-secondary hover:bg-surface'}`}
+  >
+    {icon}
+    <span className="font-semibold">{children}</span>
+  </button>
+);
 
   const [isSavingGear, setIsSavingGear] = React.useState(false);
   const [isSavingEquipment, setIsSavingEquipment] = React.useState(false);
@@ -1420,19 +1498,19 @@ const AdminDashboard: React.FC<{
         // 1. Get current IDs from props to know what to delete
         const currentIds = new Set(currentItems.map(i => i.id));
         const newIds = new Set(newItemsList.map(i => i.id));
-        
+
         // Delete removed items
         for (const item of currentItems) {
             if (!newIds.has(item.id)) {
                 await deleteCollectionItem('gear', item.id);
             }
         }
-        
+
         // Save/Update items
         for (const item of newItemsList) {
             await saveCollectionItem('gear', item.id, item);
         }
-        
+
         alert('Gear settings saved successfully!');
       } catch (error: any) {
         console.error("Error saving gear:", error);
@@ -1452,17 +1530,17 @@ const AdminDashboard: React.FC<{
 
         const currentIds = new Set(props.equipment.map(i => i.id));
         const newIds = new Set(items.map(i => i.id));
-        
+
         for (const item of props.equipment) {
             if (!newIds.has(item.id)) {
                 await deleteCollectionItem('my_equipment', item.id);
             }
         }
-        
+
         for (const item of items) {
             await saveCollectionItem('my_equipment', item.id, item);
         }
-        
+
         alert('Equipment saved successfully!');
       } catch (error: any) {
         console.error("Error saving equipment:", error);
@@ -1508,18 +1586,22 @@ const AdminDashboard: React.FC<{
         {activePanel === 'articles' && <AdminProcessingPanel posts={props.processingPosts} />}
         {activePanel === 'imageWall' && <AdminImageWallPanel posts={props.posts} processingPosts={props.processingPosts} />}
         {activePanel === 'gear' && (
-            <GearSettingsForm 
-                initialData={props.gearItems} 
-                onSave={handleSaveGear} 
-                isSaving={isSavingGear} 
+            <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}>
+            <GearSettingsForm
+                initialData={props.gearItems}
+                onSave={handleSaveGear}
+                isSaving={isSavingGear}
             />
+            </React.Suspense>
         )}
         {activePanel === 'equipment' && (
+            <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}>
             <EquipmentTrackerForm
                 initialData={props.equipment}
                 onSave={handleSaveEquipment}
                 isSaving={isSavingEquipment}
             />
+            </React.Suspense>
         )}
         {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && activePanel !== 'equipment' && (
           <AdminSettingsPanel
@@ -1585,7 +1667,7 @@ const AdminImageWallPanel: React.FC<{ posts: Post[], processingPosts: Processing
     });
     return allImages;
   }, [posts, processingPosts]);
-  
+
   const [isSaving, setIsSaving] = React.useState<Record<string, boolean>>({});
 
   const handleToggle = async (item: WallImageItem, isChecked: boolean) => {
@@ -1597,7 +1679,7 @@ const AdminImageWallPanel: React.FC<{ posts: Post[], processingPosts: Processing
         if (item.imageType === 'gallery') {
           const postToUpdate = processingPosts.find(p => p.id === item.docId);
           if (!postToUpdate || !postToUpdate.galleryImages) throw new Error("Post not found");
-          const updatedGalleryImages = postToUpdate.galleryImages.map(img => 
+          const updatedGalleryImages = postToUpdate.galleryImages.map(img =>
             img.id === item.galleryImageId ? { ...img, showOnWall: isChecked } : img
           );
           await saveCollectionItem('processingPosts', item.docId, { galleryImages: updatedGalleryImages });
@@ -1650,11 +1732,8 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
   const [imageFile, setImageFile] = React.useState<File | null>(null);
   const [rawDataFile, setRawDataFile] = React.useState<File | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
-  const [isGenerating, setIsGenerating] = React.useState(false);
   const [acquisitionLogs, setAcquisitionLogs] = React.useState<AcquisitionLogEntry[]>([]);
-  const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
-  const [isGeneratingAiContent, setIsGeneratingAiContent] = React.useState(false);
-  
+
   const openModal = (post: Post | null) => {
     if (post) {
       setEditingPost(post);
@@ -1689,37 +1768,6 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
     if (!editingPost) return;
     setEditingPost(prev => ({ ...prev!, [field]: value }));
   };
-  
-  const handleGenerateDescription = async () => {
-    if (!editingPost || !editingPost.objectName) {
-      alert("Please enter an Object Name first.");
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      const desc = await generateObjectDescription(editingPost.objectName);
-      handleFieldChange('description', desc);
-    } catch (error) {
-      console.error(error);
-      alert("Failed to generate description.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleAiArticleGeneration = async (data: { topic: string; contentType: string; tone: string; length: string }) => {
-    setIsGeneratingAiContent(true);
-    try {
-      const content = await generateArticleContent(data.topic, data.contentType, data.tone, data.length);
-      handleFieldChange('description', content);
-      setIsAiModalOpen(false);
-    } catch (error) {
-      console.error(error);
-      alert("Failed to generate content from AI.");
-    } finally {
-      setIsGeneratingAiContent(false);
-    }
-  };
 
   const handleSave = async () => {
     if (!editingPost) return;
@@ -1729,8 +1777,8 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
 
     if (imageFile) {
       try {
-        const newImageUrl = await uploadFile(imageFile, 'gallery-images');
-        finalPost.imageUrl = newImageUrl;
+        const uploaded = await uploadFile(imageFile, 'gallery-images');
+        finalPost.imageUrl = uploaded.url;
       } catch (error) {
         console.error("Image upload failed:", error);
         alert("Image upload failed. Please try again.");
@@ -1741,8 +1789,8 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
 
     if (rawDataFile) {
       try {
-        const newRawDataUrl = await uploadFile(rawDataFile, 'raw-data');
-        finalPost.rawDataUrl = newRawDataUrl;
+        const uploadedRaw = await uploadFile(rawDataFile, 'raw-data');
+        finalPost.rawDataUrl = uploadedRaw.url;
       } catch (error) {
         console.error("Raw data upload failed:", error);
         alert("Raw data upload failed. Please try again.");
@@ -1752,12 +1800,13 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
     }
 
     const tags = Array.isArray(finalPost.tags) ? finalPost.tags : (finalPost.tags as unknown as string).split(',').map(t => t.trim()).filter(Boolean);
-    
+
     const totalMinutes = acquisitionLogs.reduce((total, log) => total + (log.exposureCount * log.exposureLength) / 60, 0);
 
     try {
       await saveCollectionItem('posts', finalPost.id, { ...finalPost, tags, acquisitionLogs, totalIntegrationTime: totalMinutes });
       closeModal();
+      window.dispatchEvent(new Event('astrocapture-refresh'));
     } catch (error) {
       console.error("Failed to save post:", error);
       alert("Failed to save post. Check console for details.");
@@ -1765,13 +1814,13 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
       setIsSaving(false);
     }
   };
-  
+
   const handleDelete = async (postId: string) => {
     if (confirm('Are you sure you want to delete this post?')) {
       await deleteCollectionItem('posts', postId);
     }
   };
-  
+
   const handleLogChange = (index: number, field: keyof AcquisitionLogEntry, value: any) => {
     const newLogs = [...acquisitionLogs];
     newLogs[index] = { ...newLogs[index], [field]: value };
@@ -1816,25 +1865,19 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
           </div>
         ))}
       </div>
-      
+
       {isModalOpen && editingPost && (
         <Modal isOpen={isModalOpen} onClose={closeModal} title={editingPost.id.startsWith('post_') ? 'Add New Post' : 'Edit Post'}>
           <div className="space-y-4">
             <Input label="Title" value={editingPost.title} onChange={e => handleFieldChange('title', e.target.value)} />
-            <div className="flex gap-4">
-                <Input label="Object Name (e.g., M42)" className="flex-grow" value={editingPost.objectName} onChange={e => handleFieldChange('objectName', e.target.value)} />
-                <Button onClick={handleGenerateDescription} isLoading={isGenerating} variant="secondary" className="self-end"><Sparkles size={16} /> Generate</Button>
-            </div>
-            
+            <Input label="Object Name (e.g., M42)" value={editingPost.objectName} onChange={e => handleFieldChange('objectName', e.target.value)} />
+
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-text-secondary">Description (HTML supported)</label>
-                <Button variant="ghost" size="sm" onClick={() => setIsAiModalOpen(true)}><Sparkles size={14}/> Write with AI</Button>
-              </div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Description (HTML supported)</label>
               <TextArea value={editingPost.description} onChange={e => handleFieldChange('description', e.target.value)} rows={5} />
             </div>
 
-            <ImageUploader 
+            <ImageUploader
               label="Featured Image"
               currentImageUrl={editingPost.imageUrl}
               imageFile={imageFile}
@@ -1849,7 +1892,7 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
             </div>
 
             <div className="pt-4 border-t border-border">
-              <ToggleSwitch 
+              <ToggleSwitch
                 label="Show on Image Wall"
                 checked={editingPost.showOnWall ?? true}
                 onChange={checked => handleFieldChange('showOnWall', checked)}
@@ -1859,7 +1902,7 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
             <div className="flex gap-4">
                 <Input label="Astrobin URL (optional)" value={editingPost.astrobinUrl} onChange={e => handleFieldChange('astrobinUrl', e.target.value)} />
                 <div className="flex-1">
-                  <FileUploader 
+                  <FileUploader
                     label="Raw Data (optional)"
                     currentFileUrl={editingPost.rawDataUrl || ''}
                     file={rawDataFile}
@@ -1901,12 +1944,7 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
           </div>
         </Modal>
       )}
-      <AiContentModal 
-        isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        onGenerate={handleAiArticleGeneration}
-        isGenerating={isGeneratingAiContent}
-      />
+
     </div>
   );
 };
@@ -1915,15 +1953,13 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [editingPost, setEditingPost] = React.useState<ProcessingPost | null>(null);
     const [isSaving, setIsSaving] = React.useState(false);
-    const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
-    const [isGeneratingAiContent, setIsGeneratingAiContent] = React.useState(false);
 
     const [beforeImageFile, setBeforeImageFile] = React.useState<File | null>(null);
     const [afterImageFile, setAfterImageFile] = React.useState<File | null>(null);
     const [featuredImageFile, setFeaturedImageFile] = React.useState<File | null>(null);
     const [documentFile, setDocumentFile] = React.useState<File | null>(null);
     const [audioFile, setAudioFile] = React.useState<File | null>(null);
-    
+
     const [galleryImages, setGalleryImages] = React.useState<ImageEntry[]>([]);
     const [galleryImageFiles, setGalleryImageFiles] = React.useState<Record<string, File | null>>({});
     const dragItem = React.useRef<number | null>(null);
@@ -1967,20 +2003,6 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
         setEditingPost(prev => ({ ...prev!, [field]: value }));
     };
 
-    const handleAiArticleGeneration = async (data: { topic: string; contentType: string; tone: string; length: string }) => {
-        setIsGeneratingAiContent(true);
-        try {
-            const content = await generateArticleContent(data.topic, data.contentType, data.tone, data.length);
-            handleFieldChange('description', content);
-            setIsAiModalOpen(false);
-        } catch (error) {
-            console.error(error);
-            alert("Failed to generate content from AI.");
-        } finally {
-            setIsGeneratingAiContent(false);
-        }
-    };
-
     const addGalleryImage = () => setGalleryImages([...galleryImages, { id: `img_${Date.now()}`, imageUrl: '', caption: '', showOnWall: true }]);
     const removeGalleryImage = (id: string) => setGalleryImages(galleryImages.filter(img => img.id !== id));
     const handleGalleryImageChange = (id: string, field: 'imageUrl' | 'caption' | 'showOnWall', value: string | boolean) => {
@@ -2009,22 +2031,29 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
         setIsSaving(true);
 
         let finalData: any = { ...editingPost };
+        console.log('=== handleSave START ===');
+        console.log('postType:', editingPost.postType);
+        console.log('galleryImages state:', galleryImages);
+        console.log('galleryImageFiles keys:', Object.keys(galleryImageFiles));
 
         try {
             if (editingPost.postType !== 'gallery') {
-              if (beforeImageFile) finalData.beforeImageUrl = await uploadFile(beforeImageFile, 'processing-images');
-              if (afterImageFile) finalData.afterImageUrl = await uploadFile(afterImageFile, 'processing-images');
-              if (featuredImageFile) finalData.featuredImageUrl = await uploadFile(featuredImageFile, 'processing-images');
+              if (beforeImageFile) { const u = await uploadFile(beforeImageFile, 'processing-images'); finalData.beforeImageUrl = u.url; }
+              if (afterImageFile) { const u = await uploadFile(afterImageFile, 'processing-images'); finalData.afterImageUrl = u.url; }
+              if (featuredImageFile) { const u = await uploadFile(featuredImageFile, 'processing-images'); finalData.featuredImageUrl = u.url; }
             }
-            if (documentFile) finalData.attachedDocumentUrl = await uploadFile(documentFile, 'documents');
-            if (audioFile) finalData.attachedAudioUrl = await uploadFile(audioFile, 'audio');
+            if (documentFile) { const u = await uploadFile(documentFile, 'documents'); finalData.attachedDocumentUrl = u.url; }
+            if (audioFile) { const u = await uploadFile(audioFile, 'audio'); finalData.attachedAudioUrl = u.url; }
 
             if (editingPost.postType === 'gallery') {
+              console.log('Gallery save — uploading', galleryImages.length, 'images');
               const uploadedImages = await Promise.all(galleryImages.map(async (img) => {
                   const file = galleryImageFiles[img.id];
+                  console.log('Processing image', img.id, 'file exists:', !!file);
                   if (file) {
-                      const newUrl = await uploadFile(file, 'gallery-posts');
-                      return { ...img, imageUrl: newUrl };
+                      const uploaded = await uploadFile(file, 'gallery-posts');
+                      console.log('Uploaded URL:', uploaded.url);
+                      return { ...img, imageUrl: uploaded.url };
                   }
                   return img;
               }));
@@ -2032,12 +2061,17 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
               finalData.beforeImageUrl = null;
               finalData.afterImageUrl = null;
               finalData.featuredImageUrl = null;
+              console.log('Final galleryImages:', JSON.stringify(finalData.galleryImages));
             }
 
             const tags = Array.isArray(finalData.tags) ? finalData.tags : (finalData.tags as unknown as string).split(',').map(t => t.trim()).filter(Boolean);
-            
+
+            console.log('Saving with finalData keys:', Object.keys(finalData));
+            console.log('Saving galleryImages:', JSON.stringify(finalData.galleryImages));
             await saveCollectionItem('processingPosts', finalData.id, { ...finalData, tags });
+            console.log('=== Save SUCCESS ===');
             closeModal();
+            window.dispatchEvent(new Event('astrocapture-refresh'));
         } catch (error) {
             console.error("Failed to save processing post:", error);
             alert("Save failed. Check console for details.");
@@ -2089,7 +2123,7 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                 <Modal isOpen={isModalOpen} onClose={closeModal} title={editingPost.id.startsWith('proc_') ? 'New Article' : 'Edit Article'}>
                     <div className="space-y-6">
                         <Input label="Title" value={editingPost.title} onChange={e => handleFieldChange('title', e.target.value)} />
-                        
+
                         <Select
                             label="Post Type"
                             value={editingPost.postType}
@@ -2127,7 +2161,7 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                               <h4 className="font-semibold text-text">Gallery Images</h4>
                               <div className="space-y-3">
                                   {galleryImages.map((image, index) => (
-                                      <DraggableListItem 
+                                      <DraggableListItem
                                           key={image.id}
                                           index={index}
                                           onDragStart={(e) => handleDragStart(e, index)}
@@ -2135,7 +2169,7 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                                           onDragEnd={handleDragEnd}
                                       >
                                           <div className="w-full space-y-3">
-                                              <ImageUploader 
+                                              <ImageUploader
                                                   label={`Image ${index + 1}`}
                                                   currentImageUrl={image.imageUrl}
                                                   imageFile={galleryImageFiles[image.id] || null}
@@ -2143,15 +2177,15 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                                                   onFileChange={file => handleGalleryFileChange(image.id, file)}
                                                   id={`gallery-upload-${image.id}`}
                                               />
-                                              <Input 
-                                                  label="Caption" 
-                                                  value={image.caption} 
+                                              <Input
+                                                  label="Caption"
+                                                  value={image.caption}
                                                   onChange={e => handleGalleryImageChange(image.id, 'caption', e.target.value)}
                                               />
-                                              <ToggleSwitch 
-                                                  label="Show on Image Wall" 
-                                                  checked={image.showOnWall ?? true} 
-                                                  onChange={c => handleGalleryImageChange(image.id, 'showOnWall', c)} 
+                                              <ToggleSwitch
+                                                  label="Show on Image Wall"
+                                                  checked={image.showOnWall ?? true}
+                                                  onChange={c => handleGalleryImageChange(image.id, 'showOnWall', c)}
                                               />
                                           </div>
                                           <Button variant="ghost" size="sm" onClick={() => removeGalleryImage(image.id)} className="text-red-500 hover:bg-red-500/10 ml-2 mt-6"><Trash2 size={14} /></Button>
@@ -2161,15 +2195,12 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                               <Button onClick={addGalleryImage} variant="secondary" size="sm"><Plus size={14}/> Add Image</Button>
                           </div>
                         )}
-                        
+
                         <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label className="block text-sm font-medium text-text-secondary">Content / Description</label>
-                            <Button variant="ghost" size="sm" onClick={() => setIsAiModalOpen(true)}><Sparkles size={14}/> Write with AI</Button>
-                          </div>
+                          <label className="block text-sm font-medium text-text-secondary mb-1">Content / Description</label>
                           <RichTextEditor value={editingPost.description} onChange={html => handleFieldChange('description', html)} />
                         </div>
-                        
+
                         <div className="flex gap-4">
                             <Input label="Publish Date" type="date" value={editingPost.captureDate} onChange={e => handleFieldChange('captureDate', e.target.value)} />
                             <Input label="Tags (comma-separated)" value={Array.isArray(editingPost.tags) ? editingPost.tags.join(', ') : editingPost.tags} onChange={e => handleFieldChange('tags', e.target.value)} />
@@ -2182,12 +2213,7 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                     </div>
                 </Modal>
             )}
-            <AiContentModal 
-                isOpen={isAiModalOpen}
-                onClose={() => setIsAiModalOpen(false)}
-                onGenerate={handleAiArticleGeneration}
-                isGenerating={isGeneratingAiContent}
-            />
+
         </div>
     );
 };
@@ -2213,7 +2239,7 @@ const GlobalSettingsForm = React.memo((props: { initialData: { logoUrl: string, 
     const [logoFile, setLogoFile] = React.useState<File | null>(null);
     const [faviconUrl, setFaviconUrl] = React.useState(props.initialData.faviconUrl);
     const [faviconFile, setFaviconFile] = React.useState<File | null>(null);
-    
+
     return (
       <SectionContainer title="Global Settings" onSave={() => props.onSave({ logoUrl, logoFile, faviconUrl, faviconFile })} isLoading={props.isSaving}>
         <ImageUploader label="Logo URL" currentImageUrl={logoUrl} imageFile={logoFile} onUrlChange={setLogoUrl} onFileChange={setLogoFile} id="logo-upload" />
@@ -2226,7 +2252,7 @@ const HeroSettingsForm = React.memo((props: { initialData: HeroSlide[], allPosts
     const [slides, setSlides] = React.useState<HeroSlide[]>(props.initialData);
     const dragItem = React.useRef<number | null>(null);
     const dragOverItem = React.useRef<number | null>(null);
-    
+
     const handleSlideChange = (index: number, field: keyof HeroSlide, value: any) => {
         const newSlides = [...slides];
         newSlides[index] = { ...newSlides[index], [field]: value };
@@ -2238,7 +2264,7 @@ const HeroSettingsForm = React.memo((props: { initialData: HeroSlide[], allPosts
         newSlides[index].tempFile = file;
         setSlides(newSlides);
     };
-    
+
     const addSlide = () => setSlides([...slides, { id: `slide_${Date.now()}`, title: 'New Slide', subtitle: '', description: '', imageUrl: '', linkText: '', linkUrl: '' }]);
     const removeSlide = (index: number) => setSlides(slides.filter((_, i) => i !== index));
 
@@ -2323,7 +2349,7 @@ const ArticlesPageSettingsForm = React.memo((props: { initialData: ProcessingCon
 
 const FooterSettingsForm = React.memo((props: { initialData: FooterConfig, onSave: (data: any) => void, isSaving: boolean }) => {
     const [footer, setFooter] = React.useState(props.initialData);
-    
+
     return (
       <SectionContainer title="Footer Manager" onSave={() => props.onSave(footer)} isLoading={props.isSaving}>
           <TextArea label="Footer Text" value={footer.text} onChange={e => setFooter({...footer, text: e.target.value})} rows={3} />
@@ -2390,7 +2416,7 @@ type AdminSettingsPanelProps = {
 
 const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = (props) => {
     const [isSaving, setIsSaving] = React.useState<Record<string, boolean>>({});
-    
+
     const handleSave = async (section: string, data: any) => {
         setIsSaving(prev => ({ ...prev, [section]: true }));
         try {
@@ -2398,8 +2424,8 @@ const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = (props) => {
                 case 'global': {
                     let finalLogoUrl = data.logoUrl;
                     let finalFaviconUrl = data.faviconUrl;
-                    if (data.logoFile) finalLogoUrl = await uploadFile(data.logoFile, 'settings');
-                    if (data.faviconFile) finalFaviconUrl = await uploadFile(data.faviconFile, 'settings');
+                    if (data.logoFile) { const u = await uploadFile(data.logoFile, 'settings'); finalLogoUrl = u.url; }
+                    if (data.faviconFile) { const u = await uploadFile(data.faviconFile, 'settings'); finalFaviconUrl = u.url; }
                     await saveSettings('global', { logoUrl: finalLogoUrl, faviconUrl: finalFaviconUrl });
                     break;
                 }
@@ -2407,9 +2433,9 @@ const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = (props) => {
                     const updatedSlides = await Promise.all(data.map(async (slide: any, index: number) => {
                         const file = slide.tempFile;
                         if (file) {
-                            const newUrl = await uploadFile(file, 'hero-slides');
+                            const slideUpload = await uploadFile(file, 'hero-slides');
                             const { tempFile, ...rest } = slide;
-                            return { ...rest, imageUrl: newUrl, order: index };
+                            return { ...rest, imageUrl: slideUpload.url, order: index };
                         }
                         return { ...slide, order: index };
                     }));
@@ -2419,7 +2445,7 @@ const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = (props) => {
                 case 'about': {
                     let finalAbout = { ...data.about };
                     if (data.aboutImageFile) {
-                        finalAbout.imageUrl = await uploadFile(data.aboutImageFile, 'settings');
+                        const aboutImg = await uploadFile(data.aboutImageFile, 'settings'); finalAbout.imageUrl = aboutImg.url;
                     }
                     await saveSettings('about', finalAbout);
                     break;
@@ -2450,7 +2476,7 @@ const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = (props) => {
     };
 
     switch(props.activeSection) {
-        case 'global': 
+        case 'global':
           return <GlobalSettingsForm initialData={{ logoUrl: props.logoUrl, faviconUrl: props.faviconUrl }} onSave={(data) => handleSave('global', data)} isSaving={isSaving['global']} />;
         case 'hero':
           return <HeroSettingsForm initialData={props.heroSlides} allPosts={{posts: props.posts, processingPosts: props.processingPosts}} onSave={(data) => handleSave('hero', data)} isSaving={isSaving['hero']} />;
@@ -2476,7 +2502,7 @@ const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = (props) => {
 const ImageOfTheDayView: React.FC = () => {
     const [date, setDate] = React.useState(new Date());
     const [activeTab, setActiveTab] = React.useState<'nasa' | 'astrobin'>('nasa');
-    
+
     const [nasaApod, setNasaApod] = React.useState<APOD | null>(null);
     const [isNasaLoading, setIsNasaLoading] = React.useState(true);
     const [nasaError, setNasaError] = React.useState<string | null>(null);
@@ -2514,13 +2540,13 @@ const ImageOfTheDayView: React.FC = () => {
     React.useEffect(() => {
         fetchNasaData();
     }, [fetchNasaData]);
-    
+
     React.useEffect(() => {
         fetchAstrobinData();
     }, [fetchAstrobinData]);
 
     const TabButton = ({ id, label }: { id: 'nasa' | 'astrobin', label: string }) => (
-        <button 
+        <button
           onClick={() => setActiveTab(id)}
           className={`px-4 py-2 rounded-md font-semibold transition-colors ${activeTab === id ? 'bg-primary text-white' : 'bg-surface hover:bg-border'}`}
         >
@@ -2534,7 +2560,7 @@ const ImageOfTheDayView: React.FC = () => {
                 <h1 className="text-4xl font-display font-bold">Image Of The Day</h1>
                 <p className="mt-2 text-text-secondary max-w-2xl mx-auto">Discover daily marvels from NASA and the talented community at Astrobin.</p>
             </header>
-            
+
             <div className="flex justify-center gap-2 p-2 bg-background rounded-lg border border-border w-fit mx-auto">
                 <TabButton id="nasa" label="NASA APOD" />
                 <TabButton id="astrobin" label="Astrobin IOTD" />
@@ -2557,7 +2583,7 @@ const ImageOfTheDayView: React.FC = () => {
                     )}
                 </div>
             )}
-            
+
             {activeTab === 'astrobin' && (
                 <div className="max-w-4xl mx-auto space-y-4">
                     <div className="flex justify-center items-center gap-2">
@@ -2593,7 +2619,7 @@ const AstroIndexView: React.FC = () => {
     const [locationError, setLocationError] = React.useState<string | null>(null);
 
     const [selectedDate, setSelectedDate] = React.useState(new Date());
-    
+
     const [mappedAstroData, setMappedAstroData] = React.useState<MappedAstronomyData | null>(null);
     const [isLoadingAstronomy, setIsLoadingAstronomy] = React.useState(false);
     const [astronomyError, setAstronomyError] = React.useState<string | null>(null);
@@ -2605,7 +2631,7 @@ const AstroIndexView: React.FC = () => {
     const [nightlyForecast, setNightlyForecast] = React.useState<NightlyForecast[] | null>(null);
     const [isLoadingNightly, setIsLoadingNightly] = React.useState(false);
     const [nightlyError, setNightlyError] = React.useState<string | null>(null);
-    
+
     const [currentBortle, setCurrentBortle] = React.useState<number | null>(null);
 
     const PRESET_LOCATIONS = {
@@ -2619,7 +2645,7 @@ const AstroIndexView: React.FC = () => {
             setIsLoadingAstronomy(true);
             setAstronomyError(null);
             setMappedAstroData(null);
-            
+
             fetchAstronomyData(coordinates.lat, coordinates.lon, selectedDate)
                 .then(data => setMappedAstroData(mapAstronomyData(data)))
                 .catch(err => {
@@ -2636,7 +2662,7 @@ const AstroIndexView: React.FC = () => {
             setIsLoadingWeather(true);
             setWeatherError(null);
             setWeatherForecast(null);
-            
+
             fetchAstroForecast(coordinates.lat, coordinates.lon, selectedDate)
                 .then(data => {
                     const moonIllum = mappedAstroData.moonIllumination ? parseFloat(mappedAstroData.moonIllumination) : 0;
@@ -2728,13 +2754,13 @@ const AstroIndexView: React.FC = () => {
     const formatDateDisplay = (date: Date) => {
         const dateToCompare = new Date(date);
         dateToCompare.setHours(0, 0, 0, 0);
-        
+
         const tomorrow = new Date(today);
         tomorrow.setDate(today.getDate() + 1);
 
         if (dateToCompare.getTime() === today.getTime()) return "Today";
         if (dateToCompare.getTime() === tomorrow.getTime()) return "Tomorrow";
-        
+
         return date.toLocaleDateString(undefined, {
             weekday: 'short',
             year: 'numeric',
@@ -2744,21 +2770,13 @@ const AstroIndexView: React.FC = () => {
     };
 
 
-    const AstroDataCard: React.FC<{ icon: React.ReactNode; label: string; value: string; }> = ({ icon, label, value }) => (
-        <div className="bg-background border border-border/50 p-4 rounded-lg flex flex-col items-center justify-center text-center gap-2 transition-colors hover:border-primary/50">
-            <div className="text-primary">{icon}</div>
-            <span className="text-xs text-text-secondary uppercase font-semibold tracking-wider">{label}</span>
-            <span className="text-lg font-bold font-mono">{value}</span>
-        </div>
-    );
-    
     return (
         <div className="space-y-8">
             <header className="py-8 text-center border-b border-border mb-8">
-                <h1 className="text-4xl font-display font-bold">Astro Index</h1>
+                <h1 className="text-4xl font-display font-bold">Astro Weather</h1>
                 <p className="mt-2 text-text-secondary max-w-2xl mx-auto">Real-time stargazing and astrophotography conditions for your location.</p>
             </header>
-            
+
             <div className="max-w-7xl mx-auto space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-surface border border-border rounded-lg p-6 space-y-4">
@@ -2798,15 +2816,15 @@ const AstroIndexView: React.FC = () => {
                             </div>
                         )}
                     </div>
-                
+
                     <div className="bg-surface border border-border rounded-lg p-6 space-y-4 flex flex-col justify-center">
                         <label className="block text-sm font-medium text-text-secondary">Forecast Date</label>
                          <div className="flex items-center justify-between gap-2">
-                            <Button 
-                                onClick={handlePrevDay} 
-                                disabled={isPrevDisabled} 
-                                variant="secondary" 
-                                size="sm" 
+                            <Button
+                                onClick={handlePrevDay}
+                                disabled={isPrevDisabled}
+                                variant="secondary"
+                                size="sm"
                                 className="!p-2"
                                 aria-label="Previous day"
                             >
@@ -2815,11 +2833,11 @@ const AstroIndexView: React.FC = () => {
                             <span className="font-semibold text-center text-base sm:text-lg w-full tabular-nums">
                                 {formatDateDisplay(selectedDate)}
                             </span>
-                            <Button 
-                                onClick={handleNextDay} 
-                                disabled={isNextDisabled} 
-                                variant="secondary" 
-                                size="sm" 
+                            <Button
+                                onClick={handleNextDay}
+                                disabled={isNextDisabled}
+                                variant="secondary"
+                                size="sm"
                                 className="!p-2"
                                 aria-label="Next day"
                             >
@@ -2830,13 +2848,15 @@ const AstroIndexView: React.FC = () => {
                 </div>
 
                 {coordinates && (
-                    <NightlyForecastView 
+                    <React.Suspense fallback={<div className="text-center py-10 text-text-secondary">Loading forecast...</div>}>
+                    <NightlyForecastView
                         forecast={nightlyForecast || []}
                         isLoading={isLoadingNightly}
                         error={nightlyError}
                         onSelectDate={setSelectedDate}
                         selectedDate={selectedDate}
                     />
+                    </React.Suspense>
                 )}
 
                 {(isLoadingAstronomy || astronomyError || mappedAstroData) && (
@@ -2862,15 +2882,201 @@ const AstroIndexView: React.FC = () => {
                 )}
 
                 {coordinates && (
-                    <WeatherDisplayView 
+                    <React.Suspense fallback={<div className="text-center py-10 text-text-secondary">Loading weather...</div>}>
+                    <WeatherDisplayView
                         imagingWindowData={weatherForecast || []}
                         isLoading={isLoadingWeather}
                         error={weatherError}
                     />
+                    </React.Suspense>
                 )}
             </div>
         </div>
     );
 };
+
+const AladinLiteViewer: React.FC<{ ra: string; dec: string; fov?: number; name?: string }> = ({ ra, dec, fov = 2.0, name = '' }) => {
+  const [containerId] = React.useState(() => `aladin-${Math.random().toString(36).substr(2, 9)}`);
+  const aladinRef = React.useRef<any>(null);
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    console.log('[Aladin] Initializing with:', { ra, dec, fov, name, containerId });
+    
+    // Vérifier si les coordonnées sont valides
+    if (!ra || !dec || ra === 'N/A' || dec === 'N/A') {
+      console.log('[Aladin] Invalid coordinates, skipping');
+      setError('No coordinates available');
+      return;
+    }
+    
+    // Parse RA and Dec
+    const parseCoord = (coord: string) => {
+      const parts = coord.split(/[:\s]+/);
+      if (parts.length === 3) {
+        const h = parseFloat(parts[0]);
+        const m = parseFloat(parts[1]);
+        const s = parseFloat(parts[2]);
+        return h + m/60 + s/3600;
+      }
+      return parseFloat(coord);
+    };
+
+    const raDeg = parseCoord(ra) * 15;
+    const decDeg = parseCoord(dec);
+    
+    if (isNaN(raDeg) || isNaN(decDeg)) {
+      console.error('[Aladin] Failed to parse coordinates:', { ra, dec });
+      setError('Invalid coordinates');
+      return;
+    }
+    
+    console.log('[Aladin] Parsed coords:', { raDeg, decDeg });
+
+    const initAladin = () => {
+      console.log('[Aladin] initAladin called');
+      console.log('[Aladin] window.A:', !!(window as any).A);
+      
+      const container = document.getElementById(containerId);
+      console.log('[Aladin] container:', container ? 'Found' : 'NOT FOUND');
+      
+      if (container && (window as any).A && !aladinRef.current) {
+        const A = (window as any).A;
+        
+        try {
+          console.log('[Aladin] Calling A.aladin()');
+          aladinRef.current = A.aladin(`#${containerId}`, {
+            target: `${raDeg} ${decDeg}`,
+            fov: fov,
+            survey: 'P/DSS2/color',
+            showFullscreenControl: false,
+          });
+          
+          // Ajouter un overlay avec le nom de l'objet
+          if (name && aladinRef.current.addCatalog) {
+            try {
+              const catalog = A.catalog({
+                name: name,
+                color: '#ff6b35',
+              });
+              
+              // Créer une source avec les coordonnées
+              const source = A.source(raDeg, decDeg, {
+                name: name,
+                ra: ra,
+                dec: dec,
+              });
+              
+              catalog.addSources([source]);
+              aladinRef.current.addCatalog(catalog);
+              console.log('[Aladin] Catalog added for:', name);
+            } catch (catalogErr) {
+              console.warn('[Aladin] Could not add catalog:', catalogErr);
+            }
+          }
+          
+          setIsLoaded(true);
+          console.log('[Aladin] Instance created successfully');
+        } catch (err) {
+          console.error('[Aladin] Error creating instance:', err);
+          setError(String(err));
+        }
+      }
+    };
+
+    const loadAladin = () => {
+      if ((window as any).A) {
+        console.log('[Aladin] A already available');
+        initAladin();
+      } else {
+        console.log('[Aladin] Loading script...');
+        const script = document.createElement('script');
+        script.src = 'https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.js';
+        script.charset = 'utf-8';
+        script.async = true;
+        script.onload = () => {
+          console.log('[Aladin] Script loaded');
+          // Attendre un peu que le script s'initialise complètement
+          setTimeout(initAladin, 500);
+        };
+        script.onerror = () => {
+          console.error('[Aladin] Failed to load script');
+          setError('Failed to load Aladin Lite');
+        };
+        document.head.appendChild(script);
+      }
+    };
+
+    // Délai plus long pour s'assurer que tout est prêt
+    const timer = setTimeout(() => {
+      loadAladin();
+    }, 1500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [ra, dec, fov, name, containerId]);
+
+  const handleReset = () => {
+    if (aladinRef.current) {
+      aladinRef.current.setFov(fov);
+    }
+  };
+
+  // Si erreur ou pas de coordonnées, ne rien afficher
+  if (error) {
+    return (
+      <div className="text-text-secondary text-sm italic">
+        Sky map unavailable — {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-text-secondary">Sky View (FOV: {fov}°)</h3>
+        {isLoaded && (
+          <button 
+            onClick={handleReset}
+            className="text-xs text-primary hover:underline flex items-center gap-1"
+            title="Reset to initial view"
+          >
+            <RotateCcw size={12}/> Reset
+          </button>
+        )}
+      </div>
+      
+      <div 
+        id={containerId}
+        style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden', background: '#000' }}
+        className="border border-border relative"
+      >
+        {!isLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center text-text-secondary">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+              Loading sky map...
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center mt-2 text-xs text-text-secondary">
+        <span>RA: {ra} | Dec: {dec}</span>
+        <a 
+          href={`https://simbad.u-strasbg.fr/simbad/sim-coo?Coord=${encodeURIComponent(ra)}${encodeURIComponent(dec)}&Radius=1m`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline flex items-center gap-1"
+        >
+          SIMBAD <ExternalLink size={10}/>
+        </a>
+      </div>
+    </div>
+  );
+};
+
 
 export default App;

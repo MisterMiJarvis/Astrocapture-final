@@ -4,7 +4,7 @@ import { fetchAstronomyData } from '../services/astronomyApiService';
 import { mapAstronomyData } from '../services/astronomyDataMapper';
 import { fetchNightlyForecast, fetchAstroForecast } from '../services/weatherService';
 import { mapNightlyForecast, mapAndFilterImagingWindow } from '../services/weatherDataMapper';
-import { NightlyForecastView } from './NightlyForecastView';
+import NightlyForecastView from './NightlyForecastView';
 import { ChevronLeft, ChevronRight, MapPin, Calendar, Star, Info, ExternalLink, Clock, ArrowUp, Filter, ArrowDownUp, SlidersHorizontal, Target, Crosshair } from 'lucide-react';
 import { Button, Select, Lightbox, Modal } from './Shared';
 import { parseRA, parseDec, calculateImagingWindow, ImagingWindowResult } from '../services/astronomyUtils';
@@ -22,7 +22,7 @@ interface EnrichedTarget extends DeepSkyObject {
     darknessWindow?: { start: Date; end: Date };
 }
 
-export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate, equipment = [] }) => {
+const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate, equipment = [] }) => {
     const [locationSource, setLocationSource] = React.useState<'current' | 'saintEtienne' | 'pradelles' | ''>('');
     const [coordinates, setCoordinates] = React.useState<{ lat: number; lon: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = React.useState(false);
@@ -799,3 +799,4 @@ export const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate, eq
         </div>
     );
 };
+export default BestTargetsView;

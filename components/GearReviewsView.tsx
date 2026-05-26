@@ -20,7 +20,7 @@ const RatingStars: React.FC<{ rating: number }> = ({ rating }) => {
   );
 };
 
-export const GearReviewsView: React.FC<{ items: EquipmentItem[] }> = ({ items }) => {
+const GearReviewsView: React.FC<{ items: EquipmentItem[] }> = ({ items }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedItem, setSelectedItem] = useState<EquipmentItem | null>(null);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -192,3 +192,4 @@ export const GearReviewsView: React.FC<{ items: EquipmentItem[] }> = ({ items })
     </div>
   );
 };
+export default GearReviewsView;

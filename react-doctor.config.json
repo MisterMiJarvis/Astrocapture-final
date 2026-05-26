@@ -1,0 +1,5 @@
+{
+  "ignore": {
+    "files": ["dist/**", "dist-prod/**", "dist-backup-*/**", "node_modules/**"]
+  }
+}

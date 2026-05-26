@@ -16,6 +16,18 @@ export enum ViewState {
   WALL_OF_IMAGES,
   GEAR_REVIEWS,
   OBSERVATION_PLANNER,
+  EQUIPMENT_V2,
+  SESSION_PLANNER,
+  JOURNAL,
+  ASK_HAL,
+  LOGIN,
+  // Nova DSO Tracker features
+  NOVA_MOSAIC,
+  NOVA_LOG_ANALYZER,
+  NOVA_YEARLY_HEATMAP,
+  NOVA_EQUIPMENT_CALC,
+  // Telescopius API Testing
+  TELESCOPIUS_TEST,
 }
 
 export interface HeroSlide {
@@ -209,15 +221,6 @@ export interface CookieBannerConfig {
   declineButtonText: string;
 }
 
-export interface FirebaseConfig {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
-}
-
 export interface EquipmentItem {
   id: string;
   name: string;
@@ -376,4 +379,68 @@ export interface ObservationSession {
   notes: string;
   cloudCover?: number;    // %
   seeing?: string;        // seeing condition
+}
+
+// Equipment V2 — Enhanced equipment management
+export interface EquipmentProfile {
+  id: string;
+  name: string;
+  category: 'Telescope' | 'Camera' | 'Mount' | 'Filter' | 'Accessory' | 'Software';
+  subcategory?: string;     // e.g. "Refractor", "Cooled CMOS", etc.
+  brand: string;
+  model: string;
+  // Telescope specs
+  focalLength?: number;     // mm
+  aperture?: number;        // mm
+  fRatio?: number;          // f/x
+  telescopeType?: string;     // Refractor, Reflector, Catadioptric
+  // Camera specs
+  sensorWidth?: number;     // mm
+  sensorHeight?: number;    // mm
+  pixelSize?: number;       // micrometers
+  resolution?: string;      // e.g. "3008x3008"
+  cameraType?: string;      // Cooled CCD, DSLR, etc.
+  // Mount specs
+  payloadCapacity?: number; // kg
+  mountType?: string;       // EQ, Alt-Az, etc.
+  // Filter specs
+  filterType?: string;        // Broadband, Narrowband, etc.
+  bandwidth?: number;       // nm
+  wavelength?: number;      // nm (narrowband)
+  // Metadata
+  specs: string;
+  description: string;
+  rating: number;
+  isPersonal: boolean;
+  imageUrl?: string;
+  purchaseDate?: string;    // ISO date
+  purchasePrice?: number;   // EUR
+  // FOV calculator result (computed)
+  fovWidth?: number;        // arcminutes (computed)
+  fovHeight?: number;       // arcminutes (computed)
+  pixelScale?: number;      // arcsec/pixel (computed)
+}
+
+// Ask Hal AI types
+export interface AskHalMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+export interface AskHalRankingResult {
+  target: ObservationTarget;
+  score: number;
+  reasoning: string;
+  recommendedFilters?: string[];
+  recommendedExposure?: number; // seconds
+  recommendedBinning?: number;
+}
+
+// Extended AppData
+export interface AstroCaptureV2Data {
+  equipment: EquipmentProfile[];
+  sessions: ObservationSession[];
+  askHalHistory: AskHalMessage[];
 }

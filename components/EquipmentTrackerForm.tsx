@@ -34,7 +34,7 @@ const CategoryIcon: React.FC<{ category: string; size?: number }> = ({ category,
     }
 };
 
-export const EquipmentTrackerForm: React.FC<EquipmentTrackerFormProps> = ({ initialData, onSave, isSaving }) => {
+const EquipmentTrackerForm: React.FC<EquipmentTrackerFormProps> = ({ initialData, onSave, isSaving }) => {
     const [items, setItems] = useState<AstroEquipment[]>(initialData || []);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -235,3 +235,4 @@ export const EquipmentTrackerForm: React.FC<EquipmentTrackerFormProps> = ({ init
         </div>
     );
 };
+export default EquipmentTrackerForm;

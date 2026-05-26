@@ -8,6 +8,19 @@ import {
   Instagram, Copy, Cookie, FileText 
 } from 'lucide-react';
 
+// --- Shared UI Primitives ---
+
+const ToolbarButton: React.FC<{ onClick: () => void; children: React.ReactNode; title: string }> = ({ onClick, children, title }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="p-2 rounded-md hover:bg-border focus:bg-border text-text-secondary hover:text-text"
+    title={title}
+  >
+    {children}
+  </button>
+);
+
 // --- Visual Elements ---
 
 export const StarBackground = () => {
@@ -180,17 +193,6 @@ export const RichTextEditor: React.FC<{
         execCmd('createLink', url);
     }
   };
-
-  const ToolbarButton: React.FC<{ onClick: () => void; children: React.ReactNode, title: string }> = ({ onClick, children, title }) => (
-    <button 
-      type="button" 
-      onClick={onClick} 
-      className="p-2 rounded-md hover:bg-border focus:bg-border text-text-secondary hover:text-text"
-      title={title}
-    >
-      {children}
-    </button>
-  );
 
   return (
     <div className="w-full">
@@ -736,6 +738,15 @@ export const SocialShare: React.FC<{
     </div>
   );
 };
+
+export const Card: React.FC<{ children: React.ReactNode; className?: string; onClick?: () => void }> = ({ children, className = '', onClick }) => (
+  <div
+    onClick={onClick}
+    className={`bg-[#1a2238] border border-[rgba(148,163,184,0.12)] rounded-xl p-4 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+  >
+    {children}
+  </div>
+);
 
 export const CookieBanner: React.FC<{ config: { enabled: boolean; title: string; message: string; acceptButtonText: string; declineButtonText: string; }; onAccept: () => void; onDecline: () => void; }> = ({ config, onAccept, onDecline }) => {
   if (!config.enabled) return null;

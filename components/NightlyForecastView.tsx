@@ -10,7 +10,7 @@ interface NightlyForecastViewProps {
   selectedDate: Date;
 }
 
-export const NightlyForecastView: React.FC<NightlyForecastViewProps> = ({ forecast, isLoading, error, onSelectDate, selectedDate }) => {
+const NightlyForecastView: React.FC<NightlyForecastViewProps> = ({ forecast, isLoading, error, onSelectDate, selectedDate }) => {
   if (isLoading) return <div className="text-center py-8 text-text-secondary">Loading 14-day forecast...</div>;
   if (error) return <div className="text-center py-8 text-red-400">{error}</div>;
   if (!forecast || forecast.length === 0) return null;
@@ -87,3 +87,4 @@ export const NightlyForecastView: React.FC<NightlyForecastViewProps> = ({ foreca
     </div>
   );
 };
+export default NightlyForecastView;

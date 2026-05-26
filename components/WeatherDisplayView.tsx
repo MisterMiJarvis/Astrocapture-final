@@ -2,7 +2,7 @@ import React from 'react';
 import { AstroForecastHour } from '../types';
 import { Target, Star, Moon, CloudMoon, Cloud, Cloudy, Smile, Frown } from 'lucide-react';
 
-export const WeatherDisplayView: React.FC<{
+const WeatherDisplayView: React.FC<{
     imagingWindowData: AstroForecastHour[];
     isLoading: boolean;
     error: string | null;
@@ -186,3 +186,5 @@ export const WeatherDisplayView: React.FC<{
         </div>
     );
 };
+
+export default WeatherDisplayView;

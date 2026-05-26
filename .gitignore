@@ -12,6 +12,19 @@ dist
 dist-ssr
 *.local
 
+# API data
+api/node_modules
+api/dist
+data/
+*.db
+
+# Environment
+.env
+.env.local
+
+# Uploads
+public/uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

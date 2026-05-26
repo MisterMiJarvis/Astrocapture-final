@@ -4,8 +4,8 @@ import { AppData } from './types';
 // FIX: Completed the INITIAL_DATA object to match the AppData type and provide default content.
 export const INITIAL_DATA: AppData = {
   version: '3.1.0-Slider',
-  logoUrl: 'https://www.nasa.gov/wp-content/uploads/2023/08/stsci-01h8x6x79r6f1h0g9y8c99t2tr.png',
-  faviconUrl: 'https://www.nasa.gov/wp-content/uploads/2023/08/stsci-01h8x6x79r6f1h0g9y8c99t2tr.png',
+  logoUrl: '/uploads/1e47bea7-5d1e-474c-83d1-b9d1c41118ee.jpg',
+  faviconUrl: '/uploads/1e47bea7-5d1e-474c-83d1-b9d1c41118ee.jpg',
   
   heroSlides: [
     {
@@ -13,7 +13,7 @@ export const INITIAL_DATA: AppData = {
       title: 'The Great Orion Nebula',
       subtitle: 'A Stellar Nursery in Our Galactic Backyard',
       description: 'M42 is one of the brightest nebulae in the sky, a vast cloud of gas and dust where new stars are born. Explore this stunning deep-sky object in high resolution.',
-      imageUrl: 'https://www.nasa.gov/wp-content/uploads/2024/01/stsci-01hm19aqe10n7v05s08fsfs1hp.png',
+      imageUrl: '/uploads/1e47bea7-5d1e-474c-83d1-b9d1c41118ee.jpg',
       linkText: 'View The Post',
       linkUrl: 'post:m42-orion-nebula',
     },
@@ -22,7 +22,7 @@ export const INITIAL_DATA: AppData = {
       title: 'Andromeda Galaxy',
       subtitle: 'Our Closest Galactic Neighbor',
       description: "Discover the majestic spiral arms of M31, the Andromeda Galaxy. It's on a collision course with the Milky Way, but you can see the stunning details today.",
-      imageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/05/pia15416-andromeda-galaxy.jpg',
+      imageUrl: '/uploads/51905b77-b446-400a-b92e-fbc8b4d0bdbe.jpg',
       linkText: 'Explore M31',
       linkUrl: 'post:m31-andromeda-galaxy',
     }
@@ -81,7 +81,7 @@ export const INITIAL_DATA: AppData = {
       id: 'm42-orion-nebula',
       title: 'The Great Orion Nebula',
       objectName: 'M42',
-      imageUrl: 'https://www.nasa.gov/wp-content/uploads/2024/01/stsci-01hm19aqe10n7v05s08fsfs1hp.png',
+      imageUrl: '/uploads/1e47bea7-5d1e-474c-83d1-b9d1c41118ee.jpg',
       captureDate: '2023-11-15',
       equipment: 'Celestron EdgeHD 8", ZWO ASI294MC Pro',
       description: 'The Orion Nebula is a stellar nursery, a vast cloud of gas and dust where new stars are being born. Located in the constellation of Orion, it is one of the brightest nebulae and is visible to the naked eye.',
@@ -98,7 +98,7 @@ export const INITIAL_DATA: AppData = {
       id: 'm31-andromeda-galaxy',
       title: 'Andromeda Galaxy',
       objectName: 'M31',
-      imageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/05/pia15416-andromeda-galaxy.jpg',
+      imageUrl: '/uploads/51905b77-b446-400a-b92e-fbc8b4d0bdbe.jpg',
       captureDate: '2023-09-22',
       equipment: 'Celestron EdgeHD 8", ZWO ASI294MC Pro',
       description: "The Andromeda Galaxy is our closest major galactic neighbor. A spiral galaxy approximately 2.5 million light-years from Earth, it's on a collision course with our own Milky Way, but not for another 4.5 billion years.",
@@ -115,7 +115,7 @@ export const INITIAL_DATA: AppData = {
       id: 'm16-eagle-nebula',
       title: 'Pillars of Creation',
       objectName: 'M16',
-      imageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/11/stsci-01hfetbxbgt82x30s0vt0q8y1q.png',
+      imageUrl: '/uploads/7084ac00-cb09-4fe9-ae40-90ac1fab6fe2.jpg',
       captureDate: '2023-07-04',
       equipment: 'Celestron EdgeHD 8", ZWO ASI294MC Pro',
       description: 'The Eagle Nebula contains the famous "Pillars of Creation," towering columns of interstellar gas and dust. This iconic structure, popularized by the Hubble Space Telescope, is a region of active star formation.',
@@ -135,7 +135,7 @@ export const INITIAL_DATA: AppData = {
       id: 'sample-processing-post',
       title: 'Sample: Stretching Nebula Data',
       postType: 'before-after',
-      beforeImageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/11/stsci-01hfetbxbgt82x30s0vt0q8y1q.png',
+      beforeImageUrl: '/uploads/7084ac00-cb09-4fe9-ae40-90ac1fab6fe2.jpg',
       afterImageUrl: 'https://esahubble.org/media/archives/images/large/heic1501a.jpg',
       description: 'This is a sample article demonstrating the before/after image feature. Hover over the main image to see the change, and click to open a larger view with toggles. Edit this in the CMS!',
       tags: ['pixinsight', 'tutorial', 'nebula'],
@@ -147,7 +147,7 @@ export const INITIAL_DATA: AppData = {
       id: 'sample-research-post',
       title: 'Deep Dive: The Chemistry of Star Formation',
       postType: 'research',
-      featuredImageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/05/pia15416-andromeda-galaxy.jpg',
+      featuredImageUrl: '/uploads/51905b77-b446-400a-b92e-fbc8b4d0bdbe.jpg',
       description: '<h2>Understanding Nebulae</h2><p>Star-forming regions, or nebulae, are vast clouds of gas and dust. This article explores the intricate chemical processes that lead to stellar ignition.</p><ul><li>Ionized Hydrogen</li><li>Molecular Clouds</li><li>Gravitational Collapse</li></ul><p>Listen to our accompanying podcast for more details!</p>',
       tags: ['research', 'nebula', 'chemistry', 'podcast'],
       captureDate: '2024-02-15',
@@ -163,9 +163,9 @@ export const INITIAL_DATA: AppData = {
       tags: ['gallery', 'nebula', 'carina', 'jwst'],
       captureDate: '2024-03-20',
       galleryImages: [
-        { id: 'img1', imageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/04/stsci-01gwx283bbffexf741px9g8k9v.png', caption: 'A wide-field view showcasing the entire nebula.', showOnWall: true },
-        { id: 'img2', imageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/04/stsci-01gwx28m7b8q3bqqt9s11g2k49.png', caption: 'Close-up of the "Cosmic Cliffs" region.', showOnWall: true },
-        { id: 'img3', imageUrl: 'https://www.nasa.gov/wp-content/uploads/2023/11/stsci-01hfetdgj9ea10pk23hkv9dtf7.png', caption: 'Detail of the Keyhole Nebula within Carina.', showOnWall: true }
+        { id: 'img1', imageUrl: '/uploads/571d743e-0577-4ee0-81c7-3f50f6425fcf.jpg', caption: 'A wide-field view showcasing the entire nebula.', showOnWall: true },
+        { id: 'img2', imageUrl: '/uploads/571d743e-0577-4ee0-81c7-3f50f6425fcf.jpg', caption: 'Close-up of the "Cosmic Cliffs" region.', showOnWall: true },
+        { id: 'img3', imageUrl: '/uploads/7084ac00-cb09-4fe9-ae40-90ac1fab6fe2.jpg', caption: 'Detail of the Keyhole Nebula within Carina.', showOnWall: true }
       ]
     }
   ],

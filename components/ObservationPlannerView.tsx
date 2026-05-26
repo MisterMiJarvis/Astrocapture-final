@@ -28,7 +28,7 @@ interface ObservationPlannerViewProps {
 
 type PlannerTab = 'tonight' | 'wishlist' | 'history';
 
-export const ObservationPlannerView: React.FC<ObservationPlannerViewProps> = ({ equipment }) => {
+const ObservationPlannerView: React.FC<ObservationPlannerViewProps> = ({ equipment }) => {
     const [activeTab, setActiveTab] = React.useState<PlannerTab>('wishlist');
     const [targets, setTargets] = React.useState<ObservationTarget[]>(DEFAULT_OBSERVATION_TARGETS);
     const [sessions, setSessions] = React.useState<ObservationSession[]>([]);
@@ -695,3 +695,4 @@ export const ObservationPlannerView: React.FC<ObservationPlannerViewProps> = ({ 
         </div>
     );
 };
+export default ObservationPlannerView;

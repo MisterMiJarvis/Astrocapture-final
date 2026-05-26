@@ -11,7 +11,7 @@ interface GearSettingsFormProps {
   isSaving: boolean;
 }
 
-export const GearSettingsForm: React.FC<GearSettingsFormProps> = ({ initialData, onSave, isSaving }) => {
+const GearSettingsForm: React.FC<GearSettingsFormProps> = ({ initialData, onSave, isSaving }) => {
   const [items, setItems] = useState<EquipmentItem[]>(initialData || []);
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
   const [generatingSpecsId, setGeneratingSpecsId] = useState<string | null>(null);
@@ -208,3 +208,4 @@ export const GearSettingsForm: React.FC<GearSettingsFormProps> = ({ initialData,
     </div>
   );
 };
+export default GearSettingsForm;
