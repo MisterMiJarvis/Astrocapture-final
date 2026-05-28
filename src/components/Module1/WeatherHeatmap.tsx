@@ -33,11 +33,21 @@ function scoreToText(score: number): string {
 }
 
 export const WeatherHeatmap: React.FC<WeatherHeatmapProps> = ({
-  weeklyData,
-  hourlyData,
+  weeklyData = [],
+  hourlyData = [],
   nightStartHour = 20,
   nightEndHour = 5,
 }) => {
+  if (!weeklyData || weeklyData.length === 0) {
+    return (
+      <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-100">
+          Heatmap Météo Astro (7 nuits)
+        </h3>
+        <p className="text-sm text-slate-500">Chargement des données météo...</p>
+      </div>
+    );
+  }
   const heatmapGrid = useMemo(() => {
     const grid: { hour: number; dayIndex: number; score: number; data: HourlyWeather | null }[][] = [];
 

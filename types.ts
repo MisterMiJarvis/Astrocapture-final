@@ -30,7 +30,8 @@ export enum ViewState {
   TELESCOPIUS_TEST,
   // APLS v3 — Module 2
   APLS_MODULE2,
-  // APLS v3 — Modules 1,3,4,5,6
+  // APLS v3 — AstroSuite
+  ASTRO_SUITE,
   APLS_MODULE1,
   APLS_MODULE3,
   APLS_MODULE4,
@@ -594,4 +595,25 @@ export interface AplsExposureResult {
   swampingFactor: number;         // B_sky / RN²
   recommendation: string;
   warning?: string;
+}
+
+// ============================================================================
+// USER TYPES — Gestion des utilisateurs (AstroSuite + Admin)
+// ============================================================================
+
+export interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
+export interface UserFormData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  isAdmin: boolean;
 }

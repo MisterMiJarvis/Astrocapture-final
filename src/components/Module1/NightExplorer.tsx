@@ -21,7 +21,7 @@ const TYPE_EMOJIS: Record<string, string> = {
 };
 
 export const NightExplorer: React.FC<NightExplorerProps> = ({
-  suggestions,
+  suggestions = [],
   onTargetSelect,
   isLoading,
 }) => {

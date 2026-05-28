@@ -7,7 +7,7 @@ import React from 'react';
 import { ImagingProject, ProjectStatus } from '../../types/module1';
 
 interface ProjectCardProps {
-  project: ImagingProject;
+  project?: ImagingProject;
   onPlay?: (id: string) => void;
   onPause?: (id: string) => void;
   onStop?: (id: string) => void;
@@ -37,6 +37,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onStop,
   onView,
 }) => {
+  if (!project) {
+    return (
+      <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-100">📋 Projet</h3>
+        <p className="text-sm text-slate-500">Aucun projet actif.</p>
+      </div>
+    );
+  }
   const status = STATUS_CONFIG[project.status];
   const progress = Math.round(project.progress);
 

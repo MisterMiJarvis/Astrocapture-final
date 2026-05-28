@@ -17,7 +17,7 @@ import {
   Search, GripVertical, Copy, Globe, Database, Key, Moon, Sun,
   RotateCw, MoveUp, SlidersHorizontal, Star, ThumbsUp,
   Smile, Frown, Milestone, AlertCircle, Target, ArrowDown, ArrowUp, Tag, RotateCcw, Maximize2, Minimize2, Zap, File as FileIcon, AudioWaveform, Layers,
-  Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon, Radio, Mountain, Monitor, EyeOff
+  Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon, Radio, Mountain, Monitor, EyeOff, Users
 } from 'lucide-react';
 import { fetchImageOfTheDay } from './services/nasaApiService';
 import { fetchAstrobinImageOfTheDay } from './services/astrobinApiService';
@@ -34,9 +34,11 @@ const LazyLoginView = React.lazy(() => import('./components/LoginView'));
 const NightlyForecastView = React.lazy(() => import('./components/NightlyForecastView'));
 const WeatherDisplayView = React.lazy(() => import('./components/WeatherDisplayView'));
 const AplsModule2View = React.lazy(() => import('./components/AplsModule2View'));
+const AstroSuiteView = React.lazy(() => import('./components/AstroSuiteView'));
 const AplsModule1View = React.lazy(() => import('./components/AplsModule1View'));
 const AplsModule3View = React.lazy(() => import('./components/AplsModule3View'));
 const AplsModule4View = React.lazy(() => import('./components/AplsModule4View'));
+const UserManager = React.lazy(() => import('./src/components/admin/UserManager'));
 const AplsModule5View = React.lazy(() => import('./components/AplsModule5View'));
 const AplsModule6View = React.lazy(() => import('./components/AplsModule6View'));
 
@@ -238,6 +240,7 @@ const App = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [authChecked, setAuthChecked] = React.useState(false);
+  const [locationSource, setLocationSource] = React.useState<'current' | 'saintEtienne' | 'pradelles' | ''>('');
 
   // Check auth on mount
   React.useEffect(() => {
@@ -441,7 +444,7 @@ const App = () => {
   };
 
   const handleNav = (target: ViewState) => {
-    if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6].includes(target)) {
+    if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES, ViewState.ASTRO_SUITE, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6].includes(target)) {
       setSelectedTag(null);
       setSelectedPostId(null);
       setSelectedProcessingPostId(null);
@@ -486,6 +489,7 @@ const App = () => {
         'image-wall': ViewState.WALL_OF_IMAGES,
         'astro-index': ViewState.ASTRO_INDEX,
         'about': ViewState.ABOUT,
+        'astrosuite': ViewState.ASTRO_SUITE,
         'apls-module1': ViewState.APLS_MODULE1,
         'apls-module2': ViewState.APLS_MODULE2,
         'apls-module3': ViewState.APLS_MODULE3,
@@ -543,12 +547,7 @@ const App = () => {
               <NavButton active={view === ViewState.WALL_OF_IMAGES} onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</NavButton>
               <NavButton active={view === ViewState.POST_PROCESSING} onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</NavButton>
               <NavButton active={view === ViewState.ASTRO_INDEX} onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</NavButton>
-              <NavButton active={view === ViewState.APLS_MODULE2} onClick={() => handleNav(ViewState.APLS_MODULE2)}>Equipment</NavButton>
-              <NavButton active={view === ViewState.APLS_MODULE1} onClick={() => handleNav(ViewState.APLS_MODULE1)}>Dashboard</NavButton>
-              <NavButton active={view === ViewState.APLS_MODULE3} onClick={() => handleNav(ViewState.APLS_MODULE3)}>Framing</NavButton>
-              <NavButton active={view === ViewState.APLS_MODULE4} onClick={() => handleNav(ViewState.APLS_MODULE4)}>Planner</NavButton>
-              <NavButton active={view === ViewState.APLS_MODULE5} onClick={() => handleNav(ViewState.APLS_MODULE5)}>Exposure</NavButton>
-              <NavButton active={view === ViewState.APLS_MODULE6} onClick={() => handleNav(ViewState.APLS_MODULE6)}>Analysis</NavButton>
+              <NavButton active={[ViewState.ASTRO_SUITE, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6].includes(view)} onClick={() => handleNav(ViewState.ASTRO_SUITE)}>AstroSuite</NavButton>
               <GlobalSearch posts={posts} processingPosts={processingPosts} onNavigate={handleSearchNavigate} />
             </div>
             <div className="md:hidden">
@@ -566,12 +565,7 @@ const App = () => {
               <MobileNavButton onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE2)}>Equipment</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE1)}>Dashboard</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE3)}>Framing</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE4)}>Planner</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE5)}>Exposure</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.APLS_MODULE6)}>Analysis</MobileNavButton>
+              <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_SUITE)}>AstroSuite</MobileNavButton>
             </div>
           </div>
         )}
@@ -591,8 +585,9 @@ const App = () => {
         {view === ViewState.LEGAL_NOTICE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LegalNoticeView config={legalNoticeConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.ADMIN_LOGIN && <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LazyLoginView onLogin={(token) => { setIsLoggedIn(true); setView(ViewState.ADMIN_DASHBOARD); }} /></div>}
         {view === ViewState.ADMIN_DASHBOARD && isLoggedIn && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AdminDashboard {...{posts, processingPosts, heroSlides, aboutConfig, logoUrl, faviconUrl, footerConfig, processingConfig, licenseConfig, legalNoticeConfig, cookieBannerConfig, gearItems, equipment}} onLogout={handleLogout} onReset={handleReset} /></div>}
+        {view === ViewState.ASTRO_SUITE && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading AstroSuite...</div>}><AstroSuiteView /></React.Suspense>}
         {view === ViewState.APLS_MODULE2 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 2...</div>}><AplsModule2View /></React.Suspense>}
-        {view === ViewState.APLS_MODULE1 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 1...</div>}><AplsModule1View /></React.Suspense>}
+        {view === ViewState.APLS_MODULE1 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 1...</div>}><AplsModule1View locationSource={locationSource} onLocationChange={(src) => setLocationSource(src)} /></React.Suspense>}
         {view === ViewState.APLS_MODULE3 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 3...</div>}><AplsModule3View /></React.Suspense>}
         {view === ViewState.APLS_MODULE4 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 4...</div>}><AplsModule4View /></React.Suspense>}
         {view === ViewState.APLS_MODULE5 && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading APLS Module 5...</div>}><AplsModule5View /></React.Suspense>}
@@ -1480,7 +1475,7 @@ const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   );
 };
 
-type AdminPanel = 'gallery' | 'articles' | 'global' | 'hero' | 'about' | 'articlesPage' | 'footer' | 'license' | 'imageWall' | 'cookieBanner' | 'legalNotice' | 'gear' | 'equipment';
+type AdminPanel = 'gallery' | 'articles' | 'global' | 'hero' | 'about' | 'articlesPage' | 'footer' | 'license' | 'imageWall' | 'cookieBanner' | 'legalNotice' | 'gear' | 'equipment' | 'users';
 
 const AdminDashboard: React.FC<{
   posts: Post[];
@@ -1589,6 +1584,7 @@ const PanelButton: React.FC<{ panel: AdminPanel, icon: React.ReactNode, children
           <PanelButton panel="articles" icon={<Newspaper size={18} />}>Articles & Tutorials</PanelButton>
           <PanelButton panel="gear" icon={<Wrench size={18} />}>Gear Reviews</PanelButton>
           <PanelButton panel="equipment" icon={<Radio size={18} />}>My Equipment</PanelButton>
+          <PanelButton panel="users" icon={<Users size={18} />}>Users</PanelButton>
         </div>
 
         <div className="mt-4 pt-4 border-t border-border">
@@ -1633,7 +1629,12 @@ const PanelButton: React.FC<{ panel: AdminPanel, icon: React.ReactNode, children
             />
             </React.Suspense>
         )}
-        {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && activePanel !== 'equipment' && (
+        {activePanel === 'users' && (
+            <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}>
+            <UserManager />
+            </React.Suspense>
+        )}
+        {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && activePanel !== 'equipment' && activePanel !== 'users' && (
           <AdminSettingsPanel
             key={activePanel}
             activeSection={activePanel}

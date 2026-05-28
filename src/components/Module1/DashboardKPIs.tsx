@@ -7,7 +7,7 @@ import React from 'react';
 import { DashboardKPIs, FilterDistributionItem, MonthlyTrendItem } from '../../types/module1';
 
 interface DashboardKPIsProps {
-  kpis: DashboardKPIs;
+  kpis?: DashboardKPIs;
 }
 
 // Pie chart simple en SVG

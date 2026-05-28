@@ -43,10 +43,20 @@ function formatTimeUntil(date?: Date): string {
 }
 
 export const NovaRankList: React.FC<NovaRankListProps> = ({
-  targets,
+  targets = [],
   onTargetSelect,
   availableFilters = ['UV_IR_Cut', 'L_Ultimate', 'Ha', 'OIII'],
 }) => {
+  if (!targets || targets.length === 0) {
+    return (
+      <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-100">
+          🔭 Nova Rank
+        </h3>
+        <p className="text-sm text-slate-500">Aucune cible disponible.</p>
+      </div>
+    );
+  }
   const [sortBy, setSortBy] = useState<'novaRank' | 'altitude' | 'moonSep' | 'name'>('novaRank');
   const [filterType, setFilterType] = useState<FilterType | 'all'>('all');
   const [minAltitude, setMinAltitude] = useState(20);

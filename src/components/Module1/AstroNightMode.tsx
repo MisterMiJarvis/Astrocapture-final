@@ -6,11 +6,11 @@
 import React, { useEffect, useCallback } from 'react';
 
 interface AstroNightModeProps {
-  enabled: boolean;
-  onToggle: () => void;
+  enabled?: boolean;
+  onToggle?: () => void;
 }
 
-export const AstroNightMode: React.FC<AstroNightModeProps> = ({ enabled, onToggle }) => {
+export const AstroNightMode: React.FC<AstroNightModeProps> = ({ enabled = false, onToggle }) => {
   // Applique le thème rouge au document entier
   useEffect(() => {
     if (enabled) {
@@ -31,7 +31,7 @@ export const AstroNightMode: React.FC<AstroNightModeProps> = ({ enabled, onToggl
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-      onToggle();
+      onToggle?.();
     }
   }, [onToggle]);
 

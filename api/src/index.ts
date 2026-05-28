@@ -23,13 +23,14 @@ app.use('/*', cors({
 }));
 
 // Auth middleware
+type AuthUser = { id: string; email: string; isAdmin?: boolean };
 const auth = async (c: any, next: any) => {
   const header = c.req.header('Authorization');
   if (!header?.startsWith('Bearer ')) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
   try {
-    const payload = await Jwt.verify(header.slice(7), JWT_SECRET, 'HS256') as { id: string; email: string };
+    const payload = await Jwt.verify(header.slice(7), JWT_SECRET, 'HS256') as AuthUser;
     c.set('user', payload);
     await next();
   } catch {
@@ -47,8 +48,8 @@ app.post('/api/auth/login', async (c) => {
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
-  const token = await Jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
-  return c.json({ token, user: { id: user.id, email: user.email } });
+  const token = await Jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin }, JWT_SECRET);
+  return c.json({ token, user: { id: user.id, email: user.email, firstName: user.first_name || '', lastName: user.last_name || '', isAdmin: !!user.is_admin } });
 });
 
 app.post('/api/auth/setup', async (c) => {
@@ -65,9 +66,113 @@ app.post('/api/auth/setup', async (c) => {
   return c.json({ token, user: { id, email } });
 });
 
-app.get('/api/auth/me', auth, async (c) => {
-  const user = c.get('user');
-  return c.json({ user: { id: user.id, email: user.email } });
+app.post('/api/auth/astro-login', async (c) => {
+  const { email, password } = await c.req.json();
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    return c.json({ error: 'Invalid credentials' }, 401);
+  }
+  const token = await Jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin }, JWT_SECRET);
+  return c.json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name || '',
+      lastName: user.last_name || '',
+      isAdmin: !!user.is_admin,
+    }
+  });
+});
+
+// =====================
+// USERS CRUD (Admin + AstroSuite)
+// =====================
+
+app.get('/api/users', auth, async (c) => {
+  const authUser = c.get('user') as AuthUser;
+  if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
+  const rows = db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users ORDER BY created_at DESC').all();
+  const users = (rows as any[]).map(row => ({
+    id: row.id,
+    email: row.email,
+    firstName: row.first_name || '',
+    lastName: row.last_name || '',
+    isAdmin: !!row.is_admin,
+    createdAt: row.created_at,
+  }));
+  return c.json({ users });
+});
+
+app.post('/api/users', auth, async (c) => {
+  const authUser = c.get('user') as AuthUser;
+  if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
+  const { email, firstName, lastName, password, isAdmin } = await c.req.json();
+  if (!email || !password || password.length < 6) {
+    return c.json({ error: 'Email and password (min 6 chars) required' }, 400);
+  }
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (existing) return c.json({ error: 'Email already exists' }, 409);
+  const id = crypto.randomUUID();
+  const hash = await bcrypt.hash(password, 10);
+  db.prepare('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, email, hash, firstName || '', lastName || '', isAdmin ? 1 : 0);
+  const user = db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
+  return c.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name || '',
+      lastName: user.last_name || '',
+      isAdmin: !!user.is_admin,
+      createdAt: user.created_at,
+    }
+  }, 201);
+});
+
+app.put('/api/users/:id', auth, async (c) => {
+  const authUser = c.get('user') as AuthUser;
+  if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
+  const { email, firstName, lastName, password, isAdmin } = await c.req.json();
+  const id = c.req.param('id');
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+  if (!user) return c.json({ error: 'User not found' }, 404);
+
+  let updates: string[] = [];
+  let params: any[] = [];
+  if (email !== undefined) { updates.push('email = ?'); params.push(email); }
+  if (firstName !== undefined) { updates.push('first_name = ?'); params.push(firstName); }
+  if (lastName !== undefined) { updates.push('last_name = ?'); params.push(lastName); }
+  if (isAdmin !== undefined) { updates.push('is_admin = ?'); params.push(isAdmin ? 1 : 0); }
+  if (password) {
+    const hash = await bcrypt.hash(password, 10);
+    updates.push('password_hash = ?');
+    params.push(hash);
+  }
+  if (updates.length === 0) return c.json({ error: 'No fields to update' }, 400);
+  params.push(id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+  const updated = db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
+  return c.json({
+    user: {
+      id: updated.id,
+      email: updated.email,
+      firstName: updated.first_name || '',
+      lastName: updated.last_name || '',
+      isAdmin: !!updated.is_admin,
+      createdAt: updated.created_at,
+    }
+  });
+});
+
+app.delete('/api/users/:id', auth, (c) => {
+  const authUser = c.get('user') as AuthUser;
+  if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
+  const id = c.req.param('id');
+  if (id === authUser.id) return c.json({ error: 'Cannot delete yourself' }, 400);
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  return c.json({ ok: true });
 });
 
 // =====================

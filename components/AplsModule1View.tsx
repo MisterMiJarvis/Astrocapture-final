@@ -13,8 +13,8 @@ const PRESET_LOCATIONS: Record<string, { lat: number; lon: number }> = {
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
 
 interface AplsModule1ViewProps {
-  locationSource: LocationSource;
-  onLocationChange: (source: LocationSource) => void;
+  locationSource?: LocationSource;
+  onLocationChange?: (source: LocationSource) => void;
 }
 
 interface TelescopiusTarget {
@@ -94,7 +94,10 @@ const getObjectTypeLabel = (types: string[]): string => {
   return types[0] || 'Deep Sky';
 };
 
-const AplsModule1View: React.FC<AplsModule1ViewProps> = ({ locationSource, onLocationChange }) => {
+const AplsModule1View: React.FC<AplsModule1ViewProps> = ({ locationSource: locationSourceProp, onLocationChange: onLocationChangeProp }) => {
+  const [localLocationSource, setLocalLocationSource] = useState<LocationSource>('');
+  const locationSource = locationSourceProp ?? localLocationSource;
+  const onLocationChange = onLocationChangeProp ?? setLocalLocationSource;
   const [nightlyForecast, setNightlyForecast] = useState<NightlyForecast[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
