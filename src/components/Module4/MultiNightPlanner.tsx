@@ -23,7 +23,21 @@ export const MultiNightPlanner: React.FC<MultiNightPlannerProps> = ({ plan, onEx
   const [selectedNight, setSelectedNight] = useState<number | null>(null);
   const [showFlipInfo, setShowFlipInfo] = useState(false);
 
-  const totalHours = plan.nights.reduce((sum, n) => sum + n.hoursAboveHorizon, 0);
+  // Guard clause — évite crash si plan ou nights est undefined
+  if (!plan || !plan.nights || plan.nights.length === 0) {
+    return (
+      <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+          📅 Planification
+        </h3>
+        <p className="text-sm text-slate-500 mt-2">
+          Aucune nuit planifiée. Ajoutez une cible pour commencer.
+        </p>
+      </div>
+    );
+  }
+
+  const totalHours = plan.nights.reduce((sum, n) => sum + (n.hoursAboveHorizon || 0), 0);
   const visibleNights = plan.nights.filter(n => n.isVisible).length;
 
   return (

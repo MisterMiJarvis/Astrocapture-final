@@ -34,11 +34,11 @@ const LazyLoginView = React.lazy(() => import('./components/LoginView'));
 const NightlyForecastView = React.lazy(() => import('./components/NightlyForecastView'));
 const WeatherDisplayView = React.lazy(() => import('./components/WeatherDisplayView'));
 const AplsModule2View = React.lazy(() => import('./components/AplsModule2View'));
-const AplsModule1View = React.lazy(() => import('./src/components/Module1'));
-const AplsModule3View = React.lazy(() => import('./src/components/Module3'));
-const AplsModule4View = React.lazy(() => import('./src/components/Module4'));
-const AplsModule5View = React.lazy(() => import('./src/components/Module5'));
-const AplsModule6View = React.lazy(() => import('./src/components/Module6'));
+const AplsModule1View = React.lazy(() => import('./components/AplsModule1View'));
+const AplsModule3View = React.lazy(() => import('./components/AplsModule3View'));
+const AplsModule4View = React.lazy(() => import('./components/AplsModule4View'));
+const AplsModule5View = React.lazy(() => import('./components/AplsModule5View'));
+const AplsModule6View = React.lazy(() => import('./components/AplsModule6View'));
 
 const NavButton: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
   <button

@@ -103,37 +103,61 @@ const MonthlyTrendChart: React.FC<{ data: MonthlyTrendItem[] }> = ({ data }) => 
 };
 
 export const DashboardKPIsView: React.FC<DashboardKPIsProps> = ({ kpis }) => {
+  // Guard clause — évite crash si kpis est undefined
+  if (!kpis) {
+    return (
+      <div className="p-4 text-slate-500">
+        Chargement des statistiques...
+      </div>
+    );
+  }
+
+  // Valeurs par défaut pour éviter undefined
+  const safeKPIs = {
+    totalIntegrationTime: kpis.totalIntegrationTime ?? 0,
+    totalSessionsCompleted: kpis.totalSessionsCompleted ?? 0,
+    totalProjectsCompleted: kpis.totalProjectsCompleted ?? 0,
+    activeProjectsCount: kpis.activeProjectsCount ?? 0,
+    averageGuidingRMS: kpis.averageGuidingRMS ?? 0,
+    bestGuidingRMS: kpis.bestGuidingRMS ?? 0,
+    worstGuidingRMS: kpis.worstGuidingRMS ?? 0,
+    filterDistribution: kpis.filterDistribution ?? [],
+    monthlyIntegrationTrend: kpis.monthlyIntegrationTrend ?? [],
+    mountHealthScore: kpis.mountHealthScore ?? 0,
+    lastMaintenanceDate: kpis.lastMaintenanceDate ?? null,
+  };
+
   return (
     <div className="space-y-4">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPICard
           label="Temps total"
-          value={`${kpis.totalIntegrationTime.toFixed(1)}h`}
-          sub={`${kpis.totalSessionsCompleted} sessions`}
+          value={`${safeKPIs.totalIntegrationTime.toFixed(1)}h`}
+          sub={`${safeKPIs.totalSessionsCompleted} sessions`}
           icon="⏱️"
         />
         <KPICard
           label="Projets"
-          value={`${kpis.activeProjectsCount}`}
-          sub={`${kpis.totalProjectsCompleted} terminés`}
+          value={`${safeKPIs.activeProjectsCount}`}
+          sub={`${safeKPIs.totalProjectsCompleted} terminés`}
           icon="📁"
         />
         <KPICard
           label="RMS moyen"
-          value={`${kpis.averageGuidingRMS.toFixed(2)}"`}
-          sub={`Best: ${kpis.bestGuidingRMS.toFixed(2)}"`}
+          value={`${safeKPIs.averageGuidingRMS.toFixed(2)}"`}
+          sub={`Best: ${safeKPIs.bestGuidingRMS.toFixed(2)}"`}
           icon="🎯"
-          trend={kpis.averageGuidingRMS < 1.0 ? 'good' : 'warning'}
+          trend={safeKPIs.averageGuidingRMS < 1.0 ? 'good' : 'warning'}
         />
         <KPICard
           label="Santé monture"
-          value={`${kpis.mountHealthScore}%`}
-          sub={kpis.lastMaintenanceDate
-            ? `Dernier entretien: ${kpis.lastMaintenanceDate.toLocaleDateString('fr-FR')}`
+          value={`${safeKPIs.mountHealthScore}%`}
+          sub={safeKPIs.lastMaintenanceDate
+            ? `Dernier entretien: ${safeKPIs.lastMaintenanceDate.toLocaleDateString('fr-FR')}`
             : 'Aucun entretien'}
           icon="🔧"
-          trend={kpis.mountHealthScore > 80 ? 'good' : 'warning'}
+          trend={safeKPIs.mountHealthScore > 80 ? 'good' : 'warning'}
         />
       </div>
 
@@ -143,14 +167,14 @@ export const DashboardKPIsView: React.FC<DashboardKPIsProps> = ({ kpis }) => {
           <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
             Répartition par Filtre
           </h4>
-          <FilterPieChart data={kpis.filterDistribution} />
+          <FilterPieChart data={safeKPIs.filterDistribution} />
         </div>
 
         <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
           <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
             Tendance Mensuelle (heures)
           </h4>
-          <MonthlyTrendChart data={kpis.monthlyIntegrationTrend} />
+          <MonthlyTrendChart data={safeKPIs.monthlyIntegrationTrend} />
         </div>
       </div>
     </div>

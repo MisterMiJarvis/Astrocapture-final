@@ -25,7 +25,32 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   onSyncTelescopius,
 }) => {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
-  const progress = Math.round(project.progress);
+
+  // Guard clause — évite crash si project est undefined
+  if (!project) {
+    return (
+      <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+        <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
+          🎯 Projet
+        </h3>
+        <p className="text-sm text-slate-500 mt-2">
+          Chargement du projet...
+        </p>
+      </div>
+    );
+  }
+
+  // Valeurs par défaut pour éviter undefined
+  const safeProject = {
+    ...project,
+    progress: project.progress ?? 0,
+    capturedIntegrationTime: project.capturedIntegrationTime ?? 0,
+    targetIntegrationTime: project.targetIntegrationTime ?? 1,
+    filterPlans: project.filterPlans ?? [],
+    sessions: project.sessions ?? [],
+  };
+
+  const progress = Math.round(safeProject.progress);
 
   return (
     <div className="rounded-lg bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-700">
@@ -33,10 +58,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
-            🎯 {project.targetName}
+            🎯 {safeProject.targetName}
           </h3>
           <div className="text-sm text-slate-500 mt-1">
-            {project.targetRa} {project.targetDec} • Priorité: {project.priority}
+            {safeProject.targetRa} {safeProject.targetDec} • Priorité: {safeProject.priority}
           </div>
         </div>
         <button
@@ -52,7 +77,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       <div className="mb-4">
         <div className="flex justify-between text-sm mb-1">
           <span className="text-slate-600 dark:text-slate-300">
-            {project.capturedIntegrationTime.toFixed(1)}h / {project.targetIntegrationTime}h
+            {safeProject.capturedIntegrationTime.toFixed(1)}h / {safeProject.targetIntegrationTime}h
           </span>
           <span className="font-medium text-slate-800 dark:text-slate-100">{progress}%</span>
         </div>
@@ -72,7 +97,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           🎨 Plans Filtre
         </h4>
         <div className="space-y-2">
-          {project.filterPlans.map((plan, i) => (
+          {safeProject.filterPlans.map((plan, i) => (
             <FilterPlanBar key={i} plan={plan} />
           ))}
         </div>
@@ -81,10 +106,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       {/* Sessions */}
       <div>
         <h4 className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-          📸 Sessions ({project.sessions.length})
+          📸 Sessions ({safeProject.sessions.length})
         </h4>
         <div className="space-y-2">
-          {project.sessions.map(session => (
+          {safeProject.sessions.map(session => (
             <SessionRow
               key={session.id}
               session={session}
@@ -97,9 +122,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       </div>
 
       {/* Notes */}
-      {project.notes && (
+      {safeProject.notes && (
         <div className="mt-4 p-3 rounded bg-slate-50 dark:bg-slate-800/50 text-sm text-slate-600 dark:text-slate-300 italic">
-          📝 {project.notes}
+          📝 {safeProject.notes}
         </div>
       )}
     </div>
