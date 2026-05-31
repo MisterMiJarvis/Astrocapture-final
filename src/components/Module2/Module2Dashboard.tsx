@@ -13,6 +13,7 @@ import {
   getSamplingRecommendation,
   getAllPresets,
   getPresetsByCategory,
+  ACTIVE_PROFILE_KEY,
   EquipmentPreset,
   FULL_RIG_PRESETS,
 } from '../../services/module2/rigProfileService';
@@ -56,10 +57,12 @@ export const Module2Dashboard: React.FC = () => {
             setActiveProfileIdState(savedActiveId);
             setActiveProfile(profile);
           } else {
-            const defaultProfile = loadedProfiles.find(p => p.isDefault) || loadedProfiles[0];
-            setActiveProfileIdState(defaultProfile.id);
-            setActiveProfile(defaultProfile);
-            setActiveProfileId(defaultProfile.id);
+            // Active ID no longer exists in DB — pick first available
+            localStorage.removeItem(ACTIVE_PROFILE_KEY);
+            const first = loadedProfiles[0];
+            setActiveProfileIdState(first.id);
+            setActiveProfile(first);
+            setActiveProfileId(first.id);
           }
         } else {
           const defaultProfile = loadedProfiles.find(p => p.isDefault) || loadedProfiles[0];
@@ -126,6 +129,8 @@ export const Module2Dashboard: React.FC = () => {
 
   const handleUpdateProfile = async (id: string, data: Partial<RigProfile>) => {
     const updated = await updateProfile(id, {
+      name: data.name,
+      isDefault: data.isDefault,
       telescope: data.telescope,
       modifier: data.modifier,
       camera: data.camera,

@@ -1,6 +1,6 @@
 
 // A name for our cache, including a version number for easy updates.
-const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v2';
+const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v3';
 const ALADIN_CACHE_NAME = 'aladin-tile-cache-v1';
 
 // A list of all caches that are currently in use.
@@ -93,7 +93,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Strategy for AstroCapture images (self-hosted)
-  if (requestUrl.origin === IMAGE_ORIGIN) {
+  // Only cache /uploads/ paths — never cache /api/ requests
+  if (requestUrl.origin === IMAGE_ORIGIN && requestUrl.pathname.startsWith('/uploads/')) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;
   }

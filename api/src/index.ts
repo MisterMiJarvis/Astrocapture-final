@@ -52,6 +52,21 @@ app.post('/api/auth/login', async (c) => {
   return c.json({ token, user: { id: user.id, email: user.email, firstName: user.first_name || '', lastName: user.last_name || '', isAdmin: !!user.is_admin } });
 });
 
+app.get('/api/auth/me', async (c) => {
+  const header = c.req.header('Authorization');
+  if (!header?.startsWith('Bearer ')) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  try {
+    const payload = await Jwt.verify(header.slice(7), JWT_SECRET, 'HS256') as any;
+    const user = db.prepare('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?').get(payload.id) as any;
+    if (!user) return c.json({ error: 'User not found' }, 404);
+    return c.json({ user: { id: user.id, email: user.email, firstName: user.first_name || '', lastName: user.last_name || '', isAdmin: !!user.is_admin } });
+  } catch {
+    return c.json({ error: 'Invalid token' }, 401);
+  }
+});
+
 app.post('/api/auth/setup', async (c) => {
   const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
   if (userCount > 0) return c.json({ error: 'Admin already exists' }, 400);
@@ -1613,6 +1628,7 @@ function parseAplsRig(row: any) {
     name: row.name,
     isDefault: Boolean(row.is_default),
     telescope: {
+      name: row.telescope_name || '',
       focalLength: row.telescope_focal_length,
       aperture: row.telescope_aperture,
       fRatio: row.telescope_f_ratio,
@@ -1624,7 +1640,7 @@ function parseAplsRig(row: any) {
       effectiveFocalLength: row.effective_focal_length,
     },
     imagingCamera: {
-      name: row.telescope_name || '',
+      name: row.camera_name || '',
       sensorWidth: row.sensor_width,
       sensorHeight: row.sensor_height,
       pixelSize: row.pixel_size,
@@ -1641,6 +1657,7 @@ function parseAplsRig(row: any) {
       pixelSize: row.guiding_pixel_size,
       binning: row.guiding_binning || 1,
       mode: row.guiding_mode || 'GuideScope',
+      focalLength: row.guiding_focal_length,
     } : undefined,
     mount: {
       name: row.mount_name || '',
@@ -1676,10 +1693,10 @@ app.post('/api/apls/rigs', auth, async (c) => {
     modifier_type, modifier_factor, effective_focal_length,
     sensor_width, sensor_height, pixel_size, resolution_x, resolution_y,
     read_noise, quantum_efficiency, is_color, has_cooling, binning_acquisition,
-    guiding_camera_name, guiding_pixel_size, guiding_binning, guiding_mode,
+    camera_name, guiding_camera_name, guiding_pixel_size, guiding_binning, guiding_mode, guiding_focal_length,
     mount_name, mount_type, mount_max_payload,
     created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.name || 'New Rig', body.isDefault ? 1 : 0,
     body.telescope?.name || '', body.telescope?.focalLength || 0, body.telescope?.aperture || 0,
     body.telescope?.fRatio || 0, body.telescope?.type || 'Refractor',
@@ -1689,8 +1706,10 @@ app.post('/api/apls/rigs', auth, async (c) => {
     body.imagingCamera?.resolutionY || 0, body.imagingCamera?.readNoise || 0,
     body.imagingCamera?.quantumEfficiency || 0, body.imagingCamera?.isColor ? 1 : 0,
     body.imagingCamera?.hasCooling ? 1 : 0, body.imagingCamera?.binningAcquisition || 1,
+    body.imagingCamera?.name || null,
     body.guidingCamera?.name || null, body.guidingCamera?.pixelSize || null,
     body.guidingCamera?.binning || null, body.guidingCamera?.mode || null,
+    body.guidingCamera?.focalLength || null,
     body.mount?.name || '', body.mount?.type || '', body.mount?.maxPayload || 0,
     now, now
   );
@@ -1712,7 +1731,8 @@ app.put('/api/apls/rigs/:id', auth, async (c) => {
     modifier_type = ?, modifier_factor = ?, effective_focal_length = ?,
     sensor_width = ?, sensor_height = ?, pixel_size = ?, resolution_x = ?, resolution_y = ?,
     read_noise = ?, quantum_efficiency = ?, is_color = ?, has_cooling = ?, binning_acquisition = ?,
-    guiding_camera_name = ?, guiding_pixel_size = ?, guiding_binning = ?, guiding_mode = ?,
+    camera_name = ?,
+    guiding_camera_name = ?, guiding_pixel_size = ?, guiding_binning = ?, guiding_mode = ?, guiding_focal_length = ?,
     mount_name = ?, mount_type = ?, mount_max_payload = ?,
     updated_at = ?
     WHERE id = ?`).run(
@@ -1725,8 +1745,10 @@ app.put('/api/apls/rigs/:id', auth, async (c) => {
     body.imagingCamera?.resolutionY || 0, body.imagingCamera?.readNoise || 0,
     body.imagingCamera?.quantumEfficiency || 0, body.imagingCamera?.isColor ? 1 : 0,
     body.imagingCamera?.hasCooling ? 1 : 0, body.imagingCamera?.binningAcquisition || 1,
+    body.imagingCamera?.name || null,
     body.guidingCamera?.name || null, body.guidingCamera?.pixelSize || null,
     body.guidingCamera?.binning || null, body.guidingCamera?.mode || null,
+    body.guidingCamera?.focalLength || null,
     body.mount?.name || '', body.mount?.type || '', body.mount?.maxPayload || 0,
     now, id
   );

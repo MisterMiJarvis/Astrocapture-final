@@ -7,13 +7,13 @@
 import { RigProfile, RigCalculations, SamplingRecommendation, CreateRigProfileDTO, GuidingConfigDTO } from '../types/module2';
 
 const API_BASE = '/api/apls/rigs';
-const ACTIVE_PROFILE_KEY = 'apls_active_rig_profile_id';
+export const ACTIVE_PROFILE_KEY = 'apls_active_rig_profile_id';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Token helper (reuse same pattern as api.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 function getToken(): string | null {
-  return localStorage.getItem('astrocapture_token');
+  return localStorage.getItem('astrosuite_token') || localStorage.getItem('astrocapture_token');
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -45,7 +45,7 @@ function mapApiToProfile(data: any): RigProfile {
     createdAt: data.createdAt || new Date().toISOString(),
     updatedAt: data.updatedAt || new Date().toISOString(),
     telescope: {
-      name: data.telescope?.name || data.telescope?.focalLength ? '' : '',
+      name: data.telescope?.name || '',
       focalLength: data.telescope?.focalLength || 0,
       aperture: data.telescope?.aperture || 0,
       fRatio: data.telescope?.fRatio || 0,
@@ -134,11 +134,23 @@ function mapDtoToApiBody(dto: CreateRigProfileDTO): any {
 export async function getAllProfiles(): Promise<RigProfile[]> {
   try {
     const data = await apiFetch<any[]>('');
-    const profiles = data.map(mapApiToProfile);
-    return profiles.length > 0 ? profiles : [getDefaultProfileSync()];
+    if (data.length > 0) {
+      return data.map(mapApiToProfile);
+    }
+    // No profiles in DB yet — create the default one
+    const created = await createProfile({
+      name: 'Default Rig',
+      isDefault: true,
+      telescope: { name: '', focalLength: 714, aperture: 102, fRatio: 7, type: 'Refractor' },
+      modifier: { type: 'None', factor: 1.0 },
+      camera: { name: '', sensorWidth: 11.3, sensorHeight: 11.3, pixelSize: 3.76, resolutionX: 3008, resolutionY: 3008, readNoise: 1.5, quantumEfficiency: 0.8, isColor: true, hasCooling: true, binningAcquisition: 1 },
+      guiding: { cameraName: '', pixelSize: 3.75, binning: 1, mode: 'GuideScope', focalLength: 120 },
+      mount: { name: '', type: 'EQ', maxPayload: 15 },
+    });
+    return [created];
   } catch (err) {
     console.error('Failed to fetch rig profiles from API:', err);
-    return [getDefaultProfileSync()];
+    return [];
   }
 }
 
@@ -213,7 +225,8 @@ export async function updateProfile(id: string, dto: Partial<CreateRigProfileDTO
       body: JSON.stringify(body),
     });
     return mapApiToProfile(data);
-  } catch {
+  } catch (err) {
+    console.error('Failed to update rig profile:', err);
     return null;
   }
 }

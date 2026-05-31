@@ -248,6 +248,8 @@ db.exec(`
     is_color INTEGER DEFAULT 1,
     has_cooling INTEGER DEFAULT 0,
     binning_acquisition INTEGER DEFAULT 1,  /* 1 ou 2 */
+    camera_name TEXT,
+    guiding_focal_length REAL,
     -- Guidage
     guiding_camera_name TEXT,
     guiding_pixel_size REAL,
