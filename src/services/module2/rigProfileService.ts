@@ -1,34 +1,174 @@
 // ============================================================================
 // SERVICE : Rig Profile Manager
-// Module 2 — Gestion des profils de rigs avec persistence localStorage
+// Module 2 — Gestion des profils de rigs avec persistence API SQLite
+// Migrated from localStorage → /api/apls/rigs
 // ============================================================================
 
 import { RigProfile, RigCalculations, SamplingRecommendation, CreateRigProfileDTO, GuidingConfigDTO } from '../types/module2';
 
-const STORAGE_KEY = 'apls_rig_profiles';
+const API_BASE = '/api/apls/rigs';
 const ACTIVE_PROFILE_KEY = 'apls_active_rig_profile_id';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CRUD Profils
+// Token helper (reuse same pattern as api.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+function getToken(): string | null {
+  return localStorage.getItem('astrocapture_token');
+}
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(error.error || `API error: ${res.status}`);
+  }
+  return res.json();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapping: API response → Frontend RigProfile
+// API uses: opticModifier, imagingCamera, guidingCamera
+// Frontend uses: modifier, camera, guiding
+// ─────────────────────────────────────────────────────────────────────────────
+function mapApiToProfile(data: any): RigProfile {
+  return {
+    id: data.id,
+    name: data.name,
+    isDefault: data.isDefault || false,
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString(),
+    telescope: {
+      name: data.telescope?.name || data.telescope?.focalLength ? '' : '',
+      focalLength: data.telescope?.focalLength || 0,
+      aperture: data.telescope?.aperture || 0,
+      fRatio: data.telescope?.fRatio || 0,
+      type: data.telescope?.type || 'Refractor',
+    },
+    modifier: {
+      type: data.opticModifier?.type || data.modifier?.type || 'None',
+      factor: data.opticModifier?.factor ?? data.modifier?.factor ?? 1.0,
+    },
+    camera: {
+      name: data.imagingCamera?.name || data.camera?.name || '',
+      sensorWidth: data.imagingCamera?.sensorWidth || data.camera?.sensorWidth || 0,
+      sensorHeight: data.imagingCamera?.sensorHeight || data.camera?.sensorHeight || 0,
+      pixelSize: data.imagingCamera?.pixelSize || data.camera?.pixelSize || 0,
+      resolutionX: data.imagingCamera?.resolutionX || data.camera?.resolutionX || 0,
+      resolutionY: data.imagingCamera?.resolutionY || data.camera?.resolutionY || 0,
+      readNoise: data.imagingCamera?.readNoise || data.camera?.readNoise || 0,
+      quantumEfficiency: data.imagingCamera?.quantumEfficiency || data.camera?.quantumEfficiency || 0,
+      isColor: data.imagingCamera?.isColor ?? data.camera?.isColor ?? true,
+      hasCooling: data.imagingCamera?.hasCooling ?? data.camera?.hasCooling ?? false,
+      binningAcquisition: data.imagingCamera?.binningAcquisition || data.camera?.binningAcquisition || 1,
+    },
+    guiding: {
+      cameraName: data.guidingCamera?.name || data.guiding?.cameraName || '',
+      pixelSize: data.guidingCamera?.pixelSize || data.guiding?.pixelSize || 0,
+      binning: data.guidingCamera?.binning || data.guiding?.binning || 1,
+      mode: data.guidingCamera?.mode || data.guiding?.mode || 'GuideScope',
+      focalLength: data.guidingCamera?.focalLength ?? data.guiding?.focalLength,
+    },
+    mount: {
+      name: data.mount?.name || '',
+      type: data.mount?.type || 'EQ',
+      maxPayload: data.mount?.maxPayload || 0,
+    },
+  };
+}
+
+// Mapping: Frontend CreateRigProfileDTO → API body
+function mapDtoToApiBody(dto: CreateRigProfileDTO): any {
+  return {
+    name: dto.name,
+    isDefault: dto.isDefault ?? false,
+    telescope: {
+      name: dto.telescope.name,
+      focalLength: dto.telescope.focalLength,
+      aperture: dto.telescope.aperture,
+      fRatio: dto.telescope.fRatio,
+      type: dto.telescope.type,
+    },
+    opticModifier: {
+      type: dto.modifier.type,
+      factor: dto.modifier.factor,
+    },
+    imagingCamera: {
+      name: dto.camera.name,
+      sensorWidth: dto.camera.sensorWidth,
+      sensorHeight: dto.camera.sensorHeight,
+      pixelSize: dto.camera.pixelSize,
+      resolutionX: dto.camera.resolutionX,
+      resolutionY: dto.camera.resolutionY,
+      readNoise: dto.camera.readNoise,
+      quantumEfficiency: dto.camera.quantumEfficiency,
+      isColor: dto.camera.isColor,
+      hasCooling: dto.camera.hasCooling,
+      binningAcquisition: dto.camera.binningAcquisition,
+    },
+    guidingCamera: {
+      name: dto.guiding.cameraName,
+      pixelSize: dto.guiding.pixelSize,
+      binning: dto.guiding.binning,
+      mode: dto.guiding.mode,
+      focalLength: dto.guiding.focalLength,
+    },
+    mount: {
+      name: dto.mount.name,
+      type: dto.mount.type,
+      maxPayload: dto.mount.maxPayload,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRUD Profils (async — API calls)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function getAllProfiles(): RigProfile[] {
+export async function getAllProfiles(): Promise<RigProfile[]> {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return [getDefaultProfile()];
-    const profiles: RigProfile[] = JSON.parse(data);
-    return profiles.length > 0 ? profiles : [getDefaultProfile()];
-  } catch {
-    return [getDefaultProfile()];
+    const data = await apiFetch<any[]>('');
+    const profiles = data.map(mapApiToProfile);
+    return profiles.length > 0 ? profiles : [getDefaultProfileSync()];
+  } catch (err) {
+    console.error('Failed to fetch rig profiles from API:', err);
+    return [getDefaultProfileSync()];
   }
 }
 
-export function getProfileById(id: string): RigProfile | undefined {
-  return getAllProfiles().find(p => p.id === id);
+export async function getProfileById(id: string): Promise<RigProfile | undefined> {
+  try {
+    const data = await apiFetch<any>(`/${id}`);
+    return mapApiToProfile(data);
+  } catch {
+    return undefined;
+  }
 }
 
-export function getDefaultProfile(): RigProfile {
-  const profiles = getAllProfiles();
+export function getDefaultProfileSync(): RigProfile {
+  // Default profile for fallback only
+  return {
+    id: 'default',
+    name: 'Default Rig',
+    isDefault: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    telescope: { name: '', focalLength: 714, aperture: 102, fRatio: 7, type: 'Refractor' },
+    modifier: { type: 'None', factor: 1.0 },
+    camera: { name: '', sensorWidth: 11.3, sensorHeight: 11.3, pixelSize: 3.76, resolutionX: 3008, resolutionY: 3008, readNoise: 1.5, quantumEfficiency: 0.8, isColor: true, hasCooling: true, binningAcquisition: 1 },
+    guiding: { cameraName: '', pixelSize: 3.75, binning: 1, mode: 'GuideScope', focalLength: 120 },
+    mount: { name: '', type: 'EQ', maxPayload: 15 },
+  };
+}
+
+export async function getDefaultProfile(): Promise<RigProfile> {
+  const profiles = await getAllProfiles();
   return profiles.find(p => p.isDefault) || profiles[0];
 }
 
@@ -40,90 +180,63 @@ export function setActiveProfileId(id: string): void {
   localStorage.setItem(ACTIVE_PROFILE_KEY, id);
 }
 
-export function createProfile(dto: CreateRigProfileDTO): RigProfile {
-  const profiles = getAllProfiles();
-  
-  const newProfile: RigProfile = {
-    id: generateProfileId(),
-    name: dto.name,
-    isDefault: dto.isDefault ?? false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    telescope: dto.telescope,
-    modifier: dto.modifier,
-    camera: dto.camera,
-    guiding: dto.guiding,
-    mount: dto.mount,
-  };
-  
-  // Si ce profil devient défaut, retirer le flag des autres
-  if (newProfile.isDefault) {
-    profiles.forEach(p => { p.isDefault = false; });
-  }
-  
-  profiles.push(newProfile);
-  saveProfiles(profiles);
-  
-  // Activer automatiquement
-  setActiveProfileId(newProfile.id);
-  
-  return newProfile;
-}
+export async function createProfile(dto: CreateRigProfileDTO): Promise<RigProfile> {
+  const body = mapDtoToApiBody(dto);
+  const data = await apiFetch<any>('', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  const profile = mapApiToProfile(data);
 
-export function updateProfile(id: string, dto: Partial<CreateRigProfileDTO>): RigProfile | null {
-  const profiles = getAllProfiles();
-  const index = profiles.findIndex(p => p.id === id);
-  if (index === -1) return null;
-  
-  const profile = profiles[index];
-  
-  if (dto.name !== undefined) profile.name = dto.name;
-  if (dto.telescope !== undefined) profile.telescope = dto.telescope;
-  if (dto.modifier !== undefined) profile.modifier = dto.modifier;
-  if (dto.camera !== undefined) profile.camera = dto.camera;
-  if (dto.guiding !== undefined) profile.guiding = dto.guiding;
-  if (dto.mount !== undefined) profile.mount = dto.mount;
-  if (dto.isDefault !== undefined) {
-    profile.isDefault = dto.isDefault;
-    if (dto.isDefault) {
-      profiles.forEach((p, i) => { if (i !== index) p.isDefault = false; });
-    }
+  // If this is the new default, auto-activate it
+  if (profile.isDefault || dto.isDefault) {
+    setActiveProfileId(profile.id);
   }
-  
-  profile.updatedAt = new Date().toISOString();
-  saveProfiles(profiles);
-  
+
   return profile;
 }
 
-export function deleteProfile(id: string): boolean {
-  const profiles = getAllProfiles();
-  const index = profiles.findIndex(p => p.id === id);
-  if (index === -1) return false;
-  if (profiles.length <= 1) return false; // Garder au moins un profil
-  
-  const wasDefault = profiles[index].isDefault;
-  profiles.splice(index, 1);
-  
-  if (wasDefault && profiles.length > 0) {
-    profiles[0].isDefault = true;
+export async function updateProfile(id: string, dto: Partial<CreateRigProfileDTO>): Promise<RigProfile | null> {
+  // Build the API body from partial DTO
+  const body: any = {};
+  if (dto.name !== undefined) body.name = dto.name;
+  if (dto.isDefault !== undefined) body.isDefault = dto.isDefault;
+  if (dto.telescope !== undefined) body.telescope = { name: dto.telescope.name, focalLength: dto.telescope.focalLength, aperture: dto.telescope.aperture, fRatio: dto.telescope.fRatio, type: dto.telescope.type };
+  if (dto.modifier !== undefined) body.opticModifier = { type: dto.modifier.type, factor: dto.modifier.factor };
+  if (dto.camera !== undefined) body.imagingCamera = { name: dto.camera.name, sensorWidth: dto.camera.sensorWidth, sensorHeight: dto.camera.sensorHeight, pixelSize: dto.camera.pixelSize, resolutionX: dto.camera.resolutionX, resolutionY: dto.camera.resolutionY, readNoise: dto.camera.readNoise, quantumEfficiency: dto.camera.quantumEfficiency, isColor: dto.camera.isColor, hasCooling: dto.camera.hasCooling, binningAcquisition: dto.camera.binningAcquisition };
+  if (dto.guiding !== undefined) body.guidingCamera = { name: dto.guiding.cameraName, pixelSize: dto.guiding.pixelSize, binning: dto.guiding.binning, mode: dto.guiding.mode, focalLength: dto.guiding.focalLength };
+  if (dto.mount !== undefined) body.mount = { name: dto.mount.name, type: dto.mount.type, maxPayload: dto.mount.maxPayload };
+
+  try {
+    const data = await apiFetch<any>(`/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    return mapApiToProfile(data);
+  } catch {
+    return null;
   }
-  
-  saveProfiles(profiles);
-  
-  // Réinitialiser l'actif si nécessaire
-  const activeId = getActiveProfileId();
-  if (activeId === id) {
-    setActiveProfileId(profiles[0].id);
-  }
-  
-  return true;
 }
 
-export function duplicateProfile(id: string, newName?: string): RigProfile | null {
-  const profile = getProfileById(id);
+export async function deleteProfile(id: string): Promise<boolean> {
+  try {
+    await apiFetch<any>(`/${id}`, { method: 'DELETE' });
+
+    // Reset active if needed
+    const activeId = getActiveProfileId();
+    if (activeId === id) {
+      localStorage.removeItem(ACTIVE_PROFILE_KEY);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function duplicateProfile(id: string, newName?: string): Promise<RigProfile | null> {
+  const profile = await getProfileById(id);
   if (!profile) return null;
-  
+
   return createProfile({
     name: newName || `${profile.name} (copie)`,
     telescope: { ...profile.telescope },
@@ -135,16 +248,8 @@ export function duplicateProfile(id: string, newName?: string): RigProfile | nul
   });
 }
 
-function saveProfiles(profiles: RigProfile[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-}
-
-function generateProfileId(): string {
-  return `rig_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// CALCULS
+// CALCULS (pure functions — no API needed)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function calculateRigCalculations(profile: RigProfile): RigCalculations {
@@ -153,7 +258,7 @@ export function calculateRigCalculations(profile: RigProfile): RigCalculations {
   const fovWidth = (profile.camera.sensorWidth * 206.265) / effFL;
   const fovHeight = (profile.camera.sensorHeight * 206.265) / effFL;
   const fRatio = effFL / profile.telescope.aperture;
-  
+
   const calc: RigCalculations = {
     effectiveFocalLength: Math.round(effFL),
     pixelScale: parseFloat(pixelScale.toFixed(2)),
@@ -161,21 +266,20 @@ export function calculateRigCalculations(profile: RigProfile): RigCalculations {
     fovHeight: parseFloat(fovHeight.toFixed(1)),
     fRatio: parseFloat(fRatio.toFixed(1)),
   };
-  
-  // Calculs guidage
+
+  // Guiding calculations
   if (profile.guiding.focalLength && profile.guiding.pixelSize) {
     const guidingPixelScale = (profile.guiding.pixelSize * 206.265) / profile.guiding.focalLength;
     const ratio = pixelScale / guidingPixelScale;
-    
+
     calc.guidingPixelScale = parseFloat(guidingPixelScale.toFixed(2));
     calc.guidingRatio = parseFloat(ratio.toFixed(2));
     calc.guidingRatioValid = ratio < 0.2; // < 1:5
-    
-    // Dither recommandé (3px minimum sur capteur principal)
+
     const ditherPixelsImaging = 3;
     calc.recommendedDitherPixels = Math.ceil(ditherPixelsImaging * ratio);
   }
-  
+
   return calc;
 }
 
@@ -244,7 +348,7 @@ export function validateGuidingRatio(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRESETS
+// PRESETS (unchanged — static data, no API needed)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface EquipmentPreset {
@@ -580,20 +684,24 @@ export function exportProfile(profile: RigProfile): string {
   return JSON.stringify(exportData, null, 2);
 }
 
-export function importProfile(jsonString: string): RigProfile | null {
+export async function importProfile(jsonString: string): Promise<RigProfile | null> {
   try {
     const data = JSON.parse(jsonString);
     if (data.version !== 'apls-v3') return null;
-    
+
     const profile = data.profile;
-    // Générer nouvel ID pour éviter conflits
-    profile.id = generateProfileId();
-    profile.name = `${profile.name} (importé)`;
-    profile.isDefault = false;
-    profile.createdAt = new Date().toISOString();
-    profile.updatedAt = new Date().toISOString();
-    
-    return profile;
+    // Create via API — generates new ID
+    const created = await createProfile({
+      name: `${profile.name} (importé)`,
+      telescope: { ...profile.telescope },
+      modifier: { ...profile.modifier },
+      camera: { ...profile.camera },
+      guiding: { ...profile.guiding },
+      mount: { ...profile.mount },
+      isDefault: false,
+    });
+
+    return created;
   } catch {
     return null;
   }

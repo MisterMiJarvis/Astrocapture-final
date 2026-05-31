@@ -10,27 +10,6 @@ interface AplsModule4ViewProps {
   equipment?: AstroEquipment[];
 }
 
-const mockPlan = {
-  targetName: 'M42 Orion',
-  nights: [{
-    date: new Date(),
-    isVisible: true,
-    hoursAboveHorizon: 5.5,
-    transitTime: new Date('2026-05-27T02:00:00'),
-    sunset: new Date('2026-05-27T21:00:00'),
-    sunrise: new Date('2026-05-27T06:00:00'),
-    meridianFlipTime: new Date('2026-05-27T02:00:00'),
-    astroDusk: new Date('2026-05-27T22:30:00'),
-    astroDawn: new Date('2026-05-27T04:30:00'),
-    imagingWindow: [{
-      type: 'imaging' as const,
-      start: new Date('2026-05-27T22:30:00'),
-      end: new Date('2026-05-27T04:30:00'),
-      label: 'Imaging',
-    }],
-  }],
-};
-
 const AplsModule4View: React.FC<AplsModule4ViewProps> = ({ equipment: propEquipment }) => {
   const [subTab, setSubTab] = useState<PlannerSubTab>('wishlist');
   const [equipment, setEquipment] = useState<AstroEquipment[]>(propEquipment || []);
@@ -82,7 +61,7 @@ const AplsModule4View: React.FC<AplsModule4ViewProps> = ({ equipment: propEquipm
         <ObservationPlannerView equipment={equipment} />
       )}
       {subTab === 'timeline' && (
-        <MultiNightPlanner plan={mockPlan} />
+        <MultiNightPlanner plan={null as any} />
       )}
     </div>
   );

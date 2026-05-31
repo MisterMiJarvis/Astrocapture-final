@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RigProfile } from '../../types/module2';
 import {
   getAllProfiles,
@@ -31,35 +31,50 @@ export const Module2Dashboard: React.FC = () => {
   const [calculations, setCalculations] = useState<ReturnType<typeof calculateRigCalculations> | null>(null);
   const [samplingRec, setSamplingRec] = useState<ReturnType<typeof getSamplingRecommendation> | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   const [presetCategory, setPresetCategory] = useState<EquipmentPreset['category'] | 'full-rig'>('full-rig');
 
+  // Reload profiles from API and refresh state
+  const reloadProfiles = useCallback(async () => {
+    const loadedProfiles = await getAllProfiles();
+    setProfiles(loadedProfiles);
+    return loadedProfiles;
+  }, []);
+
   // Charger les profils au mount
   useEffect(() => {
-    const loadedProfiles = getAllProfiles();
-    setProfiles(loadedProfiles);
-    
-    const savedActiveId = getActiveProfileId();
-    if (savedActiveId) {
-      const profile = getProfileById(savedActiveId);
-      if (profile) {
-        setActiveProfileIdState(savedActiveId);
-        setActiveProfile(profile);
-      } else {
-        // Profil supprimé, prendre le défaut
-        const defaultProfile = loadedProfiles.find(p => p.isDefault) || loadedProfiles[0];
-        setActiveProfileIdState(defaultProfile.id);
-        setActiveProfile(defaultProfile);
-        setActiveProfileId(defaultProfile.id);
+    (async () => {
+      try {
+        const loadedProfiles = await getAllProfiles();
+        setProfiles(loadedProfiles);
+
+        const savedActiveId = getActiveProfileId();
+        if (savedActiveId) {
+          const profile = loadedProfiles.find(p => p.id === savedActiveId);
+          if (profile) {
+            setActiveProfileIdState(savedActiveId);
+            setActiveProfile(profile);
+          } else {
+            const defaultProfile = loadedProfiles.find(p => p.isDefault) || loadedProfiles[0];
+            setActiveProfileIdState(defaultProfile.id);
+            setActiveProfile(defaultProfile);
+            setActiveProfileId(defaultProfile.id);
+          }
+        } else {
+          const defaultProfile = loadedProfiles.find(p => p.isDefault) || loadedProfiles[0];
+          if (defaultProfile) {
+            setActiveProfileIdState(defaultProfile.id);
+            setActiveProfile(defaultProfile);
+            setActiveProfileId(defaultProfile.id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load rig profiles:', err);
+      } finally {
+        setIsLoading(false);
       }
-    } else {
-      const defaultProfile = loadedProfiles.find(p => p.isDefault) || loadedProfiles[0];
-      if (defaultProfile) {
-        setActiveProfileIdState(defaultProfile.id);
-        setActiveProfile(defaultProfile);
-        setActiveProfileId(defaultProfile.id);
-      }
-    }
+    })();
   }, []);
 
   // Recalculer quand le profil actif change
@@ -72,7 +87,7 @@ export const Module2Dashboard: React.FC = () => {
   }, [activeProfile]);
 
   const handleProfileChange = (profileId: string) => {
-    const profile = getProfileById(profileId);
+    const profile = profiles.find(p => p.id === profileId);
     if (profile) {
       setActiveProfileIdState(profileId);
       setActiveProfile(profile);
@@ -81,8 +96,8 @@ export const Module2Dashboard: React.FC = () => {
     }
   };
 
-  const handleCreateProfile = (name: string, data: Partial<RigProfile>) => {
-    const newProfile = createProfile({
+  const handleCreateProfile = async (name: string, data: Partial<RigProfile>) => {
+    const newProfile = await createProfile({
       name,
       telescope: data.telescope || {
         name: '', focalLength: 0, aperture: 0, fRatio: 0, type: 'Refractor',
@@ -100,8 +115,8 @@ export const Module2Dashboard: React.FC = () => {
         name: '', type: 'EQ', maxPayload: 0,
       },
     });
-    
-    setProfiles(getAllProfiles());
+
+    const updatedProfiles = await reloadProfiles();
     setActiveProfileIdState(newProfile.id);
     setActiveProfile(newProfile);
     setActiveProfileId(newProfile.id);
@@ -109,8 +124,8 @@ export const Module2Dashboard: React.FC = () => {
     setShowPresetPicker(false);
   };
 
-  const handleUpdateProfile = (id: string, data: Partial<RigProfile>) => {
-    const updated = updateProfile(id, {
+  const handleUpdateProfile = async (id: string, data: Partial<RigProfile>) => {
+    const updated = await updateProfile(id, {
       telescope: data.telescope,
       modifier: data.modifier,
       camera: data.camera,
@@ -118,20 +133,19 @@ export const Module2Dashboard: React.FC = () => {
       mount: data.mount,
     });
     if (updated) {
-      setProfiles(getAllProfiles());
+      const updatedProfiles = await reloadProfiles();
       setActiveProfile(updated);
     }
   };
 
-  const handleDeleteProfile = (id: string) => {
+  const handleDeleteProfile = async (id: string) => {
     if (profiles.length <= 1) {
       alert('Impossible de supprimer le dernier profil.');
       return;
     }
     if (confirm('Supprimer ce profil ?')) {
-      deleteProfile(id);
-      const remaining = getAllProfiles();
-      setProfiles(remaining);
+      await deleteProfile(id);
+      const remaining = await reloadProfiles();
       const newActive = remaining.find(p => p.isDefault) || remaining[0];
       if (newActive) {
         setActiveProfileIdState(newActive.id);
@@ -141,10 +155,10 @@ export const Module2Dashboard: React.FC = () => {
     }
   };
 
-  const handleDuplicateProfile = (id: string) => {
-    const duplicated = duplicateProfile(id);
+  const handleDuplicateProfile = async (id: string) => {
+    const duplicated = await duplicateProfile(id);
     if (duplicated) {
-      setProfiles(getAllProfiles());
+      const updatedProfiles = await reloadProfiles();
       setActiveProfileIdState(duplicated.id);
       setActiveProfile(duplicated);
       setActiveProfileId(duplicated.id);
@@ -153,10 +167,8 @@ export const Module2Dashboard: React.FC = () => {
 
   const handleApplyPreset = (preset: EquipmentPreset) => {
     if (preset.category === 'full-rig') {
-      // Créer un nouveau profil complet
       handleCreateProfile(preset.name, preset.data);
     } else {
-      // Fusionner avec le profil actif
       if (activeProfile) {
         const updated = { ...activeProfile };
         if (preset.data.telescope) updated.telescope = preset.data.telescope;
@@ -164,12 +176,20 @@ export const Module2Dashboard: React.FC = () => {
         if (preset.data.camera) updated.camera = preset.data.camera;
         if (preset.data.guiding) updated.guiding = preset.data.guiding;
         if (preset.data.mount) updated.mount = preset.data.mount;
-        
+
         handleUpdateProfile(activeProfile.id, updated);
       }
     }
     setShowPresetPicker(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="text-slate-400">Chargement des profils...</div>
+      </div>
+    );
+  }
 
   const TAB_CONFIG: { id: Tab; label: string; icon: string }[] = [
     { id: 'profiles', label: 'Profils de Rigs', icon: '🔭' },

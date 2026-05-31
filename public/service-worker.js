@@ -8,8 +8,8 @@ const ALADIN_CACHE_NAME = 'aladin-tile-cache-v1';
 // automatically cleaned up during the 'activate' event.
 const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME];
 
-// The origin of the images we want to cache (Firebase Storage).
-const IMAGE_ORIGIN = 'https://storage.googleapis.com';
+// The origin of the images we want to cache (self-hosted uploads).
+const IMAGE_ORIGIN = self.location.origin;
 
 /**
  * Implements the "Stale-While-Revalidate" caching strategy.
@@ -92,7 +92,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy for AstroCapture images from Firebase Storage
+  // Strategy for AstroCapture images (self-hosted)
   if (requestUrl.origin === IMAGE_ORIGIN) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;

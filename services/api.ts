@@ -1,5 +1,5 @@
 // AstroCapture API Service Layer
-// Replaces all Firebase calls with REST API calls to /api/*
+// All data access via REST API calls to /api/*
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -293,13 +293,10 @@ export { uploadFile };
 // BACKWARD COMPAT shims
 // =====================
 
-// These match the old Firebase function signatures so App.tsx changes are minimal
-
-export const initializeFirebase = () => true; // Always "initialized" now
-export const isFirebaseInitialized = () => true;
+// API-based real-time replacements (polling-based)
 
 export const subscribeToSettings = (docName: string, onUpdate: (data: any) => void) => {
-  // Replace Firebase real-time listener with a one-time fetch + polling
+  // Replace real-time listener with a one-time fetch + polling
   config.get(docName).then(onUpdate).catch(console.error);
   const interval = setInterval(() => {
     config.get(docName).then(onUpdate).catch(console.error);

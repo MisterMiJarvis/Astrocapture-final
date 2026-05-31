@@ -4,7 +4,7 @@ import React from 'react';
 import { ViewState, Post, AboutConfig, FooterConfig, AppData, ProcessingPost, ProcessingConfig, LicenseConfig, LegalNoticeConfig, CookieBannerConfig, APOD, AstrobinImage, DeepSkyObject, ProcessingLog, WorkflowStep, AcquisitionLogEntry, HeroSlide, ImageEntry, AstronomyData, MappedAstronomyData, AstroForecastHour, EquipmentItem, NightlyForecast } from './types';
 import { MessierObject, MESSIER_CATALOG } from './data/messierCatalog';
 import { INITIAL_DATA } from './initialData';
-import { initializeFirebase, isFirebaseInitialized, login, logout, getAuthInstance, subscribeToSettings, subscribeToCollection, saveSettings, saveCollectionItem, deleteCollectionItem, uploadFile, getDocument, invalidateTokenCache } from './services/api';
+import { login, logout, getAuthInstance, subscribeToSettings, subscribeToCollection, saveSettings, saveCollectionItem, deleteCollectionItem, uploadFile, getDocument, invalidateTokenCache } from './services/api';
 import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUploader, Lightbox, DraggableListItem, FileUploader, Select, ToggleSwitch, ScrollToTopButton, SocialShare, CookieBanner } from './components/Shared';
 import { DEFAULT_EQUIPMENT } from './services/equipmentService';
 import {

@@ -13,7 +13,7 @@ import { mapAstronomyData } from '../services/astronomyDataMapper';
 import { fetchAstroForecast } from '../services/weatherService';
 import { mapAndFilterImagingWindow } from '../services/weatherDataMapper';
 import { parseRA, parseDec, calculateImagingWindow } from '../services/astronomyUtils';
-import { subscribeToCollection, saveCollectionItem, deleteCollectionItem } from '../services/firebase';
+import { subscribeToCollection, saveCollectionItem, deleteCollectionItem } from '../services/api';
 import { fetchDeepSkyCatalog } from '../services/catalogService';
 import {
     Calendar, Target, Clock, Moon, Cloud, Star, Plus, Trash2, Save,
@@ -49,7 +49,7 @@ const ObservationPlannerView: React.FC<ObservationPlannerViewProps> = ({ equipme
 
     const setupInfo = getSetupFOV(equipment);
 
-    // Subscribe to Firestore
+    // Subscribe to collection changes (API polling)
     React.useEffect(() => {
         const unsub1 = subscribeToCollection(TARGETS_COLLECTION, (data) => {
             if (data && data.length > 0) setTargets(data as ObservationTarget[]);

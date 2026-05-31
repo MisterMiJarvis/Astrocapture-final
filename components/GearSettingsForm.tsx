@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { EquipmentItem } from '../types';
 import { Button, Input, TextArea, ImageUploader, DraggableListItem, Select } from './Shared';
 import { Plus, Trash2, Save, GripVertical, Sparkles } from 'lucide-react';
-import { uploadFile } from '../services/firebase';
+import { uploadFile } from '../services/api';
 import { generateGearSpecs } from '../services/geminiService';
 
 interface GearSettingsFormProps {
@@ -42,8 +42,8 @@ const GearSettingsForm: React.FC<GearSettingsFormProps> = ({ initialData, onSave
 
   const handleImageUpload = async (id: string, file: File) => {
     try {
-      const url = await uploadFile(file, 'gear');
-      handleChange(id, 'imageUrl', url);
+      const result = await uploadFile(file, 'gear');
+      handleChange(id, 'imageUrl', result.url);
     } catch (error) {
       console.error("Error uploading image:", error);
       alert("Failed to upload image.");

@@ -1,109 +1,170 @@
 // ============================================================================
 // SERVICE PROJETS — Module 6
-// Multi-session projects, Telescopius sync
+// Multi-session projects, API SQLite persistence
+// Migrated from mock data → /api/sessions + /api/targets
 // ============================================================================
 
 import { ProjectDetail, ImagingSession, FilterPlan, TelescopiusSyncStatus } from '../../types/module6';
 
+const API_BASE = '/api';
 const TELESCOPIUS_BASE = 'https://api.telescopius.com';
 
-/**
- * Récupère le détail d'un projet avec sessions et plans filtre
- */
-export async function fetchProjectDetail(projectId: string): Promise<ProjectDetail> {
-  // TODO: remplacer par appel API backend
-  const mockProject: ProjectDetail = {
-    id: projectId,
-    targetId: 'm31',
-    targetName: 'M31 Andromeda',
-    targetRa: '00:42:44',
-    targetDec: '+41:16:09',
-    status: 'in_progress',
-    rigId: 'rig_1',
-    locationId: 'loc_1',
-    targetIntegrationTime: 10,
-    capturedIntegrationTime: 6.5,
-    progress: 65,
-    weatherScore: 78,
-    priority: 'high',
-    notes: 'Projet L-Ultimate 3nm sur M31. Objectif 10h.',
-    createdAt: new Date('2026-01-10'),
-    updatedAt: new Date('2026-05-20'),
-    filterPlans: [
-      { filter: 'L_Ultimate', targetSubs: 120, targetSubLength: 300, targetTotalTime: 600, capturedSubs: 78, capturedTime: 390, isComplete: false },
-      { filter: 'Ha', targetSubs: 40, targetSubLength: 300, targetTotalTime: 200, capturedSubs: 0, capturedTime: 0, isComplete: false },
-    ],
-    sessions: [
-      {
-        id: 'sess_1', projectId,
-        date: new Date('2026-01-15'),
-        startTime: new Date('2026-01-15T20:30:00'),
-        endTime: new Date('2026-01-16T02:00:00'),
-        status: 'completed',
-        locationId: 'loc_1',
-        totalIntegrationTime: 300,
-        guidingRMS: 0.72,
-        guidingRMSArcsec: 0.78,
-        imagesCount: 60,
-        notes: 'Bonne nuit, seeing moyen',
-      },
-      {
-        id: 'sess_2', projectId,
-        date: new Date('2026-01-20'),
-        startTime: new Date('2026-01-20T21:00:00'),
-        endTime: new Date('2026-01-21T01:30:00'),
-        status: 'completed',
-        locationId: 'loc_1',
-        totalIntegrationTime: 270,
-        guidingRMS: 0.85,
-        guidingRMSArcsec: 0.93,
-        imagesCount: 54,
-        notes: 'Vent modéré post minuit',
-      },
-    ],
-  };
-
-  return mockProject;
+// ─────────────────────────────────────────────────────────────────────────────
+// Token helper
+// ─────────────────────────────────────────────────────────────────────────────
+function getToken(): string | null {
+  return localStorage.getItem('astrocapture_token');
 }
 
-/**
- * Crée une nouvelle session dans un projet
- */
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(error.error || `API error: ${res.status}`);
+  }
+  return res.json();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sessions — API calls
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function fetchSessions(params?: { status?: string; from?: string; to?: string }): Promise<any[]> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  const qs = query.toString();
+  return apiFetch<any[]>(`/sessions${qs ? '?' + qs : ''}`);
+}
+
+export async function fetchSessionDetail(sessionId: string): Promise<any> {
+  return apiFetch<any>(`/sessions/${sessionId}`);
+}
+
 export async function createSession(
   projectId: string,
   date: Date,
   locationId: string
 ): Promise<ImagingSession> {
-  const session: ImagingSession = {
+  const body = {
     id: `sess_${Date.now()}`,
-    projectId,
-    date,
-    startTime: date,
-    status: 'planned',
+    date: date.toISOString().split('T')[0],
     locationId,
-    totalIntegrationTime: 0,
-    imagesCount: 0,
+    status: 'planned',
     notes: '',
   };
-
-  // TODO: POST /api/apls/sessions
-  return session;
+  const data = await apiFetch<any>('/sessions', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return mapApiSession(data);
 }
 
-/**
- * Met à jour le statut d'une session
- */
 export async function updateSessionStatus(
   sessionId: string,
   status: ImagingSession['status']
 ): Promise<void> {
-  // TODO: PUT /api/apls/sessions/:id
-  console.log(`Session ${sessionId} → ${status}`);
+  await apiFetch<any>(`/sessions/${sessionId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
 }
 
-/**
- * Sync bidirectionnelle avec Telescopius Observation Log
- */
+export async function deleteSession(sessionId: string): Promise<void> {
+  await apiFetch<any>(`/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projects — assembled from targets + sessions
+// Since there's no dedicated projects table, we assemble from targets + their sessions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function fetchProjectDetail(targetId: string): Promise<ProjectDetail> {
+  // Fetch the target (which is the project root)
+  const target = await apiFetch<any>(`/targets/${targetId}`);
+
+  // Fetch sessions linked to this target
+  const allSessions = await fetchSessions();
+  const linkedSessions = allSessions.filter((s: any) =>
+    s.targets && s.targets.some((t: any) => t.id === targetId)
+  );
+
+  // Calculate progress from sessions
+  const capturedIntegrationTime = linkedSessions.reduce(
+    (sum: number, s: any) => sum + (s.totalIntegrationTime || 0), 0
+  ) / 60; // minutes → hours
+
+  const targetIntegrationTime = target.target_hours || 10;
+  const progress = targetIntegrationTime > 0
+    ? Math.min(100, Math.round((capturedIntegrationTime / targetIntegrationTime) * 100))
+    : 0;
+
+  return {
+    id: target.id,
+    targetId: target.object_id || target.id,
+    targetName: target.common_name || target.object_id || 'Unknown',
+    targetRa: target.ra || '',
+    targetDec: target.dec || '',
+    status: target.completed ? 'completed' : (progress > 0 ? 'in_progress' : 'planned'),
+    rigId: '',
+    locationId: '',
+    targetIntegrationTime,
+    capturedIntegrationTime: parseFloat(capturedIntegrationTime.toFixed(1)),
+    progress,
+    weatherScore: 0,
+    priority: target.priority || 'medium',
+    notes: target.notes || '',
+    createdAt: new Date(target.created_at || Date.now()),
+    updatedAt: new Date(target.updated_at || Date.now()),
+    filterPlans: [],
+    sessions: linkedSessions.map(mapApiSession),
+  };
+}
+
+export async function fetchAllProjects(): Promise<ProjectDetail[]> {
+  try {
+    const targets = await apiFetch<any[]>('/targets');
+    const projects = await Promise.all(
+      (targets || []).map((t: any) => fetchProjectDetail(t.id))
+    );
+    return projects;
+  } catch {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapping: API session → ImagingSession
+// ─────────────────────────────────────────────────────────────────────────────
+function mapApiSession(data: any): ImagingSession {
+  return {
+    id: data.id,
+    projectId: data.id, // session is its own project container for now
+    date: new Date(data.date),
+    startTime: new Date(data.date),
+    endTime: data.sunriseTime ? new Date(data.sunriseTime) : undefined,
+    status: data.status || 'planned',
+    locationId: data.loc_name || '',
+    totalIntegrationTime: data.totalIntegrationTime || 0,
+    guidingRMS: data.guidingRMS || undefined,
+    guidingRMSArcsec: data.guidingRMSArcsec || undefined,
+    imagesCount: data.imagesCount || 0,
+    notes: data.notes || '',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Telescopius sync (unchanged — external API)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function syncWithTelescopius(
   projectId: string,
   apiKey: string,
@@ -119,7 +180,6 @@ export async function syncWithTelescopius(
 
   try {
     if (direction === 'push' || direction === 'bidirectional') {
-      // Push sessions vers Telescopius
       const project = await fetchProjectDetail(projectId);
       for (const session of project.sessions) {
         await pushSessionToTelescopius(session, project, apiKey);
@@ -128,7 +188,6 @@ export async function syncWithTelescopius(
     }
 
     if (direction === 'pull' || direction === 'bidirectional') {
-      // Pull images/notes depuis Telescopius
       const pulled = await pullFromTelescopius(projectId, apiKey);
       status.imagesSynced = pulled.imagesCount;
     }
@@ -152,7 +211,6 @@ async function pushSessionToTelescopius(
     target_name: project.targetName,
     date: session.date.toISOString().split('T')[0],
     duration_minutes: session.totalIntegrationTime,
-    filter: project.filterPlans[0]?.filter || 'Unknown',
     notes: session.notes,
   };
 
@@ -183,9 +241,10 @@ async function pullFromTelescopius(projectId: string, apiKey: string): Promise<{
   return { imagesCount: data.images?.length || 0 };
 }
 
-/**
- * Calcule la progression d'un projet
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Progress calculation (pure function)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function calculateProjectProgress(
   targetTime: number,
   capturedTime: number,
@@ -193,10 +252,7 @@ export function calculateProjectProgress(
 ): number {
   if (targetTime <= 0) return 0;
   const baseProgress = Math.min(100, (capturedTime / targetTime) * 100);
-
-  // Bonus si tous les filtres sont complétés
   const allFiltersComplete = filterPlans.length > 0 && filterPlans.every(f => f.isComplete);
   if (allFiltersComplete && baseProgress >= 95) return 100;
-
   return Math.round(baseProgress);
 }
