@@ -82,6 +82,42 @@ const GuidingReadonly: React.FC<{
 
         {guidingCalc ? (
           <>
+            {/* Dithering requirement status */}
+            {samplingRec && (
+              <div className={`mb-4 p-3 rounded-lg border-2 ${
+                samplingRec.ditherRequired
+                  ? samplingRec.ditherMinPixels > 3
+                    ? 'bg-red-100 border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-300'
+                    : 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
+                  : 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300'
+              }`}>
+                {samplingRec.ditherRequired ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{samplingRec.ditherMinPixels > 3 ? '⚠️' : '✅'}</span>
+                    <div>
+                      <div className="font-semibold">
+                        Dithering required — min. {samplingRec.ditherMinPixels} px on imaging sensor
+                      </div>
+                      <div className="text-sm opacity-80">
+                        {samplingRec.ditherMinPixels > 3
+                          ? 'Aggressive dithering needed to reconstruct detail (undersampled setup)'
+                          : 'Standard dithering to reject hot pixels and walking noise'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">ℹ️</span>
+                    <div>
+                      <div className="font-semibold">Dithering not required</div>
+                      <div className="text-sm opacity-80">Oversampled setup — binning recommended instead
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
                 <div className="text-xs text-slate-500">Imaging scale</div>
