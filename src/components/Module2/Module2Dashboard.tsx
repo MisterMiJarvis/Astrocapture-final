@@ -15,6 +15,148 @@ import {
 import { RigProfileForm } from './RigProfileForm';
 import { SamplingDisplay } from './SamplingDisplay';
 import { HorizonMaskUploader } from './HorizonMaskUploader';
+import { calculateDitherPixels } from '../../services/module2/rigProfileService';
+
+// Guiding read-only: shows guiding info + dithering calculator, no camera input form
+const GuidingReadonly: React.FC<{
+  profile: RigProfile;
+  calculations: ReturnType<typeof calculateRigCalculations>;
+}> = ({ profile, calculations }) => {
+  const [ditherPixels, setDitherPixels] = useState(3);
+
+  const guidingCalc = calculations.guidingPixelScale && calculations.guidingRatio !== undefined
+    ? {
+        imagingScale: calculations.pixelScale,
+        guidingScale: calculations.guidingPixelScale,
+        ratio: calculations.guidingRatio,
+        isValid: calculations.guidingRatioValid ?? false,
+      }
+    : null;
+
+  const ditherResult = guidingCalc
+    ? (() => {
+        const guidePixels = calculateDitherPixels(ditherPixels, calculations.pixelScale, calculations.guidingPixelScale!);
+        const physicalShift = ditherPixels * calculations.pixelScale;
+        return { imaging: ditherPixels, guiding: guidePixels, physicalShift };
+      })()
+    : null;
+
+  return (
+    <div className="space-y-6">
+      {/* Guiding info cards */}
+      {profile.guiding.cameraName ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-800 text-white p-4 rounded-lg">
+            <div className="text-sm text-slate-400">Guide camera</div>
+            <div className="text-xl font-bold">{profile.guiding.cameraName}</div>
+            <div className="text-xs text-slate-400 mt-1">{profile.guiding.pixelSize}μm • {profile.guiding.mode}</div>
+          </div>
+          {guidingCalc && (
+            <div className={`p-4 rounded-lg ${guidingCalc.isValid ? 'bg-emerald-800 text-white' : 'bg-orange-800 text-white'}`}>
+              <div className="text-sm text-white/70">Ratio</div>
+              <div className="text-2xl font-bold">1:{Math.round(1 / guidingCalc.ratio)}</div>
+              <div className="text-xs mt-1">
+                {guidingCalc.isValid ? '✅ OK (< 1:5)' : '⚠️ Too high'}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-sm text-slate-500 p-4 bg-slate-50 dark:bg-slate-800/50 rounded">
+          No guiding camera configured. Edit the rig to add one.
+        </div>
+      )}
+
+      {/* Dither Calculator */}
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
+        <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-100">
+          🎲 Dithering Calculator
+        </h3>
+
+        {guidingCalc ? (
+          <>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex-1">
+                <label className="block text-xs text-slate-500 mb-1">
+                  Dither on imaging sensor (px)
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={ditherPixels}
+                  onChange={e => setDitherPixels(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <div className="text-center text-sm text-slate-600 mt-1">{ditherPixels} px</div>
+              </div>
+            </div>
+
+            {ditherResult && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center">
+                    <div className="text-sm text-slate-500">Imaging sensor</div>
+                    <div className="text-xl font-bold text-blue-700 dark:text-blue-300">{ditherResult.imaging} px</div>
+                    <div className="text-xs text-slate-400">≈ {(ditherResult.imaging * calculations.pixelScale).toFixed(1)}" shift</div>
+                  </div>
+
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg text-center">
+                    <div className="text-sm text-slate-500">Enter in PHD2/NINA</div>
+                    <div className="text-xl font-bold text-purple-700 dark:text-purple-300">{ditherResult.guiding} px</div>
+                    <div className="text-xs text-slate-400">Guiding dither value</div>
+                  </div>
+
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg text-center">
+                    <div className="text-sm text-slate-500">Physical shift</div>
+                    <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{ditherResult.physicalShift.toFixed(1)}"</div>
+                    <div className="text-xs text-slate-400">arcsec on sky</div>
+                  </div>
+                </div>
+
+                {/* Software settings */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <div className="font-medium text-slate-700 dark:text-slate-200 mb-2">PHD2</div>
+                    <div className="text-sm text-slate-500 space-y-1">
+                      <div>Dither amount: <strong>{ditherResult.guiding}</strong> px</div>
+                      <div>Scale: <strong>1.0</strong></div>
+                      <div>Settle {'<'} 1.5" for <strong>8</strong> px</div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <div className="font-medium text-slate-700 dark:text-slate-200 mb-2">N.I.N.A.</div>
+                    <div className="text-sm text-slate-500 space-y-1">
+                      <div>Dither pixels: <strong>{ditherResult.guiding}</strong></div>
+                      <div>Dither mode: <strong>RA+Dec</strong></div>
+                      <div>Settle time: <strong>8s</strong></div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                    <div className="font-medium text-slate-700 dark:text-slate-200 mb-2">ASIAIR</div>
+                    <div className="text-sm text-slate-500 space-y-1">
+                      <div>Dither: <strong>{ditherResult.guiding}</strong> px</div>
+                      <div>Dither scale: <strong>1.0</strong></div>
+                      <div>Max dither: <strong>{ditherResult.guiding * 2}</strong> px</div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <div className="text-sm text-slate-500 text-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded">
+            Configure guiding focal length in the rig to see dithering calculations.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 type ViewMode = 'view' | 'edit' | 'duplicate';
 
@@ -288,6 +430,14 @@ export const Module2Dashboard: React.FC = () => {
       )}
 
 
+
+      {/* Guiding — read-only summary + dithering */}
+      {activeProfile && calculations && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">🎯 Guiding</h3>
+          <GuidingReadonly profile={activeProfile} calculations={calculations} />
+        </div>
+      )}
 
       {/* Horizon Mask */}
       <div>
