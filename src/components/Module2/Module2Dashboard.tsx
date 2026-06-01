@@ -292,14 +292,6 @@ export const Module2Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Read-only profile summary */}
-      {activeProfile && !isEditing && (
-        <RigProfileForm
-          profile={activeProfile}
-          isEditing={false}
-          onSave={handleUpdateProfile}
-        />
-      )}
 
       {/* Sampling */}
       {calculations && samplingRec && (
