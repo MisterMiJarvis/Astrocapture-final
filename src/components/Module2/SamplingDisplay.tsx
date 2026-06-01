@@ -136,6 +136,67 @@ export const SamplingDisplay: React.FC<SamplingDisplayProps> = ({
           </div>
         </div>
       </div>
+      {/* How it works */}
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
+        <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-100">
+          📖 How It Works
+        </h3>
+
+        <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
+          {/* Pixel Scale */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <h4 className="font-semibold text-slate-700 dark:text-slate-200 mb-2">📐 Pixel Scale</h4>
+            <p className="mb-2">
+              The pixel scale tells you how much sky each pixel covers, in arcseconds per pixel ("/px). It depends on your camera's pixel size and the effective focal length of your optical system:
+            </p>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-3 font-mono text-center mb-2">
+              Pixel Scale = (Pixel Size × 206.265) / Focal Length
+            </div>
+            <p className="text-xs text-slate-500">
+              Where 206.265 is a conversion constant (180° × 3600" / π). Pixel size in μm, focal length in mm. Result in "/px.
+            </p>
+            <div className="mt-2 text-xs text-slate-500">
+              <strong>Example:</strong> 3.76μm pixels + 714mm focal → (3.76 × 206.265) / 714 = <strong>1.09"/px</strong>
+            </div>
+          </div>
+
+          {/* Sampling Recommendation */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <h4 className="font-semibold text-slate-700 dark:text-slate-200 mb-2">🎯 Sampling Zones</h4>
+            <p className="mb-2">
+              The ideal sampling range (0.8–1.5"/px) is based on typical atmospheric seeing. For most sites, seeing limits resolution to ~1"–2" FWHM. The Nyquist-Shannon theorem says you need at least 2 pixels per FWHM to properly sample the star profile:
+            </p>
+            <ul className="list-disc list-inside space-y-1 mb-2">
+              <li><strong>{'> 2.5"/px'}</strong> — Critical undersampling: stars appear blocky/square. Information is lost. Drizzle 2× + aggressive dithering can partially recover detail.</li>
+              <li><strong>1.5–2.5"/px</strong> — Moderate undersampling: some detail loss. Drizzle 2× with Pixel Drop 0.7 helps by rejecting bad pixels during integration.</li>
+              <li><strong>0.8–1.5"/px</strong> — Ideal: stars are well-resolved. No Drizzle needed. Standard dithering (3px) is sufficient.</li>
+              <li><strong>{'< 0.8"/px'}</strong> — Oversampled: too many pixels per star. Wastes SNR and storage. Binning 2×2 recommended to improve SNR and reduce file size.</li>
+            </ul>
+            <p className="text-xs text-slate-500">
+              Note: The 2× Nyquist criterion means ideal pixel scale ≈ Seeing FWHM / 2. For 2" seeing → 1"/px ideal.
+            </p>
+          </div>
+
+          {/* Dithering */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <h4 className="font-semibold text-slate-700 dark:text-slate-200 mb-2">🎲 Dithering</h4>
+            <p className="mb-2">
+              Dithering shifts the telescope slightly between exposures so that hot pixels, cosmic ray hits, and fixed-pattern noise land on different pixels each time. During stacking, these artifacts are rejected by sigma-clipping algorithms.
+            </p>
+            <p className="mb-2">
+              The dither amount you enter in your capture software is in <strong>guiding sensor pixels</strong>. To achieve the desired shift on the <strong>imaging sensor</strong>, you must account for the scale ratio between the two:
+            </p>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-3 font-mono text-center mb-2">
+              Guide Dither = Imaging Dither × (Imaging Scale / Guiding Scale)
+            </div>
+            <div className="mt-2 text-xs text-slate-500 space-y-1">
+              <p><strong>For OAG:</strong> Both sensors share the same optical path, so Imaging Scale = Guiding Scale → ratio = 1:1. Enter the same pixel value in PHD2/NINA.</p>
+              <p><strong>For Guide Scope:</strong> The guide scope is usually shorter, so its pixel scale is larger (coarser). A 3px shift on the imaging sensor may require 8–15px on the guide sensor. The calculator handles this conversion.</p>
+              <p><strong>Minimum recommended:</strong> 3px on the imaging sensor for basic dithering. 5px for undersampled setups where Drizzle reconstruction needs more dither range.</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
