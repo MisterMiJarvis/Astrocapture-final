@@ -244,7 +244,7 @@ const App = () => {
 
   // Check auth on mount
   React.useEffect(() => {
-    const token = localStorage.getItem('astrocapture_token');
+    const token = localStorage.getItem('astrosuite_token');
     if (token) {
       // Verify token with backend
       fetch('/api/auth/me', {
@@ -255,12 +255,12 @@ const App = () => {
           setIsAuthenticated(true);
           invalidateTokenCache(); // Ensure the API token cache is fresh
         } else {
-          localStorage.removeItem('astrocapture_token');
+          localStorage.removeItem('astrosuite_token');
         }
         setAuthChecked(true);
       })
       .catch(() => {
-        localStorage.removeItem('astrocapture_token');
+        localStorage.removeItem('astrosuite_token');
         setAuthChecked(true);
       });
     } else {
@@ -334,10 +334,10 @@ const App = () => {
   React.useEffect(() => {
     if (!dbConnected) return;
     // Check if already logged in (token exists)
-    const token = localStorage.getItem('astrocapture_token');
+    const token = localStorage.getItem('astrosuite_token');
     if (token) {
       fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? setIsLoggedIn(true) : (localStorage.removeItem('astrocapture_token'), setIsLoggedIn(false)))
+        .then(r => r.ok ? setIsLoggedIn(true) : (localStorage.removeItem('astrosuite_token'), setIsLoggedIn(false)))
         .catch(() => setIsLoggedIn(false));
     }
   }, [dbConnected]);
@@ -437,7 +437,7 @@ const App = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('astrocapture_token');
+    localStorage.removeItem('astrosuite_token');
     setIsAuthenticated(false);
     logout();
     setView(ViewState.GALLERY);

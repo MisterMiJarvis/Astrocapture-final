@@ -5,7 +5,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 // Read token directly from localStorage — cache removed to avoid stale null bugs
 function getToken(): string | null {
-  return localStorage.getItem('astrocapture_token');
+  return localStorage.getItem('astrosuite_token');
 }
 export function invalidateTokenCache(): void {
   // No-op: cache removed, token is read directly from localStorage
@@ -55,7 +55,7 @@ export const auth = {
     const result = await apiFetch<{ token: string; user: { id: string; email: string } }>('/auth/login', {
       method: 'POST', body: JSON.stringify({ email, password }),
     });
-    localStorage.setItem('astrocapture_token', result.token);
+    localStorage.setItem('astrosuite_token', result.token);
     invalidateTokenCache();
     return result;
   },
@@ -64,13 +64,13 @@ export const auth = {
     const result = await apiFetch<{ token: string; user: { id: string; email: string } }>('/auth/setup', {
       method: 'POST', body: JSON.stringify({ email, password }),
     });
-    localStorage.setItem('astrocapture_token', result.token);
+    localStorage.setItem('astrosuite_token', result.token);
     invalidateTokenCache();
     return result;
   },
 
   logout() {
-    localStorage.removeItem('astrocapture_token');
+    localStorage.removeItem('astrosuite_token');
     invalidateTokenCache();
   },
 

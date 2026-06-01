@@ -145,30 +145,23 @@ const AplsModule1View: React.FC<AplsModule1ViewProps> = ({ locationSource: locat
       .finally(() => setIsLoadingHighlights(false));
   }, [coordinates]);
 
-  const mockKPIs = {
-    totalIntegrationTime: 127.5,
-    totalSessionsCompleted: 23,
-    totalProjectsCompleted: 4,
-    activeProjectsCount: 3,
-    averageGuidingRMS: 0.85,
-    bestGuidingRMS: 0.42,
-    worstGuidingRMS: 2.1,
-    filterDistribution: [
-      { filter: 'UV_IR_Cut', hours: 45, percentage: 35 },
-      { filter: 'L_Ultimate', hours: 38, percentage: 30 },
-      { filter: 'Ha', hours: 25, percentage: 20 },
-      { filter: 'OIII', hours: 12, percentage: 9 },
-      { filter: 'SII', hours: 7.5, percentage: 6 },
-    ],
-    monthlyIntegrationTrend: [
-      { month: '2026-01', hours: 18 },
-      { month: '2026-02', hours: 22 },
-      { month: '2026-03', hours: 15 },
-      { month: '2026-04', hours: 28 },
-      { month: '2026-05', hours: 44.5 },
-    ],
-    mountHealthScore: 92,
-    lastMaintenanceDate: new Date('2026-04-15'),
+  const [kpis, setKpis] = useState<any>(null);
+  const [isLoadingKpis, setIsLoadingKpis] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/apls/dashboard/kpis')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setKpis(data);
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingKpis(false));
+  }, []);
+
+  const mockKPIs = kpis || {
+    totalIntegrationTime: 0, totalSessionsCompleted: 0, totalProjectsCompleted: 0,
+    activeProjectsCount: 0, averageGuidingRMS: 0, bestGuidingRMS: 0, worstGuidingRMS: 0,
+    filterDistribution: [], monthlyIntegrationTrend: [], mountHealthScore: 0,
   };
 
   return (
@@ -337,7 +330,7 @@ const AplsModule1View: React.FC<AplsModule1ViewProps> = ({ locationSource: locat
       </div>
 
       {/* Existing KPIs */}
-      <DashboardKPIsView kpis={mockKPIs} />
+      isLoadingKpis ? <div className="text-text-secondary text-sm p-4">Loading KPIs...</div> : <DashboardKPIsView kpis={mockKPIs} />
     </div>
   );
 };

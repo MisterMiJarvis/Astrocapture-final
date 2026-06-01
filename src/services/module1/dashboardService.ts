@@ -1,41 +1,42 @@
 // ============================================================================
 // SERVICE DASHBOARD — Module 1
 // Agrégation des données pour le tableau de bord
+// Migrated from mock data → real API calls
 // ============================================================================
 
-import { DashboardData, DashboardKPIs, ImagingProject, DashboardQueryParams } from '../../types/module1';
+import { DashboardData, DashboardKPIs, ImagingProject, AstroLocation, RigProfileSummary } from '../../types/module1';
 import { fetchWeatherForecast, getWeatherWithCache } from './weatherService';
 import { fetchTargetsTonight } from './targetService';
+
+const API_BASE = '/api/apls';
+
+function getToken(): string | null {
+  return localStorage.getItem('astrosuite_token');
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) h['Authorization'] = `Bearer ${token}`;
+  return h;
+}
 
 /**
  * Récupère toutes les données du dashboard
  */
-export async function fetchDashboardData(params: DashboardQueryParams): Promise<DashboardData> {
-  const { locationId, rigId, date } = params;
-
-  // TODO: remplacer par vrais appels API backend
-  const location = await fetchLocation(locationId || 'default');
-  const rig = rigId ? await fetchRigProfile(rigId) : null;
-
-  // Météo
-  const weather = await getWeatherWithCache(
-    locationId || 'default',
-    location.latitude,
-    location.longitude
-  );
-
-  // Cibles de la nuit
-  const targetsTonight = await fetchTargetsTonight(
-    { lat: location.latitude, lon: location.longitude, rigId: rigId || undefined },
-    ['UV_IR_Cut', 'L_Ultimate', 'Ha', 'OIII'],
-    { phase: 0.25, altitude: 30, raDeg: 200, decDeg: 10 }
-  );
-
-  // Projets actifs
-  const activeProjects = await fetchActiveProjects();
-
-  // KPIs
-  const kpis = await fetchKPIs();
+export async function fetchDashboardData(params: { locationId?: string; rigId?: string; date?: string }): Promise<DashboardData> {
+  const [location, rig, weather, targetsTonight, activeProjects, kpis] = await Promise.all([
+    fetchLocation(params.locationId || 'default'),
+    params.rigId ? fetchRigProfile(params.rigId) : fetchDefaultRigProfile(),
+    getWeatherWithCache(params.locationId || 'default', 43.7889, 4.7533),
+    fetchTargetsTonight(
+      { lat: 43.7889, lon: 4.7533, rigId: params.rigId },
+      ['UV_IR_Cut', 'L_Ultimate', 'Ha', 'OIII'],
+      { phase: 0.25, altitude: 30, raDeg: 200, decDeg: 10 }
+    ),
+    fetchActiveProjects(),
+    fetchKPIs(),
+  ]);
 
   return {
     location,
@@ -49,75 +50,67 @@ export async function fetchDashboardData(params: DashboardQueryParams): Promise<
 }
 
 /**
- * Récupère les KPIs globaux
+ * Récupère les KPIs globaux from API
  */
 export async function fetchKPIs(): Promise<DashboardKPIs> {
-  // TODO: remplacer par appel API /api/apls/dashboard/kpis
-  return {
-    totalIntegrationTime: 127.5,
-    totalSessionsCompleted: 23,
-    totalProjectsCompleted: 4,
-    activeProjectsCount: 3,
-    averageGuidingRMS: 0.85,
-    bestGuidingRMS: 0.42,
-    worstGuidingRMS: 2.1,
-    filterDistribution: [
-      { filter: 'UV_IR_Cut', hours: 45, percentage: 35 },
-      { filter: 'L_Ultimate', hours: 38, percentage: 30 },
-      { filter: 'Ha', hours: 25, percentage: 20 },
-      { filter: 'OIII', hours: 12, percentage: 9 },
-      { filter: 'SII', hours: 7.5, percentage: 6 },
-    ],
-    monthlyIntegrationTrend: [
-      { month: '2026-01', hours: 18 },
-      { month: '2026-02', hours: 22 },
-      { month: '2026-03', hours: 15 },
-      { month: '2026-04', hours: 28 },
-      { month: '2026-05', hours: 44.5 },
-    ],
-    mountHealthScore: 92,
-    lastMaintenanceDate: new Date('2026-04-15'),
-  };
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/kpis`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(`KPIs API error: ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch KPIs:', err);
+    // Return empty KPIs instead of fake data
+    return {
+      totalIntegrationTime: 0,
+      totalSessionsCompleted: 0,
+      totalProjectsCompleted: 0,
+      activeProjectsCount: 0,
+      averageGuidingRMS: 0,
+      bestGuidingRMS: 0,
+      worstGuidingRMS: 0,
+      filterDistribution: [],
+      monthlyIntegrationTrend: [],
+      mountHealthScore: 0,
+    };
+  }
 }
 
 /**
- * Récupère les projets actifs
+ * Récupère les projets actifs from API
  */
 export async function fetchActiveProjects(): Promise<ImagingProject[]> {
-  // TODO: remplacer par appel API /api/apls/projects?status=in_progress,paused,waiting_weather
-  return [
-    {
-      id: 'proj_1', targetId: 'm31', targetName: 'M31 Andromeda',
-      status: 'in_progress', rigId: 'rig_1', locationId: 'loc_1',
-      targetIntegrationTime: 10, capturedIntegrationTime: 6.5,
-      progress: 65, weatherScore: 78,
-      createdAt: new Date('2026-01-10'), updatedAt: new Date('2026-05-20'),
-      priority: 'high', notes: 'L-Ultimate 3nm',
-      sessionsCount: 4,
-    },
-    {
-      id: 'proj_2', targetId: 'm42', targetName: 'M42 Orion',
-      status: 'waiting_moon', rigId: 'rig_1', locationId: 'loc_1',
-      targetIntegrationTime: 8, capturedIntegrationTime: 2,
-      progress: 25, weatherScore: 45,
-      createdAt: new Date('2026-02-15'), updatedAt: new Date('2026-05-15'),
-      priority: 'medium', notes: 'Ha + OIII',
-      sessionsCount: 1,
-    },
-    {
-      id: 'proj_3', targetId: 'ngc7000', targetName: 'NGC 7000 N-Amer',
-      status: 'paused', rigId: 'rig_1', locationId: 'loc_1',
-      targetIntegrationTime: 12, capturedIntegrationTime: 4,
-      progress: 33, weatherScore: 60,
-      createdAt: new Date('2026-03-01'), updatedAt: new Date('2026-04-28'),
-      priority: 'low', notes: 'SHO narrowband',
-      sessionsCount: 2,
-    },
-  ];
+  try {
+    const res = await fetch('/api/targets?completed=false', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`Targets API error: ${res.status}`);
+    const targets = await res.json();
+    return targets.map((t: any) => ({
+      id: t.id,
+      targetId: t.objectId || t.id,
+      targetName: t.commonName || t.objectId || 'Unknown',
+      status: t.completed ? 'completed' : 'in_progress',
+      rigId: '',
+      locationId: '',
+      targetIntegrationTime: t.targetHours || 0,
+      capturedIntegrationTime: t.acquisitionHours || 0,
+      progress: t.targetHours ? Math.round((t.acquisitionHours / t.targetHours) * 100) : 0,
+      weatherScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      priority: t.priority || 'medium',
+      notes: t.notes || '',
+      sessionsCount: 0,
+    }));
+  } catch (err) {
+    console.error('Failed to fetch active projects:', err);
+    return [];
+  }
 }
 
-// --- Helpers temporaires (à remplacer par API) ---
-async function fetchLocation(id: string) {
+/**
+ * Récupère la location (hardcoded for now — single obs site)
+ */
+async function fetchLocation(id: string): Promise<AstroLocation> {
+  // TODO: make configurable when multi-location support is added
   return {
     id, name: 'Saint-Étienne-du-Grès',
     latitude: 43.7889, longitude: 4.7533,
@@ -126,15 +119,47 @@ async function fetchLocation(id: string) {
   };
 }
 
-async function fetchRigProfile(id: string) {
+/**
+ * Récupère un rig profile par ID
+ */
+async function fetchRigProfile(id: string): Promise<RigProfileSummary | null> {
+  try {
+    const res = await fetch(`${API_BASE}/rigs/${id}`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return mapApiRigToSummary(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Récupère le rig par défaut
+ */
+async function fetchDefaultRigProfile(): Promise<RigProfileSummary | null> {
+  try {
+    const res = await fetch(`${API_BASE}/rigs`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    const rigs = await res.json();
+    if (!rigs || rigs.length === 0) return null;
+    // Use first rig or default
+    const rig = rigs.find((r: any) => r.isDefault) || rigs[0];
+    return mapApiRigToSummary(rig);
+  } catch {
+    return null;
+  }
+}
+
+function mapApiRigToSummary(data: any): RigProfileSummary {
   return {
-    id, name: 'TS-Optics 102mm + ASI533',
-    isDefault: true,
-    focalLength: 714,
-    aperture: 102,
-    pixelSize: 3.76,
-    sensorWidth: 11.3,
-    sensorHeight: 11.3,
-    binningAcquisition: 1,
+    id: data.id,
+    name: data.name,
+    isDefault: data.isDefault || false,
+    focalLength: data.telescope?.focalLength || 0,
+    aperture: data.telescope?.aperture || 0,
+    pixelSize: data.imagingCamera?.pixelSize || data.camera?.pixelSize || 0,
+    sensorWidth: data.imagingCamera?.sensorWidth || data.camera?.sensorWidth || 0,
+    sensorHeight: data.imagingCamera?.sensorHeight || data.camera?.sensorHeight || 0,
+    binningAcquisition: data.imagingCamera?.binning || data.camera?.binning || 1,
   };
 }

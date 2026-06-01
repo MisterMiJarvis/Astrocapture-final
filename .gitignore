@@ -35,3 +35,4 @@ public/uploads/
 *.njsproj
 *.sln
 *.sw?
+api/.secrets/

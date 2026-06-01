@@ -7,7 +7,7 @@ const API_BASE = '/api';
 // For admin pages: use the existing admin token from api.ts
 // For Astro Suite: use the astro suite token
 function getAuthToken(): string | null {
-  return localStorage.getItem('astrocapture_token') || localStorage.getItem('astrosuite_token');
+  return localStorage.getItem('astrosuite_token');
 }
 
 // Helper for API requests

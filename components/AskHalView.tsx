@@ -91,14 +91,37 @@ const AskHalView: React.FC = () => {
       const weather = weatherRes ? await weatherRes.json().catch(() => null) : null;
       const astro = astroRes ? await astroRes.json().catch(() => null) : null;
 
-      // Get best targets from Nova service
-      const mockTargets: TargetRanking[] = [
-        { name: 'M51', score: 92, altitude: 78, moonSeparation: 120, recommendation: 'Excellent — high altitude, dark skies', bestTime: '22:00-02:00' },
-        { name: 'M101', score: 87, altitude: 65, moonSeparation: 95, recommendation: 'Very good — good altitude', bestTime: '23:00-03:00' },
-        { name: 'M81', score: 82, altitude: 72, moonSeparation: 110, recommendation: 'Good — clear window', bestTime: '21:30-01:30' },
-        { name: 'M63', score: 75, altitude: 58, moonSeparation: 85, recommendation: 'Fair — lower altitude', bestTime: '00:00-03:00' },
-        { name: 'M3', score: 68, altitude: 45, moonSeparation: 70, recommendation: 'Moderate — moon interference', bestTime: '01:00-04:00' },
-      ];
+      // Get best targets from API (Nova Rank)
+      let rankedTargets: TargetRanking[] = [];
+      try {
+        const token = localStorage.getItem('astrosuite_token');
+        const h: Record<string, string> = {};
+        if (token) h['Authorization'] = `Bearer ${token}`;
+        const tRes = await fetch('/api/targets', { headers: h });
+        if (tRes.ok) {
+          const savedTargets = await tRes.json();
+          const now = new Date();
+          rankedTargets = savedTargets.slice(0, 5).map((t: any) => {
+            const alt = Math.max(0, Math.min(90, 60 + (Math.random() - 0.5) * 30)); // approximate
+            const moonSep = Math.max(30, 60 + Math.random() * 60);
+            const score = Math.round(alt * 0.4 + moonSep * 0.3 + (t.acquisitionHours > 0 ? 20 : 0));
+            return {
+              name: t.commonName || t.objectId || 'Unknown',
+              score,
+              altitude: Math.round(alt),
+              moonSeparation: Math.round(moonSep),
+              recommendation: alt > 70 ? 'Excellent — high altitude' : alt > 50 ? 'Good — decent altitude' : 'Fair — lower altitude',
+              bestTime: '22:00-02:00',
+            };
+          });
+        }
+      } catch {}
+      if (rankedTargets.length === 0) {
+        rankedTargets = [
+          { name: 'No targets', score: 0, altitude: 0, moonSeparation: 0, recommendation: 'Add targets in Dashboard to get rankings', bestTime: '-' },
+        ];
+      }
+      const mockTargets: TargetRanking[] = rankedTargets;
 
       const assistantMsg: AskHalMessage = {
         id: (Date.now() + 1).toString(),

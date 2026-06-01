@@ -13,7 +13,7 @@ const TELESCOPIUS_BASE = 'https://api.telescopius.com';
 // Token helper
 // ─────────────────────────────────────────────────────────────────────────────
 function getToken(): string | null {
-  return localStorage.getItem('astrosuite_token') || localStorage.getItem('astrocapture_token');
+  return localStorage.getItem('astrosuite_token');
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

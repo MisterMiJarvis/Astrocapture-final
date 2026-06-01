@@ -128,7 +128,11 @@ db.exec(`
     completed_date TEXT,
     acquisition_hours REAL DEFAULT 0,
     target_hours REAL,
-    image_url TEXT DEFAULT ''
+    image_url TEXT DEFAULT '',
+    ra TEXT DEFAULT '',
+    dec TEXT DEFAULT '',
+    ra_deg REAL DEFAULT 0,
+    dec_deg REAL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS observation_sessions (
@@ -146,7 +150,8 @@ db.exec(`
     weather_summary TEXT DEFAULT '',
     notes TEXT DEFAULT '',
     cloud_cover INTEGER,
-    seeing TEXT DEFAULT ''
+    seeing TEXT DEFAULT '',
+    rig_id TEXT DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS site_config (

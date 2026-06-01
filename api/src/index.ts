@@ -1257,10 +1257,12 @@ function parseTarget(row: any) {
     id: row.id, objectId: row.object_id, commonName: row.common_name,
     objectType: row.object_type, constellation: row.constellation,
     magnitude: row.magnitude, angularSizeArcmin: { width: row.size_width, height: row.size_height },
+    ra: row.ra, dec: row.dec, raDeg: row.ra_deg, decDeg: row.dec_deg,
     priority: row.priority, notes: row.notes, completed: Boolean(row.completed),
     completedDate: row.completed_date, acquisitionHours: row.acquisition_hours,
     targetHours: row.target_hours, imageUrl: row.image_url,
   };
+
 }
 
 app.get('/api/targets', (c) => {
@@ -1283,10 +1285,11 @@ app.get('/api/targets/:id', (c) => {
 app.post('/api/targets', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  db.prepare(`INSERT INTO observation_targets (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height, priority, notes, completed, completed_date, acquisition_hours, target_hours, image_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  db.prepare(`INSERT INTO observation_targets (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height, ra, dec, ra_deg, dec_deg, priority, notes, completed, completed_date, acquisition_hours, target_hours, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.objectId || '', body.commonName || '', body.objectType || '', body.constellation || '',
     body.magnitude ?? null, body.angularSizeArcmin?.width ?? 0, body.angularSizeArcmin?.height ?? 0,
+    body.ra || '', body.dec || '', body.raDeg ?? 0, body.decDeg ?? 0,
     body.priority || 'medium', body.notes || '', body.completed ? 1 : 0, body.completedDate ?? null,
     body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null
   );
@@ -1297,11 +1300,13 @@ app.put('/api/targets/:id', auth, async (c) => {
   const body = await c.req.json();
   db.prepare(`UPDATE observation_targets SET
     object_id = ?, common_name = ?, object_type = ?, constellation = ?, magnitude = ?,
-    size_width = ?, size_height = ?, priority = ?, notes = ?, completed = ?,
+    size_width = ?, size_height = ?, ra = ?, dec = ?, ra_deg = ?, dec_deg = ?,
+    priority = ?, notes = ?, completed = ?,
     completed_date = ?, acquisition_hours = ?, target_hours = ?, image_url = ?
     WHERE id = ?`).run(
     body.objectId ?? '', body.commonName ?? '', body.objectType ?? '', body.constellation ?? '', body.magnitude ?? null,
     body.angularSizeArcmin?.width ?? 0, body.angularSizeArcmin?.height ?? 0,
+    body.ra ?? '', body.dec ?? '', body.raDeg ?? 0, body.decDeg ?? 0,
     body.priority ?? 'medium', body.notes ?? '', body.completed ? 1 : 0, body.completedDate ?? null,
     body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null, c.req.param('id')
   );
@@ -1326,6 +1331,7 @@ function parseSession(row: any) {
     sunriseTime: row.sunrise_time, status: row.status,
     weatherSummary: row.weather_summary, notes: row.notes,
     cloudCover: row.cloud_cover, seeing: row.seeing,
+    rigId: row.rig_id,
   };
 }
 
@@ -1356,11 +1362,11 @@ app.post('/api/sessions', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
   db.prepare(`INSERT INTO observation_sessions (id, date, loc_name, loc_lat, loc_lon, moon_illum, sunset_time, darkness_start, darkness_end, sunrise_time, status, weather_summary, notes, cloud_cover, seeing)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.date || '', body.location?.name || '', body.location?.lat ?? 0, body.location?.lon ?? 0,
     body.moonIllumination ?? 0, body.sunsetTime || '', body.darknessStart || '', body.darknessEnd || '',
     body.sunriseTime || '', body.status || 'planned', body.weatherSummary || '',
-    body.notes || '', body.cloudCover ?? null, body.seeing ?? ''
+    body.notes || '', body.cloudCover ?? null, body.seeing ?? '', body.rigId ?? ''
   );
   // Link targets
   if (body.targets?.length) {
@@ -1377,13 +1383,13 @@ app.put('/api/sessions/:id', auth, async (c) => {
   db.prepare(`UPDATE observation_sessions SET
     date = ?, loc_name = ?, loc_lat = ?, loc_lon = ?, moon_illum = ?,
     sunset_time = ?, darkness_start = ?, darkness_end = ?, sunrise_time = ?,
-    status = ?, weather_summary = ?, notes = ?, cloud_cover = ?, seeing = ?
+    status = ?, weather_summary = ?, notes = ?, cloud_cover = ?, seeing = ?, rig_id = ?
     WHERE id = ?`).run(
     body.date ?? '', body.location?.name ?? '', body.location?.lat ?? 0, body.location?.lon ?? 0,
     body.moonIllumination ?? 0, body.sunsetTime ?? '', body.darknessStart ?? '',
     body.darknessEnd ?? '', body.sunriseTime ?? '', body.status ?? 'planned',
     body.weatherSummary ?? '', body.notes ?? '', body.cloudCover ?? null, body.seeing ?? '',
-    c.req.param('id')
+    body.rigId ?? '', c.req.param('id')
   );
   // Update targets if provided
   if (body.targets) {
@@ -1950,6 +1956,98 @@ app.get('/api/apls/horizons/:id/export', (c) => {
   return new Response(csv, {
     headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${(row as any).name.replace(/\s+/g, '_')}_horizon.csv"` }
   });
+});
+
+
+// =====================
+// APLS DASHBOARD KPIs
+// =====================
+
+app.get('/api/apls/dashboard/kpis', (c) => {
+  // Aggregate from real DB data
+  const totalSessions = db.prepare('SELECT COUNT(*) as count FROM observation_sessions WHERE status = ?').get('completed') as any;
+  const activeProjects = db.prepare('SELECT COUNT(*) as count FROM observation_targets WHERE completed = 0').get() as any;
+  const completedProjects = db.prepare('SELECT COUNT(*) as count FROM observation_targets WHERE completed = 1').get() as any;
+  const totalIntegrationTime = db.prepare('SELECT COALESCE(SUM(acquisition_hours), 0) as total FROM observation_targets').get() as any;
+  
+  // Monthly trend (last 6 months)
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 7);
+  const monthlyData = db.prepare(`
+    SELECT strftime('%Y-%m', date) as month, COUNT(*) as sessions
+    FROM observation_sessions 
+    WHERE date >= ? AND status = 'completed'
+    GROUP BY month ORDER BY month
+  `).all(sixMonthsAgoStr) as any[];
+
+  const monthlyIntegrationTrend = monthlyData.map((r: any) => ({
+    month: r.month,
+    hours: r.sessions * 3,
+  }));
+
+  // Filter distribution from target types + acquisition hours
+  const targets = db.prepare('SELECT object_type, acquisition_hours FROM observation_targets WHERE acquisition_hours > 0').all() as any[];
+  const filterMap: Record<string, number> = {};
+  for (const t of targets) {
+    const type = t.object_type || 'Unknown';
+    filterMap[type] = (filterMap[type] || 0) + (t.acquisition_hours || 0);
+  }
+  const totalFilterHours = Object.values(filterMap).reduce((a: number, b: number) => a + b, 0) || 1;
+  const filterDistribution = Object.entries(filterMap).map(([filter, hours]) => ({
+    filter,
+    hours: Math.round((hours as number) * 10) / 10,
+    percentage: Math.round(((hours as number) / totalFilterHours) * 100),
+  }));
+
+  return c.json({
+    totalIntegrationTime: Math.round(totalIntegrationTime.total * 10) / 10,
+    totalSessionsCompleted: totalSessions.count || 0,
+    totalProjectsCompleted: completedProjects.count || 0,
+    activeProjectsCount: activeProjects.count || 0,
+    averageGuidingRMS: 0,
+    bestGuidingRMS: 0,
+    worstGuidingRMS: 0,
+    filterDistribution,
+    monthlyIntegrationTrend,
+    mountHealthScore: 0,
+    lastMaintenanceDate: null,
+  });
+});
+
+// =====================
+// APLS WEATHER PROXY
+// =====================
+
+app.get('/api/apls/weather/*', async (c) => {
+  const path = c.req.path.replace('/api/apls/weather/', '');
+  const query = new URL(c.req.url).searchParams.toString();
+  const url = `https://api.open-meteo.com/v1/${path}${query ? '?' + query : ''}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return c.json({ error: 'Open-Meteo error' }, res.status as any);
+    const data = await res.json();
+    return c.json(data);
+  } catch {
+    return c.json({ error: 'Weather proxy failed' }, 502 as any);
+  }
+});
+
+app.get('/api/apls/targets/moon', async (c) => {
+  const { lat, lon, date } = c.req.query();
+  let apiKey = '';
+  try {
+    const fs = require('fs');
+    apiKey = JSON.parse(fs.readFileSync('.secrets/telescopius.json', 'utf8')).apiKey;
+  } catch {}
+  const url = `https://api.telescopius.com/api/v2/moon?lat=${lat}&lon=${lon}${date ? `&date=${date}` : ''}`;
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+    if (!res.ok) return c.json({ error: 'Telescopius moon error' }, res.status as any);
+    return c.json(await res.json());
+  } catch {
+    return c.json({ error: 'Moon proxy failed' }, 502 as any);
+  }
 });
 
 // Health check

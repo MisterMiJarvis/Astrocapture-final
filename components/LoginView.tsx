@@ -36,7 +36,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         return;
       }
 
-      localStorage.setItem('astrocapture_token', data.token);
+      localStorage.setItem('astrosuite_token', data.token);
       onLogin(data.token);
     } catch (err) {
       setError('Server connection error');

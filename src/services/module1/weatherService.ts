@@ -5,7 +5,7 @@
 
 import { WeatherForecast, HourlyWeather, NightlyWeather, WeeklyWeatherDay } from '../../types/module1';
 
-const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1';
+const OPEN_METEO_BASE = '/api/apls/weather';
 
 export interface WeatherServiceConfig {
   latitude: number;
