@@ -82,6 +82,17 @@ const GuidingReadonly: React.FC<{
 
         {guidingCalc ? (
           <>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Imaging scale</div>
+                <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{guidingCalc.imagingScale}"/px</div>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Guiding scale</div>
+                <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{guidingCalc.guidingScale}"/px</div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-4 mb-6">
               <div className="flex-1">
                 <label className="block text-xs text-slate-500 mb-1">
@@ -234,6 +245,7 @@ export const Module2Dashboard: React.FC = () => {
       setActiveProfileId(profileId);
       setViewMode('view');
       setDeleteConfirm('idle');
+      setDitherPixels(3); // reset dither slider on rig change
     }
   };
 
