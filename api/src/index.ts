@@ -1702,7 +1702,7 @@ app.post('/api/apls/rigs', auth, async (c) => {
     camera_name, guiding_camera_name, guiding_pixel_size, guiding_binning, guiding_mode, guiding_focal_length,
     mount_name, mount_type, mount_max_payload,
     created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.name || 'New Rig', body.isDefault ? 1 : 0,
     body.telescope?.name || '', body.telescope?.focalLength || 0, body.telescope?.aperture || 0,
     body.telescope?.fRatio || 0, body.telescope?.type || 'Refractor',
