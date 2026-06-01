@@ -281,7 +281,13 @@ export function calculateRigCalculations(profile: RigProfile): RigCalculations {
   };
 
   // Guiding calculations
-  if (profile.guiding.focalLength && profile.guiding.pixelSize) {
+  if (profile.guiding.mode === 'OAG') {
+    // OAG uses same optical path — ratio is always 1:1
+    calc.guidingPixelScale = calc.pixelScale; // same path = same scale
+    calc.guidingRatio = 1.0;
+    calc.guidingRatioValid = true;
+    calc.recommendedDitherPixels = 3; // same pixels on both sensors
+  } else if (profile.guiding.focalLength && profile.guiding.pixelSize) {
     const guidingPixelScale = (profile.guiding.pixelSize * 206.265) / profile.guiding.focalLength;
     const ratio = pixelScale / guidingPixelScale;
 

@@ -28,15 +28,11 @@ const GuidingReadonly: React.FC<{
     ? (() => {
         const ratio = calculations.guidingRatio;
         const isOAG = profile.guiding.mode === 'OAG';
-        // OAG: ratio ≈1:1 is ideal (green). Guide scope: ratio < 1:5 is OK
-        const isValid = isOAG
-          ? ratio <= 0.25  // OAG 1:1 to 1:4 is green
-          : ratio < 0.2;    // Guide scope < 1:5
         return {
           imagingScale: calculations.pixelScale,
           guidingScale: calculations.guidingPixelScale,
           ratio,
-          isValid,
+          isValid: isOAG ? true : ratio < 0.2,
           isOAG,
         };
       })()
