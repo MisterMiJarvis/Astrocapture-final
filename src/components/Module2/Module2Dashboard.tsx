@@ -14,7 +14,6 @@ import {
 } from '../../services/module2/rigProfileService';
 import { RigProfileForm } from './RigProfileForm';
 import { SamplingDisplay } from './SamplingDisplay';
-import { GuidingSetupForm } from './GuidingSetupForm';
 import { HorizonMaskUploader } from './HorizonMaskUploader';
 
 type ViewMode = 'view' | 'edit' | 'duplicate';
@@ -270,27 +269,7 @@ export const Module2Dashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Summary Cards */}
-      {calculations && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">{calculations.pixelScale}"</div>
-            <div className="text-xs text-slate-400">Pixel scale</div>
-          </div>
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">{calculations.fovWidth}'×{calculations.fovHeight}'</div>
-            <div className="text-xs text-slate-400">FOV</div>
-          </div>
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">{calculations.effectiveFocalLength}mm</div>
-            <div className="text-xs text-slate-400">Effective focal</div>
-          </div>
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">f/{calculations.fRatio}</div>
-            <div className="text-xs text-slate-400">f/D</div>
-          </div>
-        </div>
-      )}
+
 
 
       {/* Sampling */}
@@ -301,22 +280,14 @@ export const Module2Dashboard: React.FC = () => {
             pixelScale={calculations.pixelScale}
             fovWidth={calculations.fovWidth}
             fovHeight={calculations.fovHeight}
+            effectiveFocalLength={calculations.effectiveFocalLength}
+            fRatio={calculations.fRatio}
             recommendation={samplingRec}
           />
         </div>
       )}
 
-      {/* Guiding */}
-      {activeProfile && calculations && (
-        <div>
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">🎯 Guiding</h3>
-          <GuidingSetupForm
-            profile={activeProfile}
-            calculations={calculations}
-            onUpdate={(data) => handleUpdateProfile(activeProfile.id, data)}
-          />
-        </div>
-      )}
+
 
       {/* Horizon Mask */}
       <div>

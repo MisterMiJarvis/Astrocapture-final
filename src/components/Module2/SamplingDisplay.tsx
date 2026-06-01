@@ -5,6 +5,8 @@ interface SamplingDisplayProps {
   pixelScale: number;
   fovWidth: number;
   fovHeight: number;
+  effectiveFocalLength: number;
+  fRatio: number;
   recommendation: SamplingRecommendation;
 }
 
@@ -12,6 +14,8 @@ export const SamplingDisplay: React.FC<SamplingDisplayProps> = ({
   pixelScale,
   fovWidth,
   fovHeight,
+  effectiveFocalLength,
+  fRatio,
   recommendation,
 }) => {
   const colorMap = {
@@ -38,18 +42,22 @@ export const SamplingDisplay: React.FC<SamplingDisplayProps> = ({
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-800 text-white p-6 rounded-lg text-center">
           <div className="text-3xl font-bold">{pixelScale}"</div>
-          <div className="text-sm text-slate-400 mt-1">/pixel (échantillonnage)</div>
+          <div className="text-sm text-slate-400 mt-1">/pixel</div>
         </div>
         <div className="bg-slate-800 text-white p-6 rounded-lg text-center">
           <div className="text-3xl font-bold">{fovWidth}'×{fovHeight}'</div>
-          <div className="text-sm text-slate-400 mt-1">Champ de vision</div>
+          <div className="text-sm text-slate-400 mt-1">FOV</div>
         </div>
         <div className="bg-slate-800 text-white p-6 rounded-lg text-center">
-          <div className="text-3xl font-bold">{pixelScale > 1.5 ? 'Mauvais' : pixelScale > 0.8 ? 'Optimal' : 'Bon'}</div>
-          <div className="text-sm text-slate-400 mt-1">Qualité échantillonnage</div>
+          <div className="text-3xl font-bold">{effectiveFocalLength}mm</div>
+          <div className="text-sm text-slate-400 mt-1">Effective focal</div>
+        </div>
+        <div className="bg-slate-800 text-white p-6 rounded-lg text-center">
+          <div className="text-3xl font-bold">f/{fRatio}</div>
+          <div className="text-sm text-slate-400 mt-1">f/D</div>
         </div>
       </div>
 
