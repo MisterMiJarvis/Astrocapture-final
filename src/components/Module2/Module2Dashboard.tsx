@@ -21,7 +21,8 @@ import { calculateDitherPixels } from '../../services/module2/rigProfileService'
 const GuidingReadonly: React.FC<{
   profile: RigProfile;
   calculations: ReturnType<typeof calculateRigCalculations>;
-}> = ({ profile, calculations }) => {
+  samplingRec: ReturnType<typeof getSamplingRecommendation> | null;
+}> = ({ profile, calculations, samplingRec }) => {
   const [ditherPixels, setDitherPixels] = useState(3);
 
   const guidingCalc = calculations.guidingPixelScale && calculations.guidingRatio !== undefined
@@ -493,7 +494,7 @@ export const Module2Dashboard: React.FC = () => {
       {activeProfile && calculations && (
         <div>
           <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">🎯 Guiding</h3>
-          <GuidingReadonly profile={activeProfile} calculations={calculations} />
+          <GuidingReadonly profile={activeProfile} calculations={calculations} samplingRec={samplingRec} />
         </div>
       )}
 
