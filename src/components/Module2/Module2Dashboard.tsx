@@ -17,27 +17,24 @@ import { SamplingDisplay } from './SamplingDisplay';
 import { GuidingSetupForm } from './GuidingSetupForm';
 import { HorizonMaskUploader } from './HorizonMaskUploader';
 
-type Tab = 'profiles' | 'sampling' | 'guiding' | 'horizon';
+type ViewMode = 'view' | 'edit' | 'duplicate';
 
 export const Module2Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('profiles');
+  const [viewMode, setViewMode] = useState<ViewMode>('view');
   const [profiles, setProfiles] = useState<RigProfile[]>([]);
   const [activeProfileId, setActiveProfileIdState] = useState<string | null>(null);
   const [activeProfile, setActiveProfile] = useState<RigProfile | null>(null);
   const [calculations, setCalculations] = useState<ReturnType<typeof calculateRigCalculations> | null>(null);
   const [samplingRec, setSamplingRec] = useState<ReturnType<typeof getSamplingRecommendation> | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<'idle' | 'first' | 'second'>('idle');
 
-
-  // Reload profiles from API and refresh state
   const reloadProfiles = useCallback(async () => {
     const loadedProfiles = await getAllProfiles();
     setProfiles(loadedProfiles);
     return loadedProfiles;
   }, []);
 
-  // Charger les profils au mount
   useEffect(() => {
     (async () => {
       try {
@@ -51,7 +48,6 @@ export const Module2Dashboard: React.FC = () => {
             setActiveProfileIdState(savedActiveId);
             setActiveProfile(profile);
           } else {
-            // Active ID no longer exists in DB — pick first available
             localStorage.removeItem(ACTIVE_PROFILE_KEY);
             const first = loadedProfiles[0];
             setActiveProfileIdState(first.id);
@@ -74,7 +70,6 @@ export const Module2Dashboard: React.FC = () => {
     })();
   }, []);
 
-  // Recalculer quand le profil actif change
   useEffect(() => {
     if (activeProfile) {
       const calc = calculateRigCalculations(activeProfile);
@@ -89,7 +84,8 @@ export const Module2Dashboard: React.FC = () => {
       setActiveProfileIdState(profileId);
       setActiveProfile(profile);
       setActiveProfileId(profileId);
-      setIsEditing(false);
+      setViewMode('view');
+      setDeleteConfirm('idle');
     }
   };
 
@@ -117,7 +113,7 @@ export const Module2Dashboard: React.FC = () => {
     setActiveProfileIdState(newProfile.id);
     setActiveProfile(newProfile);
     setActiveProfileId(newProfile.id);
-    setIsEditing(false);
+    setViewMode('view');
   };
 
   const handleUpdateProfile = async (id: string, data: Partial<RigProfile>) => {
@@ -131,55 +127,87 @@ export const Module2Dashboard: React.FC = () => {
       mount: data.mount,
     });
     if (updated) {
-      const updatedProfiles = await reloadProfiles();
+      await reloadProfiles();
       setActiveProfile(updated);
+      setViewMode('view');
     }
   };
 
-  const handleDeleteProfile = async (id: string) => {
-    if (profiles.length <= 1) {
-      alert('Impossible de supprimer le dernier profil.');
-      return;
+  const handleDeleteClick = () => {
+    if (profiles.length <= 1) return;
+    if (deleteConfirm === 'idle') {
+      setDeleteConfirm('first');
+    } else if (deleteConfirm === 'first') {
+      setDeleteConfirm('second');
+    } else {
+      // second confirm — actually delete
+      performDelete();
     }
-    if (confirm('Supprimer ce profil ?')) {
-      await deleteProfile(id);
-      const remaining = await reloadProfiles();
-      const newActive = remaining.find(p => p.isDefault) || remaining[0];
-      if (newActive) {
-        setActiveProfileIdState(newActive.id);
-        setActiveProfile(newActive);
-        setActiveProfileId(newActive.id);
-      }
+  };
+
+  const performDelete = async () => {
+    if (!activeProfile) return;
+    await deleteProfile(activeProfile.id);
+    const remaining = await reloadProfiles();
+    const newActive = remaining.find(p => p.isDefault) || remaining[0];
+    if (newActive) {
+      setActiveProfileIdState(newActive.id);
+      setActiveProfile(newActive);
+      setActiveProfileId(newActive.id);
     }
+    setDeleteConfirm('idle');
   };
 
   const handleDuplicateProfile = async (id: string) => {
     const duplicated = await duplicateProfile(id);
     if (duplicated) {
-      const updatedProfiles = await reloadProfiles();
+      await reloadProfiles();
       setActiveProfileIdState(duplicated.id);
       setActiveProfile(duplicated);
       setActiveProfileId(duplicated.id);
+      setViewMode('edit');
     }
   };
-
-
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <div className="text-slate-400">Chargement des profils...</div>
+        <div className="text-slate-400">Loading rigs...</div>
       </div>
     );
   }
 
-  const TAB_CONFIG: { id: Tab; label: string; icon: string }[] = [
-    { id: 'profiles', label: 'Profils de Rigs', icon: '🔭' },
-    { id: 'sampling', label: 'Échantillonnage', icon: '📐' },
-    { id: 'guiding', label: 'Guidage', icon: '🎯' },
-    { id: 'horizon', label: 'Masque d\'horizon', icon: '🏔️' },
-  ];
+  const isEditing = viewMode === 'edit' || viewMode === 'duplicate';
 
+  // Full-screen edit mode
+  if (isEditing && activeProfile) {
+    return (
+      <div className="space-y-6 p-4 max-w-7xl mx-auto">
+        <header>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+              {viewMode === 'duplicate' ? '📄 Duplicate Rig' : '✏️ Edit Rig'}
+            </h2>
+            <button
+              onClick={() => setViewMode('view')}
+              className="px-4 py-2 rounded bg-slate-600 text-white text-sm hover:bg-slate-700"
+            >
+              ✕ Close
+            </button>
+          </div>
+          <p className="text-slate-500 mt-1">{activeProfile.name}</p>
+        </header>
+
+        <RigProfileForm
+          profile={activeProfile}
+          isEditing={true}
+          onSave={handleUpdateProfile}
+        />
+      </div>
+    );
+  }
+
+  // View mode — single page
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto">
       {/* Header */}
@@ -192,101 +220,116 @@ export const Module2Dashboard: React.FC = () => {
         </p>
       </header>
 
+      {/* Rig Selector + Actions */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          value={activeProfileId || ''}
+          onChange={e => handleProfileChange(e.target.value)}
+          className="px-3 py-2 rounded border border-slate-300 dark:border-slate-600 
+                     bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+        >
+          {profiles.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.name} {p.isDefault && '(default)'}
+            </option>
+          ))}
+        </select>
 
+        <button
+          onClick={() => setViewMode('edit')}
+          className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+        >
+          ✏️ Edit
+        </button>
 
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700">
-        {TAB_CONFIG.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
+        <button
+          onClick={() => activeProfile && handleDuplicateProfile(activeProfile.id)}
+          className="px-3 py-2 rounded bg-slate-600 text-white text-sm hover:bg-slate-700"
+          disabled={!activeProfile}
+        >
+          📄 Duplicate
+        </button>
+
+        <button
+          onClick={handleDeleteClick}
+          className={`px-3 py-2 rounded text-white text-sm transition-colors ${
+            deleteConfirm === 'second'
+              ? 'bg-red-800 hover:bg-red-900 animate-pulse'
+              : deleteConfirm === 'first'
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-red-500 hover:bg-red-600'
+          }`}
+          disabled={!activeProfile || profiles.length <= 1}
+          onBlur={() => setTimeout(() => setDeleteConfirm('idle'), 2000)}
+        >
+          {deleteConfirm === 'second'
+            ? '🗑️ Confirm delete?'
+            : deleteConfirm === 'first'
+            ? '⚠️ Delete rig?'
+            : '🗑️ Delete'}
+        </button>
       </div>
 
-      {/* Tab Content */}
-      <div className="mt-4">
-        {activeTab === 'profiles' && (
-          <div className="space-y-4">
-            {/* Profile Selector */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <select
-                value={activeProfileId || ''}
-                onChange={e => handleProfileChange(e.target.value)}
-                className="px-3 py-2 rounded border border-slate-300 dark:border-slate-600 
-                           bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-              >
-                {profiles.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} {p.isDefault && '(défaut)'}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-              >
-                {isEditing ? 'Annuler' : '✏️ Modifier'}
-              </button>
-
-              <button
-                onClick={() => activeProfile && handleDuplicateProfile(activeProfile.id)}
-                className="px-3 py-2 rounded bg-slate-600 text-white text-sm hover:bg-slate-700"
-                disabled={!activeProfile}
-              >
-                📄 Dupliquer
-              </button>
-
-              <button
-                onClick={() => activeProfile && handleDeleteProfile(activeProfile.id)}
-                className="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700"
-                disabled={!activeProfile || profiles.length <= 1}
-              >
-                🗑️ Supprimer
-              </button>
-            </div>
-
-
-
-            {/* Profile Form */}
-            {activeProfile && (
-              <RigProfileForm
-                profile={activeProfile}
-                isEditing={isEditing}
-                onSave={handleUpdateProfile}
-              />
-            )}
+      {/* Summary Cards */}
+      {calculations && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-800 text-white p-4 rounded-lg">
+            <div className="text-2xl font-bold">{calculations.pixelScale}"</div>
+            <div className="text-xs text-slate-400">Pixel scale</div>
           </div>
-        )}
+          <div className="bg-slate-800 text-white p-4 rounded-lg">
+            <div className="text-2xl font-bold">{calculations.fovWidth}'×{calculations.fovHeight}'</div>
+            <div className="text-xs text-slate-400">FOV</div>
+          </div>
+          <div className="bg-slate-800 text-white p-4 rounded-lg">
+            <div className="text-2xl font-bold">{calculations.effectiveFocalLength}mm</div>
+            <div className="text-xs text-slate-400">Effective focal</div>
+          </div>
+          <div className="bg-slate-800 text-white p-4 rounded-lg">
+            <div className="text-2xl font-bold">f/{calculations.fRatio}</div>
+            <div className="text-xs text-slate-400">f/D</div>
+          </div>
+        </div>
+      )}
 
-        {activeTab === 'sampling' && calculations && samplingRec && (
+      {/* Read-only profile summary */}
+      {activeProfile && !isEditing && (
+        <RigProfileForm
+          profile={activeProfile}
+          isEditing={false}
+          onSave={handleUpdateProfile}
+        />
+      )}
+
+      {/* Sampling */}
+      {calculations && samplingRec && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">📐 Sampling</h3>
           <SamplingDisplay
             pixelScale={calculations.pixelScale}
             fovWidth={calculations.fovWidth}
             fovHeight={calculations.fovHeight}
             recommendation={samplingRec}
           />
-        )}
+        </div>
+      )}
 
-        {activeTab === 'guiding' && activeProfile && calculations && (
+      {/* Guiding */}
+      {activeProfile && calculations && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">🎯 Guiding</h3>
           <GuidingSetupForm
             profile={activeProfile}
             calculations={calculations}
             onUpdate={(data) => handleUpdateProfile(activeProfile.id, data)}
           />
-        )}
+        </div>
+      )}
 
-        {activeTab === 'horizon' && (
-          <HorizonMaskUploader />
-        )}
+      {/* Horizon Mask */}
+      <div>
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">🏔️ Horizon Mask</h3>
+        <HorizonMaskUploader />
       </div>
     </div>
   );
