@@ -25,12 +25,21 @@ const GuidingReadonly: React.FC<{
   const [ditherPixels, setDitherPixels] = useState(3);
 
   const guidingCalc = calculations.guidingPixelScale && calculations.guidingRatio !== undefined
-    ? {
-        imagingScale: calculations.pixelScale,
-        guidingScale: calculations.guidingPixelScale,
-        ratio: calculations.guidingRatio,
-        isValid: calculations.guidingRatioValid ?? false,
-      }
+    ? (() => {
+        const ratio = calculations.guidingRatio;
+        const isOAG = profile.guiding.mode === 'OAG';
+        // OAG: ratio ≈1:1 is ideal (green). Guide scope: ratio < 1:5 is OK
+        const isValid = isOAG
+          ? ratio <= 0.25  // OAG 1:1 to 1:4 is green
+          : ratio < 0.2;    // Guide scope < 1:5
+        return {
+          imagingScale: calculations.pixelScale,
+          guidingScale: calculations.guidingPixelScale,
+          ratio,
+          isValid,
+          isOAG,
+        };
+      })()
     : null;
 
   const ditherResult = guidingCalc
@@ -56,7 +65,9 @@ const GuidingReadonly: React.FC<{
               <div className="text-sm text-white/70">Ratio</div>
               <div className="text-2xl font-bold">1:{Math.round(1 / guidingCalc.ratio)}</div>
               <div className="text-xs mt-1">
-                {guidingCalc.isValid ? '✅ OK (< 1:5)' : '⚠️ Too high'}
+                {guidingCalc.isOAG
+                  ? guidingCalc.isValid ? '✅ OAG — same optical path' : '⚠️ OAG — ratio too high'
+                  : guidingCalc.isValid ? '✅ OK (< 1:5)' : '⚠️ Too high'}
               </div>
             </div>
           )}

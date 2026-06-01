@@ -60,7 +60,7 @@ export const GuidingSetupForm: React.FC<GuidingSetupFormProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Caméra de guidage</label>
+            <label className="block text-xs text-slate-500 mb-1">Guide camera</label>
             <input
               type="text"
               value={profile.guiding.cameraName}
@@ -108,7 +108,7 @@ export const GuidingSetupForm: React.FC<GuidingSetupFormProps> = ({
             >
               <option value="GuideScope">Lunette guide</option>
               <option value="OAG">OAG</option>
-              <option value="Integrated">Guidage intégré</option>
+              <option value="Integrated">Integrated guiding</option>
             </select>
           </div>
         </div>
@@ -118,14 +118,14 @@ export const GuidingSetupForm: React.FC<GuidingSetupFormProps> = ({
       {guidingCalc && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-sm text-slate-400">Échelle guidage</div>
+            <div className="text-sm text-slate-400">Guiding scale</div>
             <div className="text-2xl font-bold">{guidingCalc.guidingScale}"/px</div>
           </div>
           <div className={`p-4 rounded-lg ${guidingCalc.isValid ? 'bg-emerald-800 text-white' : 'bg-orange-800 text-white'}`}>
             <div className="text-sm text-white/70">Ratio</div>
             <div className="text-2xl font-bold">1:{Math.round(1 / guidingCalc.ratio)}</div>
             <div className="text-xs mt-1">
-              {guidingCalc.isValid ? '✅ OK (< 1:5)' : '⚠️ Trop élevé'}
+              {guidingCalc.isValid ? '✅ OK (< 1:5)' : '⚠️ Too high'}
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ export const GuidingSetupForm: React.FC<GuidingSetupFormProps> = ({
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1">
             <label className="block text-xs text-slate-500 mb-1">
-              Dither souhaité sur capteur principal (px)
+              Desired dither on imaging sensor (px)
             </label>
             <input
               type="range"
@@ -160,17 +160,17 @@ export const GuidingSetupForm: React.FC<GuidingSetupFormProps> = ({
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center">
               <div className="text-sm text-slate-500">Capteur principal</div>
               <div className="text-xl font-bold text-blue-700 dark:text-blue-300">{ditherResult.imaging} px</div>
-              <div className="text-xs text-slate-400">≈ {(ditherResult.imaging * calculations.pixelScale).toFixed(1)}" décalage</div>
+              <div className="text-xs text-slate-400">≈ {(ditherResult.imaging * calculations.pixelScale).toFixed(1)}" shift</div>
             </div>
 
             <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg text-center">
-              <div className="text-sm text-slate-500">À entrer dans PHD2/NINA</div>
+              <div className="text-sm text-slate-500">Enter in PHD2/NINA</div>
               <div className="text-xl font-bold text-purple-700 dark:text-purple-300">{ditherResult.guiding} px</div>
               <div className="text-xs text-slate-400">Valeur de dither guidage</div>
             </div>
 
             <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg text-center">
-              <div className="text-sm text-slate-500">Décalage physique</div>
+              <div className="text-sm text-slate-500">Physical shift</div>
               <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{ditherResult.physicalShift.toFixed(1)}"</div>
               <div className="text-xs text-slate-400">arcsec sur le ciel</div>
             </div>
@@ -188,7 +188,7 @@ export const GuidingSetupForm: React.FC<GuidingSetupFormProps> = ({
       {ditherResult && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
           <h3 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-100">
-            ⚙️ Paramètres par logiciel
+            ⚙️ Software Settings
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

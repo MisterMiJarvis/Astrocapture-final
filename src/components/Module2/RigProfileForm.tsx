@@ -201,7 +201,7 @@ export const RigProfileForm: React.FC<RigProfileFormProps> = ({
               { value: 'Refractor', label: 'Refractor' },
               { value: 'Reflector', label: 'Reflector' },
               { value: 'SCT', label: 'Schmidt-Cassegrain' },
-              { value: 'RC', label: 'Ritchey-Chrétien' },
+              { value: 'RC', label: 'Ritchey-Chretien' },
               { value: 'CDK', label: 'Corrected Dall-Kirkham' },
               { value: 'Newtonian', label: 'Newtonian' },
               { value: 'Maksutov', label: 'Maksutov' },

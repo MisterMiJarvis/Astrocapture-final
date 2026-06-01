@@ -301,7 +301,7 @@ export function getSamplingRecommendation(pixelScale: number): SamplingRecommend
     return {
       status: 'undersampled_critical',
       drizzleRecommendation: '2x_aggressive',
-      explanation: 'Sous-échantillonnage critique. Étoiles carrées. Drizzle 2× + dithering agressif.',
+      explanation: 'Critical undersampling. Blocky stars. Drizzle 2× + aggressive dithering required.',
       ditherRequired: true,
       ditherMinPixels: 5,
       colorCode: 'red',
@@ -311,7 +311,7 @@ export function getSamplingRecommendation(pixelScale: number): SamplingRecommend
       status: 'undersampled_moderate',
       drizzleRecommendation: '2x',
       pixelDrop: 0.7,
-      explanation: 'Sous-échantillonnage modéré. Drizzle 2× avec Pixel Drop 0.7.',
+      explanation: 'Moderate undersampling. Drizzle 2× with Pixel Drop 0.7.',
       ditherRequired: true,
       ditherMinPixels: 3,
       colorCode: 'orange',
@@ -320,7 +320,7 @@ export function getSamplingRecommendation(pixelScale: number): SamplingRecommend
     return {
       status: 'ideal',
       drizzleRecommendation: 'none',
-      explanation: 'Zone idéale. Pas de Drizzle nécessaire.',
+      explanation: 'Ideal zone. No Drizzle needed.',
       ditherRequired: true,
       ditherMinPixels: 3,
       colorCode: 'green',
@@ -329,7 +329,7 @@ export function getSamplingRecommendation(pixelScale: number): SamplingRecommend
     return {
       status: 'oversampled',
       drizzleRecommendation: 'bin2x2',
-      explanation: 'Sur-échantillonnage. Drizzle déconseillé. Binning 2×2 recommandé.',
+      explanation: 'Oversampled. Drizzle not recommended. Binning 2×2 recommended.',
       ditherRequired: false,
       ditherMinPixels: 0,
       colorCode: 'blue',
@@ -356,7 +356,7 @@ export function validateGuidingRatio(
     ratio: parseFloat(ratio.toFixed(2)),
     message: isValid
       ? `Ratio ${ratio.toFixed(2)} OK (< 1:5)`
-      : `Ratio ${ratio.toFixed(2)} trop élevé. Guide scope trop court ou capteur guidage trop gros.`,
+      : `Ratio ${ratio.toFixed(2)} too high. Guide scope too short or guide camera pixels too large.`,
   };
 }
 
@@ -376,7 +376,7 @@ export const TELESCOPE_PRESETS: EquipmentPreset[] = [
   {
     id: 'ts-optics-102',
     name: 'TS-Optics 102mm f/7',
-    description: 'Réfracteur APO 102mm, focale 714mm',
+    description: 'APO 102mm refractor, 714mm focal length',
     category: 'telescope',
     data: {
       telescope: {
@@ -420,8 +420,8 @@ export const TELESCOPE_PRESETS: EquipmentPreset[] = [
   },
   {
     id: 'reducer-073',
-    name: 'Réducteur 0.73×',
-    description: 'Réducteur/correcteur 0.73×',
+    name: '0.73× Reducer',
+    description: '0.73× reducer/corrector',
     category: 'telescope',
     data: {
       modifier: {
@@ -433,7 +433,7 @@ export const TELESCOPE_PRESETS: EquipmentPreset[] = [
   {
     id: 'flattener-1',
     name: 'Flatteur 1.0×',
-    description: 'Flatteur/correcteur (pas de réduction)',
+    description: 'Flattener/corrector (no reduction)',
     category: 'telescope',
     data: {
       modifier: {
@@ -514,7 +514,7 @@ export const GUIDING_PRESETS: EquipmentPreset[] = [
   {
     id: 'guide-120mm',
     name: 'ZWO 120MM-mini + 30mm',
-    description: 'Caméra guidage 3.75μm + lunette 120mm f/4',
+    description: 'Guide camera 3.75μm + guide scope 120mm f/4',
     category: 'guiding',
     data: {
       guiding: {
@@ -529,7 +529,7 @@ export const GUIDING_PRESETS: EquipmentPreset[] = [
   {
     id: 'guide-174mm',
     name: 'ZWO 174MM + 50mm',
-    description: 'Caméra guidage 5.86μm + lunette 180mm',
+    description: 'Guide camera 5.86μm + guide scope 180mm',
     category: 'guiding',
     data: {
       guiding: {
@@ -547,7 +547,7 @@ export const MOUNT_PRESETS: EquipmentPreset[] = [
   {
     id: 'heq5',
     name: 'Sky-Watcher HEQ5',
-    description: 'Monture équatoriale 15kg',
+    description: 'Equatorial mount 15kg payload',
     category: 'mount',
     data: {
       mount: {
@@ -560,7 +560,7 @@ export const MOUNT_PRESETS: EquipmentPreset[] = [
   {
     id: 'eq6r',
     name: 'Sky-Watcher EQ6-R Pro',
-    description: 'Monture équatoriale 20kg',
+    description: 'Equatorial mount 20kg payload',
     category: 'mount',
     data: {
       mount: {
@@ -576,7 +576,7 @@ export const FULL_RIG_PRESETS: EquipmentPreset[] = [
   {
     id: 'rig-ts-asi533',
     name: 'TS-Optics 102 + ASI533MC',
-    description: 'Setup complet : TS-Optics 102mm f/7 + ASI533MC Pro + réducteur 0.73×',
+    description: 'Full setup: TS-Optics 102mm f/7 + ASI533MC Pro + 0.73× reducer',
     category: 'full-rig',
     data: {
       telescope: {
@@ -620,7 +620,7 @@ export const FULL_RIG_PRESETS: EquipmentPreset[] = [
   {
     id: 'rig-edgehd-2600',
     name: 'EdgeHD 8" + ASI2600MM',
-    description: 'Setup complet : Celestron EdgeHD 8" + ASI2600MM Pro + réducteur 0.7×',
+    description: 'Full setup: Celestron EdgeHD 8" + ASI2600MM Pro + 0.7× reducer',
     category: 'full-rig',
     data: {
       telescope: {
@@ -705,7 +705,7 @@ export async function importProfile(jsonString: string): Promise<RigProfile | nu
     const profile = data.profile;
     // Create via API — generates new ID
     const created = await createProfile({
-      name: `${profile.name} (importé)`,
+      name: `${profile.name} (imported)`,
       telescope: { ...profile.telescope },
       modifier: { ...profile.modifier },
       camera: { ...profile.camera },

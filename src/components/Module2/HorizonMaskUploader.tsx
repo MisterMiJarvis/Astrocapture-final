@@ -24,7 +24,7 @@ export const HorizonMaskUploader: React.FC = () => {
         });
         setImportError(null);
       } catch (err) {
-        setImportError('Erreur de parsing CSV. Format attendu: Azimut,Altitude (degrés)');
+        setImportError('CSV parsing error. Expected format: Azimuth,Altitude (degrees)');
       }
     };
     reader.readAsText(file);
@@ -176,7 +176,7 @@ export const HorizonMaskUploader: React.FC = () => {
           <div className="text-center p-8 text-slate-400">
             📁 Importez un fichier CSV ou ajoutez des points manuellement.
             <br />
-            <span className="text-xs">Format: Azimut,Altitude (degrés, une ligne par point)</span>
+            <span className="text-xs">Format: Azimuth,Altitude (degrees, one point per line)</span>
           </div>
         )}
       </div>

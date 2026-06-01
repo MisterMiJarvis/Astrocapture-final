@@ -39,7 +39,7 @@ interface ExposureResult {
   explanation: string;
 }
 
-// Données
+// Data
 const EQUIPMENT_PRESETS: EquipmentPreset[] = [
   { name: 'RedCat 51 + ASI2600MM', focalLength: 250, aperture: 51, sensorW: 23.5, sensorH: 15.6, pixelSize: 3.76 },
   { name: 'RedCat 71 + ASI2600MM', focalLength: 348, aperture: 71, sensorW: 23.5, sensorH: 15.6, pixelSize: 3.76 },
