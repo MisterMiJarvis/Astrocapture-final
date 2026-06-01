@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RigProfile } from '../../types/module2';
 import {
   getAllProfiles,
-  getProfileById,
   getActiveProfileId,
   setActiveProfileId,
   createProfile,
@@ -11,11 +10,7 @@ import {
   duplicateProfile,
   calculateRigCalculations,
   getSamplingRecommendation,
-  getAllPresets,
-  getPresetsByCategory,
   ACTIVE_PROFILE_KEY,
-  EquipmentPreset,
-  FULL_RIG_PRESETS,
 } from '../../services/module2/rigProfileService';
 import { RigProfileForm } from './RigProfileForm';
 import { SamplingDisplay } from './SamplingDisplay';
@@ -33,8 +28,7 @@ export const Module2Dashboard: React.FC = () => {
   const [samplingRec, setSamplingRec] = useState<ReturnType<typeof getSamplingRecommendation> | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showPresetPicker, setShowPresetPicker] = useState(false);
-  const [presetCategory, setPresetCategory] = useState<EquipmentPreset['category'] | 'full-rig'>('full-rig');
+
 
   // Reload profiles from API and refresh state
   const reloadProfiles = useCallback(async () => {
@@ -124,7 +118,6 @@ export const Module2Dashboard: React.FC = () => {
     setActiveProfile(newProfile);
     setActiveProfileId(newProfile.id);
     setIsEditing(false);
-    setShowPresetPicker(false);
   };
 
   const handleUpdateProfile = async (id: string, data: Partial<RigProfile>) => {
@@ -170,23 +163,7 @@ export const Module2Dashboard: React.FC = () => {
     }
   };
 
-  const handleApplyPreset = (preset: EquipmentPreset) => {
-    if (preset.category === 'full-rig') {
-      handleCreateProfile(preset.name, preset.data);
-    } else {
-      if (activeProfile) {
-        const updated = { ...activeProfile };
-        if (preset.data.telescope) updated.telescope = preset.data.telescope;
-        if (preset.data.modifier) updated.modifier = preset.data.modifier;
-        if (preset.data.camera) updated.camera = preset.data.camera;
-        if (preset.data.guiding) updated.guiding = preset.data.guiding;
-        if (preset.data.mount) updated.mount = preset.data.mount;
 
-        handleUpdateProfile(activeProfile.id, updated);
-      }
-    }
-    setShowPresetPicker(false);
-  };
 
   if (isLoading) {
     return (
@@ -208,34 +185,14 @@ export const Module2Dashboard: React.FC = () => {
       {/* Header */}
       <header>
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-          🔭 Module 2 — Équipement, Échantillonnage & Guidage
+          🔭 Equipment, Sampling & Dithering
         </h2>
         <p className="text-slate-500 mt-1">
-          Gérez vos profils de rigs, calculez l'échantillonnage et configurez le guidage
+          Manage your rigs, calculate sampling and configure guiding
         </p>
       </header>
 
-      {/* Summary Card */}
-      {calculations && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">{calculations.pixelScale}"</div>
-            <div className="text-xs text-slate-400">/pixel</div>
-          </div>
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">{calculations.fovWidth}'×{calculations.fovHeight}'</div>
-            <div className="text-xs text-slate-400">FOV</div>
-          </div>
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">{calculations.effectiveFocalLength}mm</div>
-            <div className="text-xs text-slate-400">Focale eff.</div>
-          </div>
-          <div className="bg-slate-800 text-white p-4 rounded-lg">
-            <div className="text-2xl font-bold">f/{calculations.fRatio}</div>
-            <div className="text-xs text-slate-400">f/D</div>
-          </div>
-        </div>
-      )}
+
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200 dark:border-slate-700">
@@ -281,13 +238,6 @@ export const Module2Dashboard: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setShowPresetPicker(true)}
-                className="px-3 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700"
-              >
-                📋 Presets
-              </button>
-
-              <button
                 onClick={() => activeProfile && handleDuplicateProfile(activeProfile.id)}
                 className="px-3 py-2 rounded bg-slate-600 text-white text-sm hover:bg-slate-700"
                 disabled={!activeProfile}
@@ -304,62 +254,7 @@ export const Module2Dashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Preset Picker Modal */}
-            {showPresetPicker && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white dark:bg-slate-900 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-auto">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">📋 Configuration Presets</h3>
-                    <button
-                      onClick={() => setShowPresetPicker(false)}
-                      className="text-slate-400 hover:text-slate-600"
-                    >
-                      ✕
-                    </button>
-                  </div>
 
-                  <div className="flex gap-2 mb-4">
-                    {[
-                      { key: 'full-rig', label: 'Rigs complets' },
-                      { key: 'telescope', label: 'Télescopes' },
-                      { key: 'camera', label: 'Caméras' },
-                      { key: 'guiding', label: 'Guidage' },
-                      { key: 'mount', label: 'Montures' },
-                    ].map(cat => (
-                      <button
-                        key={cat.key}
-                        onClick={() => setPresetCategory(cat.key as any)}
-                        className={`px-3 py-1 rounded text-sm ${
-                          presetCategory === cat.key
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {getPresetsByCategory(presetCategory === 'full-rig' ? 'full-rig' : presetCategory).map(preset => (
-                      <button
-                        key={preset.id}
-                        onClick={() => handleApplyPreset(preset)}
-                        className="text-left p-3 rounded border border-slate-200 dark:border-slate-700 
-                                   hover:border-blue-400 dark:hover:border-blue-500 
-                                   bg-slate-50 dark:bg-slate-800/50 transition-all"
-                      >
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{preset.name}</div>
-                        <div className="text-xs text-slate-500 mt-1">{preset.description}</div>
-                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                          {preset.category === 'full-rig' ? 'Créer un nouveau profil' : 'Appliquer au profil actif'}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Profile Form */}
             {activeProfile && (
