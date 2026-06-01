@@ -349,7 +349,10 @@ export const Module2Dashboard: React.FC = () => {
         <RigProfileForm
           profile={activeProfile}
           isEditing={true}
-          onSave={handleUpdateProfile}
+          onSave={viewMode === 'duplicate'
+            ? (_id: string, data: Partial<RigProfile>) => handleCreateProfile(data.name || `${activeProfile.name} (copy)`, data)
+            : handleUpdateProfile
+          }
         />
       </div>
     );
