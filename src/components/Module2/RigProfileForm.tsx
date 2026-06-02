@@ -106,13 +106,27 @@ export const RigProfileForm: React.FC<RigProfileFormProps> = ({
   }, [profile]);
 
   const handleChange = useCallback((section: keyof RigProfile, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...(prev[section] as any),
-        [field]: value,
-      },
-    }));
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [section]: {
+          ...(prev[section] as any),
+          [field]: value,
+        },
+      };
+      // Auto-calculate f/ratio when focalLength or aperture changes in telescope section
+      if (section === 'telescope' && (field === 'focalLength' || field === 'aperture')) {
+        const fl = field === 'focalLength' ? value : updated.telescope.focalLength;
+        const ap = field === 'aperture' ? value : updated.telescope.aperture;
+        if (fl > 0 && ap > 0) {
+          updated.telescope = {
+            ...updated.telescope,
+            fRatio: parseFloat((fl / ap).toFixed(1)),
+          };
+        }
+      }
+      return updated;
+    });
   }, []);
 
   // QE: store as percentage (0-100), convert to/from decimal (0-1) for API
@@ -227,7 +241,6 @@ export const RigProfileForm: React.FC<RigProfileFormProps> = ({
           <Field
             label="f/ratio"
             value={formData.telescope.fRatio}
-            onChange={val => handleChange('telescope', 'fRatio', val)}
             type="number"
             disabled
             isEditing={isEditing}
