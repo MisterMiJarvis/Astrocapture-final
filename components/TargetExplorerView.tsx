@@ -11,6 +11,9 @@ import {
   TelescopiusTarget,
   OBJECT_TYPES,
   TargetSearchResult,
+  calculateFraming,
+  FramingAnalysis,
+  RigInfo,
 } from '../src/services/targetExplorerService';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Star, MapPin, Moon, Eye, SlidersHorizontal, RotateCw } from 'lucide-react';
 
@@ -51,11 +54,44 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
   const [isLoading, setIsLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<TelescopiusTarget | null>(null);
+  const [defaultRig, setDefaultRig] = useState<RigInfo | null>(null);
+  const [framingMap, setFramingMap] = useState<Record<string, FramingAnalysis>>({});
 
   const [filters, setFilters] = useState<TargetSearchFilters>(() => {
     const coords = LOCATION_COORDS[locationSource] || LOCATION_COORDS.saintEtienne;
     return getDefaultFilters(coords.lat, coords.lon);
   });
+
+  // Load default rig on mount
+  useEffect(() => {
+    fetch('/api/apls/rigs')
+      .then(r => r.json())
+      .then((rigs: any[]) => {
+        const def = rigs.find((r: any) => r.isDefault);
+        if (def) {
+          setDefaultRig({
+            name: def.name,
+            focalLength: def.telescope?.focalLength || 0,
+            aperture: def.telescope?.aperture || 0,
+            fRatio: def.telescope?.fRatio || 0,
+            sensorWidth: def.imagingCamera?.sensorWidth || 0,
+            sensorHeight: def.imagingCamera?.sensorHeight || 0,
+            pixelSize: def.imagingCamera?.pixelSize || 0,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Recalculate framing when results or rig change
+  useEffect(() => {
+    if (!results || !defaultRig) return;
+    const map: Record<string, FramingAnalysis> = {};
+    for (const t of results.targets) {
+      map[t.id] = calculateFraming(t, defaultRig);
+    }
+    setFramingMap(map);
+  }, [results, defaultRig]);
 
   // Update filters when location changes
   useEffect(() => {
@@ -418,6 +454,40 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                     </span>
                   )}
                 </div>
+
+                {/* Framing indicator */}
+                {framingMap[target.id] && (() => {
+                  const f = framingMap[target.id];
+                  const fitColors: Record<string, string> = {
+                    perfect: 'bg-green-500/30 text-green-300',
+                    good: 'bg-blue-500/30 text-blue-300',
+                    tight: 'bg-yellow-500/30 text-yellow-300',
+                    too_large: 'bg-red-500/30 text-red-300',
+                    unknown: 'bg-slate-500/30 text-slate-300',
+                  };
+                  const fitIcons: Record<string, string> = {
+                    perfect: '✅', good: '👍', tight: '⚠️', too_large: '❌', unknown: '❓',
+                  };
+                  return (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${fitColors[f.fitStatus]}`}>
+                          {fitIcons[f.fitStatus]} {f.fitStatus === 'too_large' ? 'Mosaic' : f.fitStatus === 'perfect' ? 'Perfect' : f.fitStatus === 'good' ? 'Good' : f.fitStatus === 'tight' ? 'Tight' : '?'}
+                        </span>
+                        {f.totalImagingHours > 0 && (
+                          <span className="text-[10px] text-text-secondary font-mono">
+                            ⏱ {f.totalImagingHours.toFixed(1)}h
+                          </span>
+                        )}
+                      </div>
+                      {f.totalExposures > 0 && (
+                        <div className="text-[9px] text-text-secondary mt-1 font-mono">
+                          {f.subExposure}s × {f.totalExposures} = {f.totalIntegrationHours.toFixed(1)}h int.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
@@ -484,6 +554,112 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
               Also known as: {selectedTarget.commonNames.join(', ')}
             </div>
           )}
+
+          {/* Framing & Exposure Analysis */}
+          {framingMap[selectedTarget.id] && (() => {
+            const f = framingMap[selectedTarget.id];
+            const fitColors: Record<string, string> = {
+              perfect: 'border-green-500/50 bg-green-500/5',
+              good: 'border-blue-500/50 bg-blue-500/5',
+              tight: 'border-yellow-500/50 bg-yellow-500/5',
+              too_large: 'border-red-500/50 bg-red-500/5',
+              unknown: 'border-slate-500/50 bg-slate-500/5',
+            };
+            const fitLabels: Record<string, string> = {
+              perfect: '✅ Perfect Fit', good: '👍 Good Fit', tight: '⚠️ Tight Fit', too_large: '❌ Mosaic Required', unknown: '❓ Unknown',
+            };
+            const fitBarColors: Record<string, string> = {
+              perfect: 'bg-green-500', good: 'bg-blue-500', tight: 'bg-yellow-500', too_large: 'bg-red-500', unknown: 'bg-slate-500',
+            };
+
+            return (
+              <div className={`mt-3 p-4 rounded-xl border ${fitColors[f.fitStatus]}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-text">📐 Framing & Exposure — {f.rigName}</h4>
+                  <span className="text-sm font-medium">{fitLabels[f.fitStatus]}</span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="bg-background p-3 rounded-lg border border-border">
+                    <span className="text-text-secondary text-xs block mb-1">FOV</span>
+                    <span className="font-mono font-bold text-text">{f.fovWidth.toFixed(1)}' × {f.fovHeight.toFixed(1)}'</span>
+                  </div>
+                  <div className="bg-background p-3 rounded-lg border border-border">
+                    <span className="text-text-secondary text-xs block mb-1">Pixel Scale</span>
+                    <span className="font-mono font-bold text-text">{f.pixelScale}"/px</span>
+                  </div>
+                  <div className="bg-background p-3 rounded-lg border border-border">
+                    <span className="text-text-secondary text-xs block mb-1">Eff. Focal / f</span>
+                    <span className="font-mono font-bold text-text">{f.effectiveFocalLength}mm f/{f.fRatio}</span>
+                  </div>
+                  {f.targetSizeArcmin != null && f.targetSizeArcmin > 0 && (
+                    <div className="bg-background p-3 rounded-lg border border-border">
+                      <span className="text-text-secondary text-xs block mb-1">Target / FOV</span>
+                      <span className="font-mono font-bold text-text">{f.targetSizeArcmin.toFixed(0)}' / {Math.max(f.fovWidth, f.fovHeight).toFixed(0)}'</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Coverage bar */}
+                {f.coveragePercent != null && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
+                      <span>FOV Coverage</span>
+                      <span className="font-mono">{f.coveragePercent.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-background rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${fitBarColors[f.fitStatus]}`}
+                        style={{ width: `${Math.min(100, f.coveragePercent)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-xs text-text-secondary mt-2">{f.fitDescription}</div>
+
+                {/* Imaging plan */}
+                {f.totalImagingHours > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <h5 className="text-xs font-semibold text-text-secondary mb-2">📷 Imaging Plan Tonight</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-background p-2 rounded-lg border border-border">
+                        <span className="text-text-secondary text-[10px] block mb-0.5">Imaging Window</span>
+                        <span className="font-mono text-sm font-bold text-text">⏱ {f.totalImagingHours.toFixed(1)}h</span>
+                      </div>
+                      <div className="bg-background p-2 rounded-lg border border-border">
+                        <span className="text-text-secondary text-[10px] block mb-0.5">Sub-exposure</span>
+                        <span className="font-mono text-sm font-bold text-text">{f.subExposure}s</span>
+                      </div>
+                      <div className="bg-background p-2 rounded-lg border border-border">
+                        <span className="text-text-secondary text-[10px] block mb-0.5">Total Exposures</span>
+                        <span className="font-mono text-sm font-bold text-text">{f.totalExposures}</span>
+                      </div>
+                      <div className="bg-background p-2 rounded-lg border border-border">
+                        <span className="text-text-secondary text-[10px] block mb-0.5">Integration / SNR</span>
+                        <span className="font-mono text-sm font-bold text-text">{f.totalIntegrationHours.toFixed(1)}h ({f.snrEstimate})</span>
+                      </div>
+                    </div>
+
+                    {/* Imaging windows detail */}
+                    {f.imagingWindows.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {f.imagingWindows.map((w, i) => (
+                          <div key={i} className="flex items-center justify-between text-[10px] text-text-secondary bg-background p-1.5 rounded">
+                            <span className="font-mono">{w.start} → {w.end}</span>
+                            <span className="font-mono">{w.hours.toFixed(1)}h</span>
+                            {w.moonIllumination != null && (
+                              <span className="font-mono">🌑 {w.moonIllumination.toFixed(0)}% {w.moonDistance != null ? `${w.moonDistance.toFixed(0)}°` : ''}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -57,6 +57,14 @@ export interface TargetSearchFilters {
   page?: number;
 }
 
+export interface ImagingWindow {
+  start: string;
+  end: string;
+  hours: number;
+  moonIllumination: number | null;
+  moonDistance: number | null;
+}
+
 export interface TelescopiusTarget {
   id: string;
   mainId: string;
@@ -75,6 +83,12 @@ export interface TelescopiusTarget {
   moonSeparation: number | null;
   imageUrl: string | null;
   commonNames: string[];
+  // Imaging windows
+  rise: string | null;
+  transitTime: string | null;
+  setTime: string | null;
+  imagingWindows: ImagingWindow[];
+  totalImagingHours: number;
 }
 
 export interface TargetSearchResult {
@@ -216,6 +230,18 @@ function mapApiTarget(t: any): TelescopiusTarget {
     moonSeparation: t.moon_separation ?? null,
     imageUrl: t.image_url || t.image || null,
     commonNames: t.commonNames || t.common_names || [],
+    // Imaging windows
+    rise: t.rise || null,
+    transitTime: t.transit_time || null,
+    setTime: t.set_time || null,
+    imagingWindows: (t.imaging_windows || []).map((w: any) => ({
+      start: w.start,
+      end: w.end,
+      hours: w.hours || 0,
+      moonIllumination: w.moon_illumination ?? null,
+      moonDistance: w.moon_distance ?? null,
+    })),
+    totalImagingHours: t.total_imaging_hours || 0,
   };
 }
 
@@ -230,6 +256,127 @@ function parseDecToDeg(dec: string): number {
   const sign = dec.startsWith('-') ? -1 : 1;
   const parts = dec.replace(/[+-]/, '').split(':').map(Number);
   return sign * ((parts[0] || 0) + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600);
+}
+
+export interface FramingAnalysis {
+  // Rig info
+  rigName: string;
+  effectiveFocalLength: number;
+  fRatio: number;
+  pixelScale: number;
+  // FOV
+  fovWidth: number;  // arcmin
+  fovHeight: number; // arcmin
+  // Target fit
+  targetSizeArcmin: number | null;
+  fitStatus: 'perfect' | 'good' | 'tight' | 'too_large' | 'unknown';
+  fitDescription: string;
+  // Coverage ratio (how much of the FOV the target fills)
+  coveragePercent: number | null;
+  // Imaging plan
+  totalImagingHours: number;
+  imagingWindows: ImagingWindow[];
+  // Recommended exposures
+  subExposure: number; // seconds per sub
+  totalExposures: number;
+  totalIntegrationHours: number;
+  snrEstimate: string;
+}
+
+export interface RigInfo {
+  name: string;
+  focalLength: number;
+  aperture: number;
+  fRatio: number;
+  sensorWidth: number;  // mm
+  sensorHeight: number; // mm
+  pixelSize: number;     // microns
+}
+
+/**
+ * Calculate framing analysis for a target + rig combination
+ */
+export function calculateFraming(target: TelescopiusTarget, rig: RigInfo): FramingAnalysis {
+  const effFL = rig.focalLength; // No modifier for now
+  const fRatio = effFL / rig.aperture;
+  const pixelScale = (rig.pixelSize * 206.265) / effFL;
+  const fovWidth = (rig.sensorWidth * 206.265) / effFL;
+  const fovHeight = (rig.sensorHeight * 206.265) / effFL;
+
+  // Target fit analysis
+  const targetSize = target.sizeArcmin;
+  let fitStatus: FramingAnalysis['fitStatus'] = 'unknown';
+  let fitDescription = '';
+  let coveragePercent: number | null = null;
+
+  if (targetSize && targetSize > 0) {
+    const fovMin = Math.min(fovWidth, fovHeight);
+    const fovMax = Math.max(fovWidth, fovHeight);
+    coveragePercent = Math.min(100, (targetSize / fovMin) * 100);
+
+    if (targetSize > fovMax) {
+      fitStatus = 'too_large';
+      fitDescription = `Target (${targetSize.toFixed(0)}') exceeds FOV (${fovMax.toFixed(0)}'×${fovMin.toFixed(0)}'). Mosaic needed.`;
+    } else if (targetSize > fovMin * 0.85) {
+      fitStatus = 'tight';
+      fitDescription = `Tight fit. ${targetSize.toFixed(0)}' in ${fovMax.toFixed(0)}'×${fovMin.toFixed(0)}' FOV. Minimal margin.`;
+    } else if (targetSize > fovMin * 0.3) {
+      fitStatus = 'good';
+      fitDescription = `Good fit. ${targetSize.toFixed(0)}' fills ${coveragePercent.toFixed(0)}% of FOV.`;
+    } else {
+      fitStatus = 'perfect';
+      fitDescription = `Target well within FOV. ${targetSize.toFixed(0)}' in ${fovMax.toFixed(0)}'×${fovMin.toFixed(0)}'. Room for context.`;
+    }
+  } else {
+    fitDescription = 'Target size unknown.';
+  }
+
+  // Exposure recommendations based on f-ratio and sky conditions
+  // Rule of thumb: sub = fRatio² × exposure_factor
+  // For moderate light pollution (Bortle 4-5): factor ≈ 1.5-3s
+  // For dark sky (Bortle 2-3): factor ≈ 5-10s
+  const exposureFactor = 2.0; // Moderate light pollution default
+  const subExposure = Math.ceil(fRatio * fRatio * exposureFactor); // seconds
+  
+  // Total imaging hours available
+  const totalImagingHours = target.totalImagingHours || 0;
+  
+  // Recommended number of exposures
+  // More exposures = better SNR. Target: fill imaging window efficiently
+  // Allow 20% overhead per sub (readout + dither settle)
+  const overheadRatio = 1.2;
+  const subWithOverhead = subExposure * overheadRatio;
+  const totalSeconds = totalImagingHours * 3600;
+  const totalExposures = totalSeconds > 0 ? Math.floor(totalSeconds / subWithOverhead) : 0;
+  const totalIntegrationHours = totalExposures > 0 ? (totalExposures * subExposure / 3600) : 0;
+  
+  // SNR estimate (rough)
+  let snrEstimate = '';
+  if (totalExposures >= 100) snrEstimate = 'Excellent';
+  else if (totalExposures >= 60) snrEstimate = 'Very Good';
+  else if (totalExposures >= 30) snrEstimate = 'Good';
+  else if (totalExposures >= 15) snrEstimate = 'Moderate';
+  else if (totalExposures > 0) snrEstimate = 'Low';
+  else snrEstimate = 'N/A';
+
+  return {
+    rigName: rig.name,
+    effectiveFocalLength: effFL,
+    fRatio: parseFloat(fRatio.toFixed(1)),
+    pixelScale: parseFloat(pixelScale.toFixed(2)),
+    fovWidth: parseFloat(fovWidth.toFixed(1)),
+    fovHeight: parseFloat(fovHeight.toFixed(1)),
+    targetSizeArcmin: targetSize,
+    fitStatus,
+    fitDescription,
+    coveragePercent,
+    totalImagingHours,
+    imagingWindows: target.imagingWindows || [],
+    subExposure,
+    totalExposures,
+    totalIntegrationHours: parseFloat(totalIntegrationHours.toFixed(1)),
+    snrEstimate,
+  };
 }
 
 /**

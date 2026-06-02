@@ -304,6 +304,9 @@ app.get('/api/telescopius/search', async (c) => {
         const genericTypes = ['deep_sky_object', 'solar_system_object', 'str', 'uvsrc', 'irsrc', 'nirsrc', 'mirsrc', 'varst', 'xrsrc', 'radsrc', 'gamsrc', 'best', 'dms', 'stass', 'ism'];
         const mainType = typeList.find((t: string) => !genericTypes.includes(t)) || 'deep_sky_object';
         
+        const visibility = item.tonight_visibility || {};
+        const tonightTimes = item.tonight_times || {};
+        
         return {
           id: obj.main_id || obj.id || '',
           name: obj.main_name || obj.name || obj.main_id || '',
@@ -320,6 +323,18 @@ app.get('/api/telescopius/search', async (c) => {
           moon_separation: obj.moon_separation ?? null,
           image_url: obj.main_image_url || obj.thumbnail_url || obj.image_url || null,
           commonNames: (obj.names || []).slice(0, 5),
+          // Imaging windows & visibility
+          rise: tonightTimes.rise || null,
+          transit_time: tonightTimes.transit || null,
+          set_time: tonightTimes.set || null,
+          imaging_windows: (visibility.windows || []).map((w: any) => ({
+            start: w.start,
+            end: w.end,
+            hours: w.imaging_time_hours || 0,
+            moon_illumination: w.moon_illumination_percent ?? null,
+            moon_distance: w.moon_distance_deg ?? null,
+          })),
+          total_imaging_hours: (visibility.windows || []).reduce((sum: number, w: any) => sum + (w.imaging_time_hours || 0), 0),
         };
       });
     
