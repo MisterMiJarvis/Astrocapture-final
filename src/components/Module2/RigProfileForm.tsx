@@ -101,7 +101,15 @@ export const RigProfileForm: React.FC<RigProfileFormProps> = ({
   const [isDefault, setIsDefault] = useState(profile.isDefault);
 
   useEffect(() => {
-    setFormData(profile);
+    // Ensure f/ratio is always consistent with focalLength / aperture
+    const correctedProfile = { ...profile };
+    if (profile.telescope.focalLength > 0 && profile.telescope.aperture > 0) {
+      const calculatedFRatio = parseFloat((profile.telescope.focalLength / profile.telescope.aperture).toFixed(1));
+      if (profile.telescope.fRatio !== calculatedFRatio) {
+        correctedProfile.telescope = { ...profile.telescope, fRatio: calculatedFRatio };
+      }
+    }
+    setFormData(correctedProfile);
     setIsDefault(profile.isDefault);
   }, [profile]);
 
