@@ -9,9 +9,10 @@ import AplsModule6View from './AplsModule6View';
 import AstroSuiteLoginView from './AstroSuiteLoginView';
 import AstroSuiteWeatherView from './AstroSuiteWeatherView';
 import { getCurrentAstroSuiteUser, logoutAstroSuite } from '../src/services/userService';
+import TargetExplorerView from './TargetExplorerView';
 import { MapPin } from 'lucide-react';
 
-type AplsTab = 'dashboard' | 'equipment' | 'framing' | 'planner' | 'exposure' | 'analysis' | 'weather' | 'help';
+type AplsTab = 'dashboard' | 'equipment' | 'framing' | 'targets' | 'planner' | 'exposure' | 'analysis' | 'weather' | 'help';
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
 
 interface AstroSuiteViewProps {
@@ -22,8 +23,9 @@ interface AstroSuiteViewProps {
 const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'weather', label: 'Weather', icon: '🌤️' },
+  { id: 'targets', label: 'Targets', icon: '🎯' },
   { id: 'equipment', label: 'Equipment', icon: '🔭' },
-  { id: 'framing', label: 'Framing', icon: '🎯' },
+  { id: 'framing', label: 'Framing', icon: '🖼️' },
   { id: 'planner', label: 'Planner', icon: '📅' },
   { id: 'exposure', label: 'Exposure', icon: '⚡' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
@@ -78,6 +80,8 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
         return <AstroSuiteWeatherView defaultLocation={locationSource} />;
       case 'equipment':
         return <AplsModule2View />;
+      case 'targets':
+        return <TargetExplorerView locationSource={locationSource} onLocationChange={handleLocationChange} />;
       case 'framing':
         return <AplsModule3View />;
       case 'planner':

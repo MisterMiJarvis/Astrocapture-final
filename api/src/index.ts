@@ -209,20 +209,64 @@ function callTelescopiusProxy(endpoint: string, params: Record<string, string> =
 }
 
 app.get('/api/telescopius/search', async (c) => {
-  const q = c.req.query('q') || '';
+  // Collect all query params for Telescopius API
+  const proxyParams: Record<string, string> = {};
+  
+  // Location & time
   const lat = c.req.query('lat') || '43.7889';
   const lon = c.req.query('lon') || '4.7533';
   const timezone = c.req.query('timezone') || 'Europe/Paris';
+  proxyParams.lat = lat;
+  proxyParams.lon = lon;
+  proxyParams.timezone = timezone;
+  if (c.req.query('datetime')) proxyParams.datetime = c.req.query('datetime')!;
+  
+  // Name & type
+  if (c.req.query('name') || c.req.query('q')) proxyParams.name = c.req.query('name') || c.req.query('q')!;
+  if (c.req.query('name_exact')) proxyParams.name_exact = c.req.query('name_exact')!;
+  if (c.req.query('types')) proxyParams.types = c.req.query('types')!;
+  if (c.req.query('con')) proxyParams.con = c.req.query('con')!;
+  if (c.req.query('cat')) proxyParams.cat = c.req.query('cat')!;
+  
+  // Magnitude
+  if (c.req.query('mag_min')) proxyParams.mag_min = c.req.query('mag_min')!;
+  if (c.req.query('mag_max')) proxyParams.mag_max = c.req.query('mag_max')!;
+  if (c.req.query('mag_unknown')) proxyParams.mag_unknown = c.req.query('mag_unknown')!;
+  
+  // Size
+  if (c.req.query('size_min')) proxyParams.size_min = c.req.query('size_min')!;
+  if (c.req.query('size_max')) proxyParams.size_max = c.req.query('size_max')!;
+  if (c.req.query('size_unknown')) proxyParams.size_unknown = c.req.query('size_unknown')!;
+  
+  // Surface brightness
+  if (c.req.query('subr_min')) proxyParams.subr_min = c.req.query('subr_min')!;
+  if (c.req.query('subr_max')) proxyParams.subr_max = c.req.query('subr_max')!;
+  if (c.req.query('subr_unknown')) proxyParams.subr_unknown = c.req.query('subr_unknown')!;
+  
+  // Visibility
+  if (c.req.query('min_alt')) proxyParams.min_alt = c.req.query('min_alt')!;
+  if (c.req.query('min_alt_minutes')) proxyParams.min_alt_minutes = c.req.query('min_alt_minutes')!;
+  if (c.req.query('moon_dist_min')) proxyParams.moon_dist_min = c.req.query('moon_dist_min')!;
+  if (c.req.query('moon_dist_max')) proxyParams.moon_dist_max = c.req.query('moon_dist_max')!;
+  
+  // Sky position
+  if (c.req.query('ra_min')) proxyParams.ra_min = c.req.query('ra_min')!;
+  if (c.req.query('ra_max')) proxyParams.ra_max = c.req.query('ra_max')!;
+  if (c.req.query('dec_min')) proxyParams.dec_min = c.req.query('dec_min')!;
+  if (c.req.query('dec_max')) proxyParams.dec_max = c.req.query('dec_max')!;
+  
+  // Sort & pagination
+  if (c.req.query('order')) proxyParams.order = c.req.query('order')!;
+  if (c.req.query('order_asc')) proxyParams.order_asc = c.req.query('order_asc')!;
+  proxyParams.results_per_page = c.req.query('results_per_page') || '20';
+  if (c.req.query('page')) proxyParams.page = c.req.query('page')!;
   
   try {
-    const result = callTelescopiusProxy('search', {
-      lat, lon, timezone,
-      name: q,
-      results_per_page: '20'
-    });
+    const result = callTelescopiusProxy('search', proxyParams);
     
     if (result.error) {
       // Fallback to local DSO database
+      const q = c.req.query('name') || c.req.query('q') || '';
       const stmt = db.prepare('SELECT * FROM dso_cache WHERE id LIKE ? OR data LIKE ? LIMIT 20');
       const rows = stmt.all(`%${q}%`, `%${q}%`) as any[];
       const targets = rows.map(row => {
@@ -242,23 +286,47 @@ app.get('/api/telescopius/search', async (c) => {
       return c.json({ targets, total: targets.length, page: 1, perPage: 20, source: 'local_fallback' });
     }
     
-    // Transform Telescopius format to our format
-    const targets = result.page_results?.map((item: any) => {
-      const obj = item.object || {};
-      return {
-        id: obj.main_id || '',
-        name: obj.main_name || obj.main_id || '',
-        type: obj.type || 'Unknown',
-        constellation: obj.constellation || '',
-        ra: obj.ra || '',
-        dec: obj.dec || '',
-        magnitude: obj.visual_mag || null,
-        size: obj.size ? { width: obj.size, height: obj.size, unit: 'arcmin' } : { width: 10, height: 10, unit: 'arcmin' },
-        commonNames: [],
-      };
-    }) || [];
+    // Filter out solar system objects and transform Telescopius format
+    const allResults = result.page_results || [];
+    const targets = allResults
+      .filter((item: any) => {
+        const obj = item.object || item || {};
+        const family = obj.family || '';
+        const types = obj.types || [];
+        // Exclude solar system objects
+        return family !== 'solar_system_object' && !types.includes('solar_system_object');
+      })
+      .map((item: any) => {
+        const obj = item.object || item || {};
+        const transit = item.transit_observation || {};
+        const typeList = obj.types || [];
+        // Extract main deep-sky type code (exclude generic tags)
+        const genericTypes = ['deep_sky_object', 'solar_system_object', 'str', 'uvsrc', 'irsrc', 'nirsrc', 'mirsrc', 'varst', 'xrsrc', 'radsrc', 'gamsrc', 'best', 'dms', 'stass', 'ism'];
+        const mainType = typeList.find((t: string) => !genericTypes.includes(t)) || 'deep_sky_object';
+        
+        return {
+          id: obj.main_id || obj.id || '',
+          name: obj.main_name || obj.name || obj.main_id || '',
+          type: mainType,
+          constellation: transit.con || obj.constellation || '',
+          ra: obj.ra || '',
+          dec: obj.dec || '',
+          ra_deg: transit.ra || obj.ra_deg || null,
+          dec_deg: transit.dec || obj.dec_deg || null,
+          magnitude: transit.mag ?? obj.visual_mag ?? obj.magnitude ?? null,
+          surface_brightness: obj.surface_brightness ?? obj.subr ?? null,
+          size_arcmin: obj.size_arcmin ?? (obj.size ? parseFloat(obj.size) : null),
+          altitude_max: transit.alt ?? obj.altitude_max ?? obj.alt_max ?? null,
+          moon_separation: obj.moon_separation ?? null,
+          image_url: obj.main_image_url || obj.thumbnail_url || obj.image_url || null,
+          commonNames: (obj.names || []).slice(0, 5),
+        };
+      });
     
-    return c.json({ targets, total: result.matched || targets.length, page: 1, perPage: 20, source: 'telescopius' });
+    const page = parseInt(c.req.query('page') || '1');
+    const perPage = parseInt(proxyParams.results_per_page);
+    
+    return c.json({ targets, total: result.matched || targets.length, page, perPage, source: 'telescopius' });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
