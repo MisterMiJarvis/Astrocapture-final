@@ -110,6 +110,154 @@ export const OBJECT_TYPES = [
   { value: 'stcl', label: 'Star Cluster', apiCode: 'stcl' },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter recommendation engine based on DSO types
+// ─────────────────────────────────────────────────────────────────────────────
+import { FilterType } from '../types/module5';
+
+/** Map Telescopius type codes to recommended filter sets */
+const TYPE_FILTER_MAP: Record<string, FilterType[]> = {
+  // Emission nebulae
+  eneb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
+  rneb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
+  dineb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
+  h2r: ['Ha', 'OIII', 'SII'],
+  neb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
+  // Planetary nebulae
+  plnb: ['OIII', 'Ha', 'UV_IR_Cut'],
+  // Supernova remnants
+  snrm: ['Ha', 'OIII', 'SII'],
+  // Galaxies
+  gxy: ['L_Ultimate', 'UV_IR_Cut', 'RGB'],
+  lgx: ['L_Ultimate', 'UV_IR_Cut', 'RGB'],
+  sgx: ['L_Ultimate', 'UV_IR_Cut'],
+  sfgx: ['Ha', 'L_Ultimate'],
+  pogx: ['L_Ultimate', 'UV_IR_Cut'],
+  agn: ['L_Ultimate', 'UV_IR_Cut'],
+  // Clusters
+  opcl: ['UV_IR_Cut', 'RGB', 'Luminance'],
+  stcl: ['UV_IR_Cut', 'RGB'],
+  gxycl: ['L_Ultimate', 'RGB'],
+  // Reflection nebulae
+  rneb_ref: ['RGB', 'L_Ultimate'],
+  // Dark nebulae
+  dneb: ['L_Ultimate', 'RGB'],
+};
+
+const GENERIC_TYPES = new Set(['deep_sky_object', 'solar_system_object', 'str', 'uvsrc', 'irsrc', 'nirsrc', 'mirsrc', 'varst', 'xrsrc', 'radsrc', 'gamsrc', 'best', 'dms', 'stass', 'ism', 'mst', 'pulvar', 'bsg', 'esg']);
+
+/**
+ * Recommend filters based on a list of Telescopius type codes
+ * Returns ordered filter recommendations (most specific first)
+ */
+export function recommendFiltersForTypes(types: string[]): FilterType[] {
+  const filterSet = new Set<FilterType>();
+  const order: FilterType[] = [];
+
+  for (const type of types) {
+    if (GENERIC_TYPES.has(type)) continue;
+    const filters = TYPE_FILTER_MAP[type];
+    if (filters) {
+      for (const f of filters) {
+        if (!filterSet.has(f)) {
+          filterSet.add(f);
+          order.push(f);
+        }
+      }
+    }
+  }
+
+  // If no specific match, default to broadband
+  if (order.length === 0) {
+    return ['UV_IR_Cut', 'L_Ultimate', 'RGB'];
+  }
+  return order;
+}
+
+/**
+ * Calculate filter compatibility score for a target given available filters
+ * 0-100: how well the available filters match the recommended ones
+ */
+export function calculateFilterScore(recommendedFilters: FilterType[], availableFilters: FilterType[]): number {
+  if (recommendedFilters.length === 0) return 50; // unknown
+  const matchCount = recommendedFilters.filter(f => availableFilters.includes(f)).length;
+  // Best filter match is most important
+  if (availableFilters.includes(recommendedFilters[0])) return 100;
+  if (matchCount === 0) return 20; // no recommended filters at all
+  return Math.round(30 + (matchCount / recommendedFilters.length) * 70);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Best Targets Tonight — Telescopius highlights endpoint
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BestTargetFilters {
+  lat: number;
+  lon: number;
+  timezone?: string;
+  minAlt?: number;
+  magMax?: number;
+  subrMax?: number;
+  sizeMin?: number;
+  sizeMax?: number;
+  moonIllumMax?: number;
+  moonDistMin?: number;
+  minImagingHours?: number;
+  types?: string;
+  page?: number;
+  perPage?: number;
+}
+
+export async function fetchBestTargets(filters: BestTargetFilters): Promise<TargetSearchResult> {
+  const params = new URLSearchParams();
+
+  params.set('lat', filters.lat.toString());
+  params.set('lon', filters.lon.toString());
+  params.set('timezone', filters.timezone || 'Europe/Paris');
+  if (filters.minAlt) params.set('min_alt', filters.minAlt.toString());
+  if (filters.magMax) params.set('mag_max', filters.magMax.toString());
+  if (filters.subrMax) params.set('subr_max', filters.subrMax.toString());
+  if (filters.sizeMin) params.set('size_min', filters.sizeMin.toString());
+  if (filters.sizeMax) params.set('size_max', filters.sizeMax.toString());
+  if (filters.types) params.set('types', filters.types);
+  params.set('results_per_page', (filters.perPage || 30).toString());
+  if (filters.page) params.set('page', filters.page.toString());
+
+  try {
+    const response = await fetch(`${API_PROXY}?${params.toString()}`, { headers: authHeaders() });
+    if (!response.ok) throw new Error(`Best targets failed: ${response.status}`);
+    const data = await response.json();
+
+    const targets: TelescopiusTarget[] = (data.targets || []).map(mapApiTarget);
+
+    // Post-filter: imaging hours, moon illumination, moon distance
+    const filtered = targets.filter(t => {
+      const imgHours = t.totalImagingHours || 0;
+      if (filters.minImagingHours && imgHours < filters.minImagingHours) return false;
+      if (filters.moonDistMin) {
+        const moonDist = t.imagingWindows?.reduce((min, w) => Math.min(min, w.moonDistance ?? 999), 999) ?? 999;
+        if (moonDist < filters.moonDistMin) return false;
+      }
+      if (filters.moonIllumMax) {
+        const moonIllum = t.imagingWindows?.reduce((max, w) => Math.max(max, w.moonIllumination ?? 0), 0) ?? 0;
+        if (moonIllum > filters.moonIllumMax) return false;
+      }
+      return true;
+    });
+
+    return {
+      targets: filtered,
+      total: data.total || filtered.length,
+      page: data.page || 1,
+      perPage: filters.perPage || 30,
+      source: data.source || 'telescopius',
+    };
+  } catch (err) {
+    console.error('Best targets fetch failed:', err);
+    return { targets: [], total: 0, page: 1, perPage: 30, source: 'local_fallback' };
+  }
+}
+
 export const CONSTELLATIONS = [
   '', 'And', 'Aql', 'Aqr', 'Ara', 'Ari', 'Aur', 'Boo', 'Cae', 'Cam', 'Cap', 'Car', 'Cas',
   'Cen', 'Cep', 'Cet', 'CMa', 'CMi', 'Cnc', 'Com', 'CrA', 'CrB', 'Crt', 'Cru', 'Crv',
@@ -393,5 +541,23 @@ export function getDefaultFilters(lat: number, lon: number): TargetSearchFilters
     moonDistMin: 30,
     resultsPerPage: 20,
     page: 1,
+  };
+}
+
+/**
+ * Get default filters for Best Targets tonight
+ */
+export function getDefaultBestTargetFilters(lat: number, lon: number): BestTargetFilters {
+  return {
+    lat,
+    lon,
+    timezone: 'Europe/Paris',
+    minAlt: 30,
+    magMax: 12,
+    subrMax: 22,
+    sizeMin: 5,
+    moonDistMin: 30,
+    minImagingHours: 1,
+    perPage: 30,
   };
 }

@@ -2,9 +2,14 @@
 // SERVICE CIBLES — Module 1 Dashboard
 // Nova Rank, Telescopius suggestions, calculs astronomiques
 // Migrated from mock data + direct Telescopius → API proxy
+// v2: Dynamic filter recommendation, framing integration, imaging windows
 // ============================================================================
 
-import { AstroTarget, NovaScoreDetails, TelescopiusSuggestion, TargetsTonightQuery } from '../../types/module1';
+import { AstroTarget, NovaScoreDetails, ImagingWindow, TelescopiusSuggestion, TargetsTonightQuery, BestTargetFilters } from '../../types/module1';
+import { FilterType } from '../../types/module5';
+import { RigProfile } from '../../types/module2';
+import { searchTargets, recommendFiltersForTypes, calculateFilterScore, fetchBestTargets, TelescopiusTarget } from '../targetExplorerService';
+import { calculateFraming, RigInfo } from '../targetExplorerService';
 
 // Use backend proxy instead of direct Telescopius calls
 const TELESCOPIUS_PROXY = '/api/telescopius';
@@ -81,7 +86,21 @@ export function calculateTimeToTransit(
 }
 
 /**
- * Algorithme NovaRank
+ * Map Telescopius type codes to display type
+ */
+function mapObjectType(type: string): 'Galaxy' | 'Nebula' | 'Cluster' | 'Supernova' | 'Quasar' {
+  const t = (type || '').toLowerCase();
+  if (t.includes('galaxy') || t.includes('gxy') || t.includes('sgx') || t.includes('lgx') || t.includes('pogx') || t.includes('sfgx') || t.includes('agn')) return 'Galaxy';
+  if (t.includes('planetary') || t.includes('plnb')) return 'Nebula'; // planetary nebula → Nebula category
+  if (t.includes('nebula') || t.includes('neb') || t.includes('eneb') || t.includes('rneb') || t.includes('dineb') || t.includes('snrm') || t.includes('h2r')) return 'Nebula';
+  if (t.includes('cluster') || t.includes('opcl') || t.includes('stcl') || t.includes('gxycl')) return 'Cluster';
+  if (t.includes('supernova')) return 'Supernova';
+  if (t.includes('quasar')) return 'Quasar';
+  return 'Nebula';
+}
+
+/**
+ * Algorithme NovaRank v2 — with dynamic filter matching + framing + imaging hours
  */
 export function calculateNovaRank(
   target: AstroTarget,
@@ -92,7 +111,8 @@ export function calculateNovaRank(
   lat: number,
   lon: number,
   date: Date,
-  availableFilters: string[]
+  availableFilters: FilterType[],
+  rig?: RigProfile | null
 ): { rank: number; details: NovaScoreDetails } {
   const altitude = target.altitudeCurrent ?? calculateAltitude(target.raDeg, target.decDeg, lat, lon, date);
   const altitudeScore = Math.max(0, Math.min(100, altitude * (100 / 90)));
@@ -116,9 +136,39 @@ export function calculateNovaRank(
   else if (moonSep < 60) moonScore -= 15;
   moonScore = Math.max(0, Math.min(100, moonScore));
 
-  const hasRecommendedFilter = target.recommendedFilters.some(f => availableFilters.includes(f));
-  const filterScore = hasRecommendedFilter ? 100 : 30;
+  // Dynamic filter score based on Telescopius types
+  const targetFilters = target.recommendedFilters.length > 0
+    ? target.recommendedFilters
+    : recommendFiltersForTypes(target.telescopiusTypes || []);
+  const filterScore = calculateFilterScore(targetFilters, availableFilters);
   const visibilityScore = target.isVisible ? 100 : 0;
+
+  // Imaging hours score (0-100 scale)
+  const imagingHours = target.totalImagingHours || 0;
+  let imagingHoursScore = 0;
+  if (imagingHours >= 6) imagingHoursScore = 100;
+  else if (imagingHours >= 4) imagingHoursScore = 80;
+  else if (imagingHours >= 2) imagingHoursScore = 60;
+  else if (imagingHours >= 1) imagingHoursScore = 40;
+  else if (imagingHours > 0) imagingHoursScore = 20;
+
+  // Framing fit score
+  let framingFit: NovaScoreDetails['framingFit'] = 'unknown';
+  let coveragePercent: number | null = null;
+  if (rig && target.sizeArcmin > 0) {
+    const rigInfo: RigInfo = {
+      name: rig.name,
+      focalLength: rig.telescope.focalLength * (rig.modifier.type === 'None' ? 1 : rig.modifier.factor),
+      aperture: rig.telescope.aperture,
+      fRatio: rig.telescope.fRatio,
+      sensorWidth: rig.camera.sensorWidth,
+      sensorHeight: rig.camera.sensorHeight,
+      pixelSize: rig.camera.pixelSize,
+    };
+    const framing = calculateFraming(target as any, rigInfo);
+    framingFit = framing.fitStatus;
+    coveragePercent = framing.coveragePercent;
+  }
 
   const details: NovaScoreDetails = {
     altitudeScore: Math.round(altitudeScore),
@@ -126,14 +176,19 @@ export function calculateNovaRank(
     moonScore: Math.round(moonScore),
     filterScore,
     visibilityScore,
+    imagingHours: imagingHoursScore,
+    framingFit,
+    coveragePercent,
   };
 
+  // Weights: altitude 30%, transit 15%, moon 20%, filter 15%, imaging 10%, framing 10%
   const rank = Math.round(
-    0.35 * details.altitudeScore +
-    0.25 * details.timeToTransitScore +
+    0.30 * details.altitudeScore +
+    0.15 * details.timeToTransitScore +
     0.20 * details.moonScore +
     0.15 * details.filterScore +
-    0.05 * details.visibilityScore
+    0.10 * details.imagingHours +
+    0.10 * (details.framingFit === 'perfect' ? 100 : details.framingFit === 'good' ? 80 : details.framingFit === 'tight' ? 50 : details.framingFit === 'too_large' ? 20 : 50)
   );
 
   return { rank, details };
@@ -178,13 +233,79 @@ export async function fetchTelescopiusSuggestions(
 }
 
 /**
+ * Fetch best targets tonight using highlights endpoint
+ */
+export async function fetchBestTargetsTonight(
+  filters: BestTargetFilters,
+  availableFilters: FilterType[],
+  moonData: { phase: number; altitude: number; raDeg: number; decDeg: number },
+  rig?: RigProfile | null
+): Promise<AstroTarget[]> {
+  try {
+    const result = await fetchBestTargets(filters);
+    const now = new Date();
+
+    return result.targets
+      .map(t => {
+        const astroTarget: AstroTarget = {
+          id: t.id || t.mainId,
+          name: t.mainName,
+          catalogName: t.mainId,
+          ra: t.ra,
+          dec: t.dec,
+          raDeg: t.raDeg,
+          decDeg: t.decDeg,
+          type: mapObjectType(t.type),
+          subtype: t.type,
+          magnitude: t.magnitude ?? 0,
+          surfaceBrightness: t.surfaceBrightness,
+          sizeArcmin: t.sizeArcmin ?? 0,
+          difficulty: 'Intermediate',
+          recommendedFilters: recommendFiltersForTypes(t.type ? [t.type] : []),
+          telescopiusTypes: t.type ? t.type.split(',') : [],
+          altitudeMax: t.altitudeMax,
+          altitudeCurrent: t.altitudeCurrent,
+          moonSeparation: t.moonSeparation,
+          isVisible: (t.altitudeCurrent ?? 0) > 0,
+          isAboveHorizon: (t.altitudeCurrent ?? 0) > 0,
+          isInImagingWindow: (t.altitudeCurrent ?? 0) > 20,
+          imagingWindows: t.imagingWindows || [],
+          totalImagingHours: t.totalImagingHours,
+          imageUrl: t.imageUrl,
+          constellation: t.constellation,
+          commonNames: t.commonNames,
+          riseTime: t.rise ? new Date(`${now.toISOString().split('T')[0]}T${t.rise}`) : undefined,
+          setTime: t.setTime ? new Date(`${now.toISOString().split('T')[0]}T${t.setTime}`) : undefined,
+          transitTime: t.transitTime ? new Date(`${now.toISOString().split('T')[0]}T${t.transitTime}`) : undefined,
+          novaRank: 0,
+          scoreDetails: { altitudeScore: 0, timeToTransitScore: 0, moonScore: 0, filterScore: 0, visibilityScore: 0, imagingHours: 0, framingFit: 'unknown', coveragePercent: null },
+        };
+
+        const { rank, details } = calculateNovaRank(
+          astroTarget, moonData.phase, moonData.altitude, moonData.raDeg, moonData.decDeg,
+          filters.lat, filters.lon, now, availableFilters, rig
+        );
+        astroTarget.novaRank = rank;
+        astroTarget.scoreDetails = details;
+
+        return astroTarget;
+      })
+      .sort((a, b) => b.novaRank - a.novaRank);
+  } catch (err) {
+    console.error('Failed to fetch best targets:', err);
+    return [];
+  }
+}
+
+/**
  * Récupère les cibles de la nuit avec Nova Rank
  * Uses saved targets from API + Telescopius visibility data
  */
 export async function fetchTargetsTonight(
   query: TargetsTonightQuery,
-  availableFilters: string[],
-  moonData: { phase: number; altitude: number; raDeg: number; decDeg: number }
+  availableFilters: FilterType[],
+  moonData: { phase: number; altitude: number; raDeg: number; decDeg: number },
+  rig?: RigProfile | null
 ): Promise<AstroTarget[]> {
   const { lat, lon, minAltitude = 20, maxMoonSeparation = 60, limit = 20 } = query;
 
@@ -214,7 +335,7 @@ export async function fetchTargetsTonight(
   const ranked = targets.map(t => {
     const { rank, details } = calculateNovaRank(
       t, moonData.phase, moonData.altitude, moonData.raDeg, moonData.decDeg,
-      lat, lon, now, availableFilters
+      lat, lon, now, availableFilters, rig
     );
     return { ...t, novaRank: rank, scoreDetails: details };
   });
@@ -234,6 +355,7 @@ function mapApiTarget(t: any): AstroTarget {
   const raDeg = parseRaToDeg(t.ra || t.objectId);
   const decDeg = parseDecToDeg(t.dec || '');
   const altCurrent = calculateAltitude(raDeg, decDeg, lat, lon, now);
+  const types = t.objectType ? t.objectType.split(',') : t.types || [];
 
   return {
     id: t.id,
@@ -243,18 +365,24 @@ function mapApiTarget(t: any): AstroTarget {
     dec: t.dec || '',
     raDeg,
     decDeg,
-    type: mapObjectType(t.objectType),
+    type: mapObjectType(t.objectType || ''),
     subtype: t.objectType || '',
     magnitude: t.magnitude ?? 0,
+    surfaceBrightness: t.surfaceBrightness ?? null,
     sizeArcmin: (t.angularSizeArcmin?.width || t.size_width || 0),
     difficulty: 'Intermediate',
-    recommendedFilters: ['UV_IR_Cut', 'L_Ultimate'],
+    recommendedFilters: recommendFiltersForTypes(types),
+    telescopiusTypes: types,
     altitudeCurrent: altCurrent,
+    altitudeMax: t.altitude_max,
     isVisible: altCurrent > 0,
     isAboveHorizon: altCurrent > 0,
     isInImagingWindow: altCurrent > 20,
+    imagingWindows: [],
+    totalImagingHours: 0,
+    moonSeparation: t.moon_separation,
     novaRank: 0,
-    scoreDetails: { altitudeScore: 0, timeToTransitScore: 0, moonScore: 0, filterScore: 0, visibilityScore: 0 },
+    scoreDetails: { altitudeScore: 0, timeToTransitScore: 0, moonScore: 0, filterScore: 0, visibilityScore: 0, imagingHours: 0, framingFit: 'unknown', coveragePercent: null },
   };
 }
 
@@ -275,29 +403,23 @@ function mapSuggestionToTarget(s: TelescopiusSuggestion): AstroTarget {
     magnitude: s.magnitude,
     sizeArcmin: s.sizeArcmin,
     difficulty: 'Intermediate',
-    recommendedFilters: ['UV_IR_Cut', 'L_Ultimate'],
+    recommendedFilters: recommendFiltersForTypes([s.type]),
+    telescopiusTypes: [s.type],
     altitudeCurrent: altCurrent,
+    altitudeMax: s.altitudeMax,
     isVisible: altCurrent > 0,
     isAboveHorizon: altCurrent > 0,
     isInImagingWindow: altCurrent > 20,
+    imagingWindows: [],
+    totalImagingHours: 0,
+    moonSeparation: undefined,
     novaRank: 0,
-    scoreDetails: { altitudeScore: 0, timeToTransitScore: 0, moonScore: 0, filterScore: 0, visibilityScore: 0 },
+    scoreDetails: { altitudeScore: 0, timeToTransitScore: 0, moonScore: 0, filterScore: 0, visibilityScore: 0, imagingHours: 0, framingFit: 'unknown', coveragePercent: null },
   };
-}
-
-function mapObjectType(type: string): 'Galaxy' | 'Nebula' | 'Cluster' | 'Supernova' | 'Quasar' {
-  const t = (type || '').toLowerCase();
-  if (t.includes('galaxy') || t.includes('gal')) return 'Galaxy';
-  if (t.includes('nebula') || t.includes('neb')) return 'Nebula';
-  if (t.includes('cluster') || t.includes('clu')) return 'Cluster';
-  if (t.includes('supernova')) return 'Supernova';
-  if (t.includes('quasar')) return 'Quasar';
-  return 'Nebula';
 }
 
 function parseRaToDeg(ra: string): number {
   if (!ra || !ra.includes(':')) {
-    // Assume already in degrees or object ID
     return parseFloat(ra) || 0;
   }
   const parts = ra.split(':').map(Number);

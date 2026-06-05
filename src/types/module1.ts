@@ -5,6 +5,27 @@
 
 import { FilterType } from './module5';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Best Targets Tonight filters
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BestTargetFilters {
+  lat: number;
+  lon: number;
+  timezone?: string;
+  minAlt?: number;
+  magMax?: number;
+  subrMax?: number;
+  sizeMin?: number;
+  sizeMax?: number;
+  moonIllumMax?: number;
+  moonDistMin?: number;
+  minImagingHours?: number;
+  types?: string;
+  page?: number;
+  perPage?: number;
+}
+
 // --- Localisation astronomique du setup ---
 export interface AstroLocation {
   id: string;
@@ -91,11 +112,15 @@ export interface AstroTarget {
   type: 'Galaxy' | 'Nebula' | 'Cluster' | 'Supernova' | 'Quasar';
   subtype: string;
   magnitude: number;
+  surfaceBrightness?: number | null;
   sizeArcmin: number;
   sizeArcminX?: number;
   sizeArcminY?: number;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   recommendedFilters: FilterType[];
+  // Telescopius type codes for dynamic filter matching
+  telescopiusTypes?: string[];
+  // Visibility
   altitudeMax?: number;
   altitudeCurrent?: number;
   transitTime?: Date;
@@ -105,8 +130,23 @@ export interface AstroTarget {
   isVisible: boolean;
   isAboveHorizon: boolean;
   isInImagingWindow: boolean;
+  // Imaging
+  imagingWindows: ImagingWindow[];
+  totalImagingHours: number;
+  // UI
+  imageUrl?: string | null;
+  constellation?: string;
+  commonNames?: string[];
   novaRank: number;
   scoreDetails: NovaScoreDetails;
+}
+
+export interface ImagingWindow {
+  start: string;
+  end: string;
+  hours: number;
+  moonIllumination: number | null;
+  moonDistance: number | null;
 }
 
 export interface NovaScoreDetails {
@@ -115,6 +155,9 @@ export interface NovaScoreDetails {
   moonScore: number;
   filterScore: number;
   visibilityScore: number;
+  imagingHours: number;
+  framingFit: 'perfect' | 'good' | 'tight' | 'too_large' | 'unknown';
+  coveragePercent: number | null;
 }
 
 // --- Projet d'imagerie ---
