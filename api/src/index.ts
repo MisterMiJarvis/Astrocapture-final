@@ -2133,6 +2133,481 @@ app.get('/api/apls/targets/moon', async (c) => {
   }
 });
 
+// =====================
+// APLS v3 — Module : Filters (user-owned)
+// =====================
+
+function parseFilter(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    brand: row.brand,
+    category: row.category,
+    bandwidthNm: row.bandwidth_nm,
+    peakTransmission: row.peak_transmission,
+    centerWavelengthNm: row.center_wavelength_nm,
+    skySuppression: row.sky_suppression,
+    moonCompatible: Boolean(row.moon_compatible),
+    color: row.color,
+    description: row.description,
+    useCases: JSON.parse(row.use_cases || '[]'),
+    recommendedTargets: JSON.parse(row.recommended_targets || '[]'),
+    owned: Boolean(row.owned),
+    isDefault: Boolean(row.is_default),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+app.get('/api/apls/filters', auth, (c) => {
+  const userId = c.get('user').id;
+  const rows = db.prepare('SELECT * FROM apls_filters WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+  return c.json(rows.map(parseFilter));
+});
+
+app.get('/api/apls/filters/:id', auth, (c) => {
+  const userId = c.get('user').id;
+  const row = db.prepare('SELECT * FROM apls_filters WHERE id = ? AND user_id = ?').get(c.req.param('id'), userId);
+  if (!row) return c.json({ error: 'Filter not found' }, 404);
+  return c.json(parseFilter(row));
+});
+
+app.post('/api/apls/filters', auth, async (c) => {
+  const userId = c.get('user').id;
+  const body = await c.req.json();
+  const id = body.id || crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO apls_filters (
+    id, user_id, name, brand, category, bandwidth_nm, peak_transmission,
+    center_wavelength_nm, sky_suppression, moon_compatible, color, description,
+    use_cases, recommended_targets, owned, is_default, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, userId, body.name || '', body.brand || '', body.category || 'broadband',
+    body.bandwidthNm ?? 0, body.peakTransmission ?? 0, body.centerWavelengthNm ?? 0,
+    body.skySuppression ?? 0, body.moonCompatible ? 1 : 0, body.color || '#4FC3F7',
+    body.description || '', JSON.stringify(body.useCases || []),
+    JSON.stringify(body.recommendedTargets || []),
+    body.owned ? 1 : 0, body.isDefault ? 1 : 0, now, now
+  );
+  return c.json(parseFilter(db.prepare('SELECT * FROM apls_filters WHERE id = ?').get(id)), 201);
+});
+
+app.patch('/api/apls/filters/:id', auth, async (c) => {
+  const userId = c.get('user').id;
+  const id = c.req.param('id');
+  const existing = db.prepare('SELECT id FROM apls_filters WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!existing) return c.json({ error: 'Filter not found' }, 404);
+  const body = await c.req.json();
+  const now = new Date().toISOString();
+  const fields: Record<string, any> = {};
+  if (body.name !== undefined) fields.name = body.name;
+  if (body.brand !== undefined) fields.brand = body.brand;
+  if (body.category !== undefined) fields.category = body.category;
+  if (body.bandwidthNm !== undefined) fields.bandwidth_nm = body.bandwidthNm;
+  if (body.peakTransmission !== undefined) fields.peak_transmission = body.peakTransmission;
+  if (body.centerWavelengthNm !== undefined) fields.center_wavelength_nm = body.centerWavelengthNm;
+  if (body.skySuppression !== undefined) fields.sky_suppression = body.skySuppression;
+  if (body.moonCompatible !== undefined) fields.moon_compatible = body.moonCompatible ? 1 : 0;
+  if (body.color !== undefined) fields.color = body.color;
+  if (body.description !== undefined) fields.description = body.description;
+  if (body.useCases !== undefined) fields.use_cases = JSON.stringify(body.useCases);
+  if (body.recommendedTargets !== undefined) fields.recommended_targets = JSON.stringify(body.recommendedTargets);
+  if (body.owned !== undefined) fields.owned = body.owned ? 1 : 0;
+  if (body.isDefault !== undefined) fields.is_default = body.isDefault ? 1 : 0;
+  fields.updated_at = now;
+  const sets = Object.keys(fields).map(k => `${k} = ?`).join(', ');
+  const values = Object.values(fields);
+  values.push(id);
+  db.prepare(`UPDATE apls_filters SET ${sets} WHERE id = ?`).run(...values);
+  return c.json(parseFilter(db.prepare('SELECT * FROM apls_filters WHERE id = ?').get(id)));
+});
+
+app.delete('/api/apls/filters/:id', auth, (c) => {
+  const userId = c.get('user').id;
+  const result = db.prepare('DELETE FROM apls_filters WHERE id = ? AND user_id = ?').run(c.req.param('id'), userId);
+  if (result.changes === 0) return c.json({ error: 'Filter not found' }, 404);
+  return c.json({ ok: true });
+});
+
+// =====================
+// APLS v3 — Module : Projects (user-owned)
+// =====================
+
+function parseProject(row: any) {
+  return {
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    targetId: row.target_id,
+    targetName: row.target_name,
+    targetType: row.target_type,
+    targetRa: row.target_ra,
+    targetDec: row.target_dec,
+    targetMagnitude: row.target_magnitude,
+    targetSizeArcmin: row.target_size_arcmin,
+    targetImageUrl: row.target_image_url,
+    locationSource: row.location_source,
+    lat: row.lat,
+    lon: row.lon,
+    rigId: row.rig_id,
+    rigName: row.rig_name,
+    focalLength: row.focal_length,
+    aperture: row.aperture,
+    pixelSize: row.pixel_size,
+    sensorWidth: row.sensor_width,
+    sensorHeight: row.sensor_height,
+    primaryFilter: row.primary_filter,
+    exposurePlan: JSON.parse(row.exposure_plan || '[]'),
+    totalPlannedHours: row.total_planned_hours,
+    observations: [] as any[],  // filled separately
+    totalExposureSeconds: row.total_exposure_seconds,
+    completionPercent: row.completion_percent,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function parseObservation(row: any) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    date: row.date,
+    exposuresTaken: row.exposures_taken,
+    exposureDuration: row.exposure_duration,
+    filter: row.filter,
+    seeing: row.seeing,
+    guidingRms: row.guiding_rms,
+    moonIllumination: row.moon_illumination,
+    notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+app.get('/api/apls/projects', auth, (c) => {
+  const userId = c.get('user').id;
+  const rows = db.prepare('SELECT * FROM apls_projects WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  const projects = rows.map(parseProject);
+  // Attach observations
+  const projectIds = projects.map((p: any) => p.id);
+  if (projectIds.length > 0) {
+    const placeholders = projectIds.map(() => '?').join(',');
+    const obsRows = db.prepare(`SELECT * FROM apls_project_observations WHERE project_id IN (${placeholders}) ORDER BY created_at ASC`).all(...projectIds) as any[];
+    const obsByProject: Record<string, any[]> = {};
+    for (const obs of obsRows) {
+      if (!obsByProject[obs.project_id]) obsByProject[obs.project_id] = [];
+      obsByProject[obs.project_id].push(parseObservation(obs));
+    }
+    for (const p of projects) {
+      p.observations = obsByProject[p.id] || [];
+    }
+  }
+  return c.json(projects);
+});
+
+app.get('/api/apls/projects/:id', auth, (c) => {
+  const userId = c.get('user').id;
+  const row = db.prepare('SELECT * FROM apls_projects WHERE id = ? AND user_id = ?').get(c.req.param('id'), userId);
+  if (!row) return c.json({ error: 'Project not found' }, 404);
+  const project = parseProject(row);
+  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(c.req.param('id'));
+  project.observations = (obsRows as any[]).map(parseObservation);
+  return c.json(project);
+});
+
+app.post('/api/apls/projects', auth, async (c) => {
+  const userId = c.get('user').id;
+  const body = await c.req.json();
+  const id = body.id || crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO apls_projects (
+    id, user_id, title, status,
+    target_id, target_name, target_type, target_ra, target_dec,
+    target_magnitude, target_size_arcmin, target_image_url,
+    location_source, lat, lon,
+    rig_id, rig_name, focal_length, aperture, pixel_size, sensor_width, sensor_height,
+    primary_filter, exposure_plan, total_planned_hours,
+    total_exposure_seconds, completion_percent, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, userId, body.title || '', body.status || 'planning',
+    body.targetId || '', body.targetName || '', body.targetType || '',
+    body.targetRa || '', body.targetDec || '',
+    body.targetMagnitude ?? null, body.targetSizeArcmin ?? null, body.targetImageUrl ?? null,
+    body.locationSource || '', body.lat ?? 0, body.lon ?? 0,
+    body.rigId ?? null, body.rigName ?? null, body.focalLength ?? null,
+    body.aperture ?? null, body.pixelSize ?? null, body.sensorWidth ?? null, body.sensorHeight ?? null,
+    body.primaryFilter || '', JSON.stringify(body.exposurePlan || []),
+    body.totalPlannedHours ?? 0, body.totalExposureSeconds ?? 0,
+    body.completionPercent ?? 0, now, now
+  );
+  // Insert observations if provided
+  const observations = body.observations || [];
+  for (const obs of observations) {
+    const obsId = obs.id || crypto.randomUUID();
+    db.prepare(`INSERT INTO apls_project_observations (
+      id, project_id, date, exposures_taken, exposure_duration, filter,
+      seeing, guiding_rms, moon_illumination, notes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      obsId, id, obs.date || '', obs.exposuresTaken ?? 0, obs.exposureDuration ?? 0,
+      obs.filter || '', obs.seeing ?? null, obs.guidingRms ?? null,
+      obs.moonIllumination ?? null, obs.notes || '', obs.createdAt || now
+    );
+  }
+  const project = parseProject(db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(id));
+  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(id);
+  project.observations = (obsRows as any[]).map(parseObservation);
+  return c.json(project, 201);
+});
+
+app.patch('/api/apls/projects/:id', auth, async (c) => {
+  const userId = c.get('user').id;
+  const id = c.req.param('id');
+  const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!existing) return c.json({ error: 'Project not found' }, 404);
+  const body = await c.req.json();
+  const now = new Date().toISOString();
+  const fields: Record<string, any> = {};
+  if (body.title !== undefined) fields.title = body.title;
+  if (body.status !== undefined) fields.status = body.status;
+  if (body.targetId !== undefined) fields.target_id = body.targetId;
+  if (body.targetName !== undefined) fields.target_name = body.targetName;
+  if (body.targetType !== undefined) fields.target_type = body.targetType;
+  if (body.targetRa !== undefined) fields.target_ra = body.targetRa;
+  if (body.targetDec !== undefined) fields.target_dec = body.targetDec;
+  if (body.targetMagnitude !== undefined) fields.target_magnitude = body.targetMagnitude;
+  if (body.targetSizeArcmin !== undefined) fields.target_size_arcmin = body.targetSizeArcmin;
+  if (body.targetImageUrl !== undefined) fields.target_image_url = body.targetImageUrl;
+  if (body.locationSource !== undefined) fields.location_source = body.locationSource;
+  if (body.lat !== undefined) fields.lat = body.lat;
+  if (body.lon !== undefined) fields.lon = body.lon;
+  if (body.rigId !== undefined) fields.rig_id = body.rigId;
+  if (body.rigName !== undefined) fields.rig_name = body.rigName;
+  if (body.focalLength !== undefined) fields.focal_length = body.focalLength;
+  if (body.aperture !== undefined) fields.aperture = body.aperture;
+  if (body.pixelSize !== undefined) fields.pixel_size = body.pixelSize;
+  if (body.sensorWidth !== undefined) fields.sensor_width = body.sensorWidth;
+  if (body.sensorHeight !== undefined) fields.sensor_height = body.sensorHeight;
+  if (body.primaryFilter !== undefined) fields.primary_filter = body.primaryFilter;
+  if (body.exposurePlan !== undefined) fields.exposure_plan = JSON.stringify(body.exposurePlan);
+  if (body.totalPlannedHours !== undefined) fields.total_planned_hours = body.totalPlannedHours;
+  if (body.totalExposureSeconds !== undefined) fields.total_exposure_seconds = body.totalExposureSeconds;
+  if (body.completionPercent !== undefined) fields.completion_percent = body.completionPercent;
+  fields.updated_at = now;
+  const sets = Object.keys(fields).map(k => `${k} = ?`).join(', ');
+  const values = Object.values(fields);
+  values.push(id);
+  db.prepare(`UPDATE apls_projects SET ${sets} WHERE id = ?`).run(...values);
+  const project = parseProject(db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(id));
+  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(id);
+  project.observations = (obsRows as any[]).map(parseObservation);
+  return c.json(project);
+});
+
+app.delete('/api/apls/projects/:id', auth, (c) => {
+  const userId = c.get('user').id;
+  // Observations are cascade-deleted by FK
+  const result = db.prepare('DELETE FROM apls_projects WHERE id = ? AND user_id = ?').run(c.req.param('id'), userId);
+  if (result.changes === 0) return c.json({ error: 'Project not found' }, 404);
+  return c.json({ ok: true });
+});
+
+app.post('/api/apls/projects/:id/observations', auth, async (c) => {
+  const userId = c.get('user').id;
+  const projectId = c.req.param('id');
+  const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+  if (!existing) return c.json({ error: 'Project not found' }, 404);
+  const body = await c.req.json();
+  const obsId = body.id || crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO apls_project_observations (
+    id, project_id, date, exposures_taken, exposure_duration, filter,
+    seeing, guiding_rms, moon_illumination, notes, created_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    obsId, projectId, body.date || '', body.exposuresTaken ?? 0,
+    body.exposureDuration ?? 0, body.filter || '',
+    body.seeing ?? null, body.guidingRms ?? null,
+    body.moonIllumination ?? null, body.notes || '', now
+  );
+  // Recalculate project progress
+  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ?').all(projectId) as any[];
+  const totalExposureSeconds = obsRows.reduce((sum: number, o: any) => sum + (o.exposures_taken * o.exposure_duration), 0);
+  const project = db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(projectId) as any;
+  const plannedSeconds = (project.total_planned_hours || 0) * 3600;
+  const completionPercent = plannedSeconds > 0 ? Math.min(100, Math.round(totalExposureSeconds / plannedSeconds * 100)) : 0;
+  db.prepare('UPDATE apls_projects SET total_exposure_seconds = ?, completion_percent = ?, updated_at = ? WHERE id = ?').run(
+    totalExposureSeconds, completionPercent, now, projectId
+  );
+  return c.json(parseObservation(db.prepare('SELECT * FROM apls_project_observations WHERE id = ?').get(obsId)));
+});
+
+app.delete('/api/apls/projects/:id/observations/:obsId', auth, (c) => {
+  const userId = c.get('user').id;
+  const projectId = c.req.param('id');
+  const obsId = c.req.param('obsId');
+  const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+  if (!existing) return c.json({ error: 'Project not found' }, 404);
+  db.prepare('DELETE FROM apls_project_observations WHERE id = ? AND project_id = ?').run(obsId, projectId);
+  // Recalculate progress
+  const now = new Date().toISOString();
+  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ?').all(projectId) as any[];
+  const totalExposureSeconds = obsRows.reduce((sum: number, o: any) => sum + (o.exposures_taken * o.exposure_duration), 0);
+  const project = db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(projectId) as any;
+  const plannedSeconds = (project.total_planned_hours || 0) * 3600;
+  const completionPercent = plannedSeconds > 0 ? Math.min(100, Math.round(totalExposureSeconds / plannedSeconds * 100)) : 0;
+  db.prepare('UPDATE apls_projects SET total_exposure_seconds = ?, completion_percent = ?, updated_at = ? WHERE id = ?').run(
+    totalExposureSeconds, completionPercent, now, projectId
+  );
+  return c.json({ ok: true });
+});
+
+// =====================
+// APLS v3 — Sync endpoint (migrate localStorage → API)
+// =====================
+
+app.post('/api/apls/sync', auth, async (c) => {
+  const userId = c.get('user').id;
+  const body = await c.req.json();
+  const now = new Date().toISOString();
+  const result: { filters: any[]; projects: any[] } = { filters: [], projects: [] };
+
+  // Sync filters
+  if (body.filters && Array.isArray(body.filters)) {
+    for (const filter of body.filters) {
+      // Check if filter already exists by id
+      const existing = db.prepare('SELECT id FROM apls_filters WHERE id = ?').get(filter.id) as any;
+      if (existing) {
+        // Update only if server version is older
+        const serverFilter = db.prepare('SELECT updated_at FROM apls_filters WHERE id = ?').get(filter.id) as any;
+        if (filter.updatedAt && filter.updatedAt > serverFilter.updated_at) {
+          db.prepare(`UPDATE apls_filters SET
+            name = ?, brand = ?, category = ?, bandwidth_nm = ?, peak_transmission = ?,
+            center_wavelength_nm = ?, sky_suppression = ?, moon_compatible = ?, color = ?,
+            description = ?, use_cases = ?, recommended_targets = ?, owned = ?, is_default = ?,
+            updated_at = ?
+            WHERE id = ?`).run(
+            filter.name || '', filter.brand || '', filter.category || 'broadband',
+            filter.bandwidthNm ?? 0, filter.peakTransmission ?? 0,
+            filter.centerWavelengthNm ?? 0, filter.skySuppression ?? 0,
+            filter.moonCompatible ? 1 : 0, filter.color || '#4FC3F7',
+            filter.description || '', JSON.stringify(filter.useCases || []),
+            JSON.stringify(filter.recommendedTargets || []),
+            filter.owned ? 1 : 0, filter.isDefault ? 1 : 0, now, filter.id
+          );
+        }
+      } else {
+        // Insert new filter
+        db.prepare(`INSERT INTO apls_filters (
+          id, user_id, name, brand, category, bandwidth_nm, peak_transmission,
+          center_wavelength_nm, sky_suppression, moon_compatible, color, description,
+          use_cases, recommended_targets, owned, is_default, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+          filter.id, userId, filter.name || '', filter.brand || '', filter.category || 'broadband',
+          filter.bandwidthNm ?? 0, filter.peakTransmission ?? 0, filter.centerWavelengthNm ?? 0,
+          filter.skySuppression ?? 0, filter.moonCompatible ? 1 : 0, filter.color || '#4FC3F7',
+          filter.description || '', JSON.stringify(filter.useCases || []),
+          JSON.stringify(filter.recommendedTargets || []),
+          filter.owned ? 1 : 0, filter.isDefault ? 1 : 0,
+          filter.createdAt || now, filter.updatedAt || now
+        );
+      }
+    }
+    // Return all user's filters
+    const rows = db.prepare('SELECT * FROM apls_filters WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+    result.filters = rows.map(parseFilter);
+  }
+
+  // Sync projects
+  if (body.projects && Array.isArray(body.projects)) {
+    for (const project of body.projects) {
+      const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ?').get(project.id) as any;
+      if (existing) {
+        // Update if newer
+        const serverProject = db.prepare('SELECT updated_at FROM apls_projects WHERE id = ?').get(project.id) as any;
+        if (project.updatedAt && project.updatedAt > serverProject.updated_at) {
+          db.prepare(`UPDATE apls_projects SET
+            title = ?, status = ?, target_id = ?, target_name = ?, target_type = ?,
+            target_ra = ?, target_dec = ?, target_magnitude = ?, target_size_arcmin = ?,
+            target_image_url = ?, location_source = ?, lat = ?, lon = ?,
+            rig_id = ?, rig_name = ?, focal_length = ?, aperture = ?, pixel_size = ?,
+            sensor_width = ?, sensor_height = ?, primary_filter = ?,
+            exposure_plan = ?, total_planned_hours = ?, total_exposure_seconds = ?,
+            completion_percent = ?, updated_at = ?
+            WHERE id = ?`).run(
+            project.title || '', project.status || 'planning',
+            project.targetId || '', project.targetName || '', project.targetType || '',
+            project.targetRa || '', project.targetDec || '',
+            project.targetMagnitude ?? null, project.targetSizeArcmin ?? null,
+            project.targetImageUrl ?? null, project.locationSource || '',
+            project.lat ?? 0, project.lon ?? 0, project.rigId ?? null,
+            project.rigName ?? null, project.focalLength ?? null, project.aperture ?? null,
+            project.pixelSize ?? null, project.sensorWidth ?? null, project.sensorHeight ?? null,
+            project.primaryFilter || '', JSON.stringify(project.exposurePlan || []),
+            project.totalPlannedHours ?? 0, project.totalExposureSeconds ?? 0,
+            project.completionPercent ?? 0, now, project.id
+          );
+        }
+      } else {
+        db.prepare(`INSERT INTO apls_projects (
+          id, user_id, title, status, target_id, target_name, target_type, target_ra, target_dec,
+          target_magnitude, target_size_arcmin, target_image_url,
+          location_source, lat, lon, rig_id, rig_name, focal_length, aperture,
+          pixel_size, sensor_width, sensor_height, primary_filter,
+          exposure_plan, total_planned_hours, total_exposure_seconds,
+          completion_percent, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+          project.id, userId, project.title || '', project.status || 'planning',
+          project.targetId || '', project.targetName || '', project.targetType || '',
+          project.targetRa || '', project.targetDec || '',
+          project.targetMagnitude ?? null, project.targetSizeArcmin ?? null,
+          project.targetImageUrl ?? null, project.locationSource || '',
+          project.lat ?? 0, project.lon ?? 0, project.rigId ?? null,
+          project.rigName ?? null, project.focalLength ?? null, project.aperture ?? null,
+          project.pixelSize ?? null, project.sensorWidth ?? null, project.sensorHeight ?? null,
+          project.primaryFilter || '', JSON.stringify(project.exposurePlan || []),
+          project.totalPlannedHours ?? 0, project.totalExposureSeconds ?? 0,
+          project.completionPercent ?? 0, project.createdAt || now, project.updatedAt || now
+        );
+      }
+      // Sync observations for this project
+      if (project.observations && Array.isArray(project.observations)) {
+        for (const obs of project.observations) {
+          const obsExisting = db.prepare('SELECT id FROM apls_project_observations WHERE id = ?').get(obs.id) as any;
+          if (!obsExisting) {
+            db.prepare(`INSERT INTO apls_project_observations (
+              id, project_id, date, exposures_taken, exposure_duration, filter,
+              seeing, guiding_rms, moon_illumination, notes, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+              obs.id, project.id, obs.date || '', obs.exposuresTaken ?? 0,
+              obs.exposureDuration ?? 0, obs.filter || '',
+              obs.seeing ?? null, obs.guidingRms ?? null,
+              obs.moonIllumination ?? null, obs.notes || '', obs.createdAt || now
+            );
+          }
+        }
+      }
+    }
+    // Return all user's projects with observations
+    const projectRows = db.prepare('SELECT * FROM apls_projects WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    const projectIds = (projectRows as any[]).map((r: any) => r.id);
+    const allObs: any[] = [];
+    if (projectIds.length > 0) {
+      const placeholders = projectIds.map(() => '?').join(',');
+      allObs.push(...db.prepare(`SELECT * FROM apls_project_observations WHERE project_id IN (${placeholders}) ORDER BY created_at ASC`).all(...projectIds) as any[]);
+    }
+    const obsByProject: Record<string, any[]> = {};
+    for (const obs of allObs) {
+      if (!obsByProject[obs.project_id]) obsByProject[obs.project_id] = [];
+      obsByProject[obs.project_id].push(parseObservation(obs));
+    }
+    result.projects = projectRows.map((r: any) => {
+      const p = parseProject(r);
+      p.observations = obsByProject[r.id] || [];
+      return p;
+    });
+  }
+
+  return c.json(result);
+});
+
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

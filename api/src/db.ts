@@ -282,6 +282,89 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_apls_rigs_default ON apls_rig_profiles(is_default);
   CREATE INDEX IF NOT EXISTS idx_apls_horizons_loc ON apls_horizon_masks(location_id);
+
+  -- ===========================================
+  -- APLS Filters (user-owned filters)
+  -- ===========================================
+  CREATE TABLE IF NOT EXISTS apls_filters (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    brand TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT 'broadband',
+    bandwidth_nm REAL NOT NULL DEFAULT 0,
+    peak_transmission REAL NOT NULL DEFAULT 0,
+    center_wavelength_nm REAL NOT NULL DEFAULT 0,
+    sky_suppression REAL NOT NULL DEFAULT 0,
+    moon_compatible INTEGER NOT NULL DEFAULT 0,
+    color TEXT NOT NULL DEFAULT '#4FC3F7',
+    description TEXT NOT NULL DEFAULT '',
+    use_cases TEXT NOT NULL DEFAULT '[]',
+    recommended_targets TEXT NOT NULL DEFAULT '[]',
+    owned INTEGER NOT NULL DEFAULT 1,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  -- ===========================================
+  -- APLS Projects (user-owned projects)
+  -- ===========================================
+  CREATE TABLE IF NOT EXISTS apls_projects (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'planning',
+    target_id TEXT NOT NULL DEFAULT '',
+    target_name TEXT NOT NULL DEFAULT '',
+    target_type TEXT NOT NULL DEFAULT '',
+    target_ra TEXT NOT NULL DEFAULT '',
+    target_dec TEXT NOT NULL DEFAULT '',
+    target_magnitude REAL,
+    target_size_arcmin REAL,
+    target_image_url TEXT,
+    location_source TEXT NOT NULL DEFAULT '',
+    lat REAL NOT NULL DEFAULT 0,
+    lon REAL NOT NULL DEFAULT 0,
+    rig_id TEXT,
+    rig_name TEXT,
+    focal_length REAL,
+    aperture REAL,
+    pixel_size REAL,
+    sensor_width REAL,
+    sensor_height REAL,
+    primary_filter TEXT NOT NULL DEFAULT '',
+    exposure_plan TEXT NOT NULL DEFAULT '[]',
+    total_planned_hours REAL NOT NULL DEFAULT 0,
+    total_exposure_seconds REAL NOT NULL DEFAULT 0,
+    completion_percent REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  -- ===========================================
+  -- APLS Project Observations
+  -- ===========================================
+  CREATE TABLE IF NOT EXISTS apls_project_observations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    date TEXT NOT NULL DEFAULT '',
+    exposures_taken INTEGER NOT NULL DEFAULT 0,
+    exposure_duration REAL NOT NULL DEFAULT 0,
+    filter TEXT NOT NULL DEFAULT '',
+    seeing REAL,
+    guiding_rms REAL,
+    moon_illumination REAL,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES apls_projects(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_apls_filters_user ON apls_filters(user_id);
+  CREATE INDEX IF NOT EXISTS idx_apls_projects_user ON apls_projects(user_id);
+  CREATE INDEX IF NOT EXISTS idx_apls_observations_project ON apls_project_observations(project_id);
 `);
 
 export default db;

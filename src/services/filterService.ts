@@ -1,5 +1,5 @@
 // ============================================================================
-// FILTER SERVICE — CRUD for Astro Filters (localStorage + API fallback)
+// FILTER SERVICE — CRUD for Astro Filters (API-first with localStorage fallback)
 // ============================================================================
 
 import { AstroFilter, FilterCategory } from '../types/filter';
@@ -14,6 +14,28 @@ const SCHEMA_VERSION = 4;
 const OLD_KEYS = ['astrosuite_filters', 'astrosuite_filters_v2', 'astrosuite_filters_v2_seeded', 'astrosuite_filters_v3', 'astrosuite_filters_v3_seeded'];
 for (const oldKey of OLD_KEYS) {
   try { localStorage.removeItem(oldKey); } catch {}
+}
+
+// ─── Auth token helper ────────────────────────────────────────────────────
+
+function getAuthToken(): string | null {
+  return localStorage.getItem('astrosuite_token');
+}
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(error.error || `API error: ${res.status}`);
+  }
+  return res.json();
 }
 
 // ─── Default filters (from module5 FILTER_PROFILES) ──────────────────────
@@ -179,13 +201,17 @@ function generateId(): string {
   return `filter_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ─── CRUD Operations ──────────────────────────────────────────────────────
+// ─── CRUD Operations (API-first, localStorage fallback) ──────────────────
 
 export async function fetchFilters(): Promise<AstroFilter[]> {
   try {
-    const res = await fetch(API_BASE);
-    if (!res.ok) throw new Error('API unavailable');
-    return await res.json();
+    const data = await apiFetch<AstroFilter[]>('');
+    if (Array.isArray(data) && data.length > 0) return data;
+    // If API returns empty, seed defaults then return them
+    if (Array.isArray(data) && data.length === 0) {
+      // No server data yet — try localStorage, will sync on login
+    }
+    throw new Error('Empty response');
   } catch {
     return getLocalFilters();
   }
@@ -200,13 +226,10 @@ export async function createFilter(filter: Omit<AstroFilter, 'id' | 'createdAt' 
   };
 
   try {
-    const res = await fetch(API_BASE, {
+    return await apiFetch<AstroFilter>('', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newFilter),
     });
-    if (!res.ok) throw new Error('API unavailable');
-    return await res.json();
   } catch {
     return saveLocalFilter(newFilter);
   }
@@ -214,13 +237,10 @@ export async function createFilter(filter: Omit<AstroFilter, 'id' | 'createdAt' 
 
 export async function updateFilter(id: string, updates: Partial<AstroFilter>): Promise<AstroFilter> {
   try {
-    const res = await fetch(`${API_BASE}/${id}`, {
+    return await apiFetch<AstroFilter>(`/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error('API unavailable');
-    return await res.json();
   } catch {
     return updateLocalFilter(id, updates);
   }
@@ -228,10 +248,38 @@ export async function updateFilter(id: string, updates: Partial<AstroFilter>): P
 
 export async function deleteFilter(id: string): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('API unavailable');
+    const res = await fetch(`${API_BASE}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Delete failed: ${res.status}`);
+    }
   } catch {
     deleteLocalFilter(id);
+  }
+}
+
+// ─── Sync: push localStorage → server, return merged ─────────────────────
+
+export async function syncFiltersToServer(): Promise<AstroFilter[]> {
+  const localFilters = getLocalFilters();
+  try {
+    const result = await apiFetch<{ filters: AstroFilter[] }>('/../sync', {
+      method: 'POST',
+      body: JSON.stringify({ filters: localFilters }),
+    });
+    // Replace localStorage with server result
+    if (result.filters && result.filters.length > 0) {
+      saveLocalFilters(result.filters);
+    }
+    return result.filters || [];
+  } catch (err) {
+    console.error('Filter sync failed:', err);
+    return localFilters;
   }
 }
 
@@ -239,20 +287,13 @@ export async function deleteFilter(id: string): Promise<void> {
 
 /**
  * Calculate exposure factor based on filter bandwidth.
- * Narrowband filters need longer exposures because they let through less light.
  * Reference: broadband (350nm) = factor 1.0
  * Factor = 350 / bandwidthNm * peakTransmission
- * 
- * Examples:
- * - UV/IR Cut (350nm, τ=1.0): factor = 1.0
- * - Hα 7nm (τ=0.90): factor = 350/7 * 0.90 = 45x
- * - L-Ultimate (7nm, τ=0.85): factor = 350/7 * 0.85 = 42.5x (but dual-band, so ~21x per band)
  */
 export function getFilterExposureFactor(filter: AstroFilter): number {
-  const referenceBandwidth = 350; // broadband reference
+  const referenceBandwidth = 350;
   const rawFactor = referenceBandwidth / filter.bandwidthNm / filter.peakTransmission;
   
-  // Dual-band filters (like L-Ultimate) pass 2 bands, so exposure is roughly halved
   if (filter.category === 'dualband') {
     return rawFactor / 2;
   }
@@ -262,12 +303,9 @@ export function getFilterExposureFactor(filter: AstroFilter): number {
 
 /**
  * Calculate sky suppression benefit for moon conditions.
- * Returns a multiplier < 1.0 when the filter helps against moon/light pollution.
  */
 export function getMoonBenefitFactor(filter: AstroFilter, moonIllumination: number): number {
   if (!filter.moonCompatible || filter.skySuppression === 0) return 1.0 + moonIllumination * 1.5;
-  
-  // Filter helps: reduce moon penalty based on sky suppression
   const moonPenalty = moonIllumination * 1.5 * (1 - filter.skySuppression);
   return 1.0 + moonPenalty;
 }
@@ -295,11 +333,10 @@ function getLocalFilters(): AstroFilter[] {
     const raw = localStorage.getItem(LOCAL_KEY);
     if (raw) {
       const filters = JSON.parse(raw) as AstroFilter[];
-      // Check if stored filters match current schema (by comparing L-Ultimate bandwidth)
+      // Check if stored filters match current schema
       const storedUltimate = filters.find(f => f.id === 'filter_l_ultimate');
       const defaultUltimate = DEFAULT_FILTERS.find(f => f.id === 'filter_l_ultimate');
       if (storedUltimate && defaultUltimate && storedUltimate.bandwidthNm !== defaultUltimate.bandwidthNm) {
-        // Schema mismatch — re-seed with updated defaults, preserving user-added filters
         const userIds = new Set(filters.filter(f => !f.isDefault).map(f => f.id));
         const merged = [...DEFAULT_FILTERS, ...filters.filter(f => userIds.has(f.id))];
         saveLocalFilters(merged);
@@ -308,14 +345,12 @@ function getLocalFilters(): AstroFilter[] {
       return filters;
     }
   } catch {}
-  // First time only: seed with defaults
   const alreadySeeded = localStorage.getItem(SEEDED_KEY);
   if (!alreadySeeded) {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(DEFAULT_FILTERS));
     localStorage.setItem(SEEDED_KEY, 'true');
     return DEFAULT_FILTERS;
   }
-  // Already seeded before — return empty (user may have deleted all)
   return [];
 }
 

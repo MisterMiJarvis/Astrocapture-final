@@ -1,5 +1,6 @@
 // ============================================================================
 // PROJECT SERVICE — CRUD + Observations + Exposure Planning
+// API-first with localStorage fallback
 // ============================================================================
 
 import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan } from '../types/project';
@@ -7,6 +8,28 @@ import { AstroFilter } from './filterService';
 import { fetchFilters, getFilterExposureFactor, getMoonBenefitFactor } from './filterService';
 
 const API_BASE = '/api/apls/projects';
+
+// ─── Auth token helper ────────────────────────────────────────────────────
+
+function getAuthToken(): string | null {
+  return localStorage.getItem('astrosuite_token');
+}
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(error.error || `API error: ${res.status}`);
+  }
+  return res.json();
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -29,10 +52,10 @@ interface ExposureCalcParams {
   pixelSize: number;
   moonIllumination: number;
   avgSeeing: number;
-  filterData?: AstroFilter;  // optional: if available, use real filter bandwidth
+  filterData?: AstroFilter;
 }
 
-// Fallback hardcoded factors (used when no filter data is available)
+// Fallback hardcoded factors
 const FILTER_EXPOSURE_FACTOR: Record<string, number> = {
   L_Ultimate: 1.0,
   Luminance: 1.2,
@@ -57,7 +80,6 @@ const FILTER_SNR_FACTOR: Record<string, number> = {
 
 /**
  * Calculate optimal sub-exposure and total exposure plan for a target
- * Uses real filter bandwidth data when available, falls back to hardcoded factors
  */
 export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposurePlan[] {
   const {
@@ -72,54 +94,38 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
     filterData,
   } = params;
 
-  // Default magnitude if unknown
   const mag = targetMagnitude ?? 10;
   const size = targetSizeArcmin ?? 10;
 
-  // Light grasp relative to reference (f=800mm, D=200mm)
   const lightGrasp = (aperture * aperture) / (200 * 200) * (800 / focalLength);
 
-  // Use real filter data for bandwidth-based calculation when available
   let filterFactor: number;
   let snrFactor: number;
   let moonFactor: number;
 
   if (filterData) {
-    // Physics-based calculation using filter bandwidth and transmission
-    // Exposure factor = (reference_bandwidth / filter_bandwidth) / peak_transmission
     filterFactor = getFilterExposureFactor(filterData);
     snrFactor = filterData.peakTransmission * (1 - filterData.skySuppression * 0.3);
-    // Moon benefit: narrowband filters with high sky suppression reduce moon penalty
     moonFactor = getMoonBenefitFactor(filterData, moonIllumination);
   } else {
-    // Fallback to hardcoded factors
     filterFactor = FILTER_EXPOSURE_FACTOR[filter] || 1.0;
     snrFactor = FILTER_SNR_FACTOR[filter] || 0.85;
     moonFactor = 1 + moonIllumination * 1.5;
   }
 
-  // Sub-exposure: sky-limited approach
-  // Rule of thumb: sub should reach sky noise dominance
-  // For mag X target: sub_exposure ∝ 10^(0.4 * (mag - 10)) / lightGrasp
   const magFactor = Math.pow(10, 0.4 * (mag - 10));
   const baseSubExposure = Math.max(30, Math.min(600, 120 * magFactor / lightGrasp));
   const subExposure = Math.round(baseSubExposure * filterFactor * moonFactor / 10) * 10;
 
-  // Total integration time for target SNR
-  // For a good image: SNR ~ 3-5 per pixel for faint targets
   const moonSnrPenalty = 1 / (1 + moonIllumination * 0.8);
 
-  // Hours needed: scale with magnitude and inversely with light grasp
   const baseHours = 2 * magFactor / lightGrasp;
   const totalHours = Math.max(0.5, baseHours * filterFactor / snrFactor * moonSnrPenalty);
 
-  // Number of subs
   const subCount = Math.max(10, Math.ceil(totalHours * 3600 / subExposure));
   const totalExposureTime = subCount * subExposure;
 
-  // SNR estimate label
-  const totalIntegration = totalExposureTime;
-  const snrScore = Math.sqrt(totalIntegration / subExposure) * snrFactor * lightGrasp * moonSnrPenalty;
+  const snrScore = Math.sqrt(totalExposureTime / subExposure) * snrFactor * lightGrasp * moonSnrPenalty;
   const snrLabel = snrScore > 15 ? 'Excellent' : snrScore > 8 ? 'Good' : snrScore > 4 ? 'Fair' : 'Low';
 
   return [{
@@ -131,22 +137,16 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
   }];
 }
 
-/**
- * Calculate total exposure plan including recommended filter set
- */
 export function calculateFullExposurePlan(
   params: ExposureCalcParams & { targetType: string }
 ): ProjectExposurePlan[] {
   const types = params.targetType?.split(',') || [];
   const plans: ProjectExposurePlan[] = [];
 
-  // Primary filter
   plans.push(...calculateExposurePlan(params));
 
-  // For narrowband targets, add complementary filters
   const isNarrowband = types.some(t => ['neb', 'plnb', 'snrb'].includes(t));
   if (isNarrowband && params.filter !== 'Ha' && params.filter !== 'OIII' && params.filter !== 'SII') {
-    // Add Ha, OIII, SII plans
     for (const f of ['Ha', 'OIII', 'SII'] as const) {
       plans.push(...calculateExposurePlan({ ...params, filter: f }));
     }
@@ -155,24 +155,20 @@ export function calculateFullExposurePlan(
   return plans;
 }
 
-// ─── Project CRUD ─────────────────────────────────────────────────────────
+// ─── Project CRUD (API-first, localStorage fallback) ──────────────────────
 
 export async function fetchProjects(): Promise<Project[]> {
   try {
-    const res = await fetch(API_BASE);
-    if (!res.ok) throw new Error('Failed to fetch projects');
-    return await res.json();
+    const data = await apiFetch<Project[]>('');
+    return Array.isArray(data) ? data : [];
   } catch {
-    // Fallback to localStorage
     return getLocalProjects();
   }
 }
 
 export async function fetchProject(id: string): Promise<Project | null> {
   try {
-    const res = await fetch(`${API_BASE}/${id}`);
-    if (!res.ok) return null;
-    return await res.json();
+    return await apiFetch<Project>(`/${id}`);
   } catch {
     const projects = getLocalProjects();
     return projects.find(p => p.id === id) || null;
@@ -228,28 +224,21 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
   };
 
   try {
-    const res = await fetch(API_BASE, {
+    return await apiFetch<Project>('', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(project),
     });
-    if (!res.ok) throw new Error('Failed to create project');
-    return await res.json();
   } catch {
-    // Fallback to localStorage
     return saveLocalProject(project);
   }
 }
 
 export async function updateProject(id: string, updates: Partial<Project>): Promise<Project> {
   try {
-    const res = await fetch(`${API_BASE}/${id}`, {
+    return await apiFetch<Project>(`/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error('Failed to update project');
-    return await res.json();
   } catch {
     return updateLocalProject(id, updates);
   }
@@ -257,7 +246,16 @@ export async function updateProject(id: string, updates: Partial<Project>): Prom
 
 export async function deleteProject(id: string): Promise<void> {
   try {
-    await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Delete failed: ${res.status}`);
+    }
   } catch {
     deleteLocalProject(id);
   }
@@ -275,13 +273,12 @@ export async function addObservation(projectId: string, obs: AddObservationData)
   };
 
   try {
-    const res = await fetch(`${API_BASE}/${projectId}/observations`, {
+    // POST the observation, then re-fetch the project to get updated progress
+    await apiFetch<any>(`/${projectId}/observations`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(observation),
     });
-    if (!res.ok) throw new Error('Failed to add observation');
-    return await res.json();
+    return await apiFetch<Project>(`/${projectId}`);
   } catch {
     return addLocalObservation(projectId, observation);
   }
@@ -289,13 +286,31 @@ export async function addObservation(projectId: string, obs: AddObservationData)
 
 export async function deleteObservation(projectId: string, observationId: string): Promise<Project> {
   try {
-    const res = await fetch(`${API_BASE}/${projectId}/observations/${observationId}`, {
+    await apiFetch<any>(`/${projectId}/observations/${observationId}`, {
       method: 'DELETE',
     });
-    if (!res.ok) throw new Error('Failed to delete observation');
-    return await res.json();
+    return await apiFetch<Project>(`/${projectId}`);
   } catch {
     return deleteLocalObservation(projectId, observationId);
+  }
+}
+
+// ─── Sync: push localStorage → server, return merged ─────────────────────
+
+export async function syncProjectsToServer(): Promise<Project[]> {
+  const localProjects = getLocalProjects();
+  try {
+    const result = await apiFetch<{ projects: Project[] }>('/../sync', {
+      method: 'POST',
+      body: JSON.stringify({ projects: localProjects }),
+    });
+    if (result.projects && result.projects.length > 0) {
+      saveLocalProjects(result.projects);
+    }
+    return result.projects || [];
+  } catch (err) {
+    console.error('Project sync failed:', err);
+    return localProjects;
   }
 }
 
@@ -324,7 +339,10 @@ interface RigInfoResponse {
 
 async function getActiveRig(): Promise<RigInfoResponse | null> {
   try {
-    const res = await fetch('/api/apls/rigs');
+    const token = getAuthToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch('/api/apls/rigs', { headers });
     if (!res.ok) return null;
     const rigs = await res.json();
     const def = Array.isArray(rigs) ? rigs.find((r: any) => r.isDefault) : null;
@@ -350,7 +368,6 @@ async function getCurrentMoonIllumination(lat: number, lon: number): Promise<num
     const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
     if (!res.ok) return 0.5;
     const data = await res.json();
-    // Try to extract moon illumination from weather data
     return data.daily?.data?.[0]?.moonPhase ?? 0.5;
   } catch {
     return 0.5;
@@ -413,7 +430,6 @@ function addLocalObservation(projectId: string, observation: ProjectObservation)
   projects[idx].totalExposureSeconds = progress.totalExposureSeconds;
   projects[idx].completionPercent = progress.completionPercent;
   projects[idx].updatedAt = new Date().toISOString();
-  // Auto-transition to in_progress if first observation
   if (projects[idx].status === 'planning') {
     projects[idx].status = 'in_progress';
   }
