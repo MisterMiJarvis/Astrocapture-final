@@ -7,6 +7,7 @@ import { FilterType, FilterProfile } from '../types/module5';
 
 const API_BASE = '/api/apls/filters';
 const LOCAL_KEY = 'astrosuite_filters_v2';
+const SEEDED_KEY = 'astrosuite_filters_v2_seeded';
 
 // ─── Default filters (from module5 FILTER_PROFILES) ──────────────────────
 
@@ -286,9 +287,15 @@ function getLocalFilters(): AstroFilter[] {
     const raw = localStorage.getItem(LOCAL_KEY);
     if (raw) return JSON.parse(raw);
   } catch {}
-  // First time: seed with defaults
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(DEFAULT_FILTERS));
-  return DEFAULT_FILTERS;
+  // First time only: seed with defaults
+  const alreadySeeded = localStorage.getItem(SEEDED_KEY);
+  if (!alreadySeeded) {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(DEFAULT_FILTERS));
+    localStorage.setItem(SEEDED_KEY, 'true');
+    return DEFAULT_FILTERS;
+  }
+  // Already seeded before — return empty (user may have deleted all)
+  return [];
 }
 
 function saveLocalFilters(filters: AstroFilter[]): void {
