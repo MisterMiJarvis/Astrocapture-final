@@ -21,10 +21,10 @@ interface AstroSuiteViewProps {
 
 const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'targets', label: 'Targets', icon: '🎯' },
-  { id: 'equipment', label: 'Equipment', icon: '🔭' },
   { id: 'projects', label: 'Projects', icon: '📋' },
+  { id: 'equipment', label: 'Equipment', icon: '🔭' },
+  { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
   { id: 'help', label: 'Help', icon: '❓' },
 ];
