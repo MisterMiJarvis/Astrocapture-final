@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ViewState, User } from '../types';
 import AplsModule1View from './AplsModule1View';
 import AplsModule2View from './AplsModule2View';
+import FiltersView from './FiltersView';
 import ProjectsView from './ProjectsView';
 import AplsModule6View from './AplsModule6View';
 import AstroSuiteLoginView from './AstroSuiteLoginView';
@@ -11,7 +12,7 @@ import TargetExplorerView from './TargetExplorerView';
 import { TelescopiusTarget } from '../src/services/targetExplorerService';
 import { MapPin } from 'lucide-react';
 
-type AplsTab = 'dashboard' | 'projects' | 'equipment' | 'weather' | 'analysis' | 'help';
+type AplsTab = 'dashboard' | 'projects' | 'filters' | 'equipment' | 'weather' | 'analysis' | 'help';
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
 
 interface AstroSuiteViewProps {
@@ -22,6 +23,7 @@ interface AstroSuiteViewProps {
 const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'projects', label: 'Projects', icon: '📋' },
+  { id: 'filters', label: 'Filters', icon: '🔲' },
   { id: 'equipment', label: 'Equipment', icon: '🔭' },
   { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
@@ -81,6 +83,8 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
         return <AplsModule1View locationSource={locationSource} onLocationChange={handleLocationChange} onStartProject={handleStartProject} />;
       case 'weather':
         return <AstroSuiteWeatherView defaultLocation={locationSource} />;
+      case 'filters':
+        return <FiltersView />;
       case 'equipment':
         return <AplsModule2View />;
       case 'projects':

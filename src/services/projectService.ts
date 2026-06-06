@@ -3,6 +3,8 @@
 // ============================================================================
 
 import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan } from '../types/project';
+import { AstroFilter } from './filterService';
+import { fetchFilters, getFilterExposureFactor, getMoonBenefitFactor } from './filterService';
 
 const API_BASE = '/api/apls/projects';
 
@@ -27,8 +29,10 @@ interface ExposureCalcParams {
   pixelSize: number;
   moonIllumination: number;
   avgSeeing: number;
+  filterData?: AstroFilter;  // optional: if available, use real filter bandwidth
 }
 
+// Fallback hardcoded factors (used when no filter data is available)
 const FILTER_EXPOSURE_FACTOR: Record<string, number> = {
   L_Ultimate: 1.0,
   Luminance: 1.2,
@@ -53,6 +57,7 @@ const FILTER_SNR_FACTOR: Record<string, number> = {
 
 /**
  * Calculate optimal sub-exposure and total exposure plan for a target
+ * Uses real filter bandwidth data when available, falls back to hardcoded factors
  */
 export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposurePlan[] {
   const {
@@ -64,6 +69,7 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
     pixelSize,
     moonIllumination,
     avgSeeing = 2.5,
+    filterData,
   } = params;
 
   // Default magnitude if unknown
@@ -72,8 +78,25 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
 
   // Light grasp relative to reference (f=800mm, D=200mm)
   const lightGrasp = (aperture * aperture) / (200 * 200) * (800 / focalLength);
-  const filterFactor = FILTER_EXPOSURE_FACTOR[filter] || 1.0;
-  const moonFactor = 1 + moonIllumination * 1.5; // moon pollution factor
+
+  // Use real filter data for bandwidth-based calculation when available
+  let filterFactor: number;
+  let snrFactor: number;
+  let moonFactor: number;
+
+  if (filterData) {
+    // Physics-based calculation using filter bandwidth and transmission
+    // Exposure factor = (reference_bandwidth / filter_bandwidth) / peak_transmission
+    filterFactor = getFilterExposureFactor(filterData);
+    snrFactor = filterData.peakTransmission * (1 - filterData.skySuppression * 0.3);
+    // Moon benefit: narrowband filters with high sky suppression reduce moon penalty
+    moonFactor = getMoonBenefitFactor(filterData, moonIllumination);
+  } else {
+    // Fallback to hardcoded factors
+    filterFactor = FILTER_EXPOSURE_FACTOR[filter] || 1.0;
+    snrFactor = FILTER_SNR_FACTOR[filter] || 0.85;
+    moonFactor = 1 + moonIllumination * 1.5;
+  }
 
   // Sub-exposure: sky-limited approach
   // Rule of thumb: sub should reach sky noise dominance
@@ -84,8 +107,6 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
 
   // Total integration time for target SNR
   // For a good image: SNR ~ 3-5 per pixel for faint targets
-  // Approximate: need total_time such that sqrt(total_time / sub) * sub_flux > noise
-  const snrFactor = FILTER_SNR_FACTOR[filter] || 0.85;
   const moonSnrPenalty = 1 / (1 + moonIllumination * 0.8);
 
   // Hours needed: scale with magnitude and inversely with light grasp
