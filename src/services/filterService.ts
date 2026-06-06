@@ -227,7 +227,8 @@ export async function updateFilter(id: string, updates: Partial<AstroFilter>): P
 
 export async function deleteFilter(id: string): Promise<void> {
   try {
-    await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('API unavailable');
   } catch {
     deleteLocalFilter(id);
   }
