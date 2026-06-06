@@ -6,12 +6,12 @@ import { AstroFilter, FilterCategory } from '../types/filter';
 import { FilterType, FilterProfile } from '../types/module5';
 
 const API_BASE = '/api/apls/filters';
-const LOCAL_KEY = 'astrosuite_filters_v4';
-const SEEDED_KEY = 'astrosuite_filters_v4_seeded';
-const SCHEMA_VERSION = 4;
+const LOCAL_KEY = 'astrosuite_filters_v5';
+const SEEDED_KEY = 'astrosuite_filters_v5_seeded';
+const SCHEMA_VERSION = 5;
 
 // Migration: clean up all old localStorage keys
-const OLD_KEYS = ['astrosuite_filters', 'astrosuite_filters_v2', 'astrosuite_filters_v2_seeded', 'astrosuite_filters_v3', 'astrosuite_filters_v3_seeded'];
+const OLD_KEYS = ['astrosuite_filters', 'astrosuite_filters_v2', 'astrosuite_filters_v2_seeded', 'astrosuite_filters_v3', 'astrosuite_filters_v3_seeded', 'astrosuite_filters_v4', 'astrosuite_filters_v4_seeded'];
 for (const oldKey of OLD_KEYS) {
   try { localStorage.removeItem(oldKey); } catch {}
 }
@@ -112,7 +112,7 @@ const DEFAULT_FILTERS: AstroFilter[] = [
     description: 'Filtre narrowband Hydrogène-alpha.',
     useCases: ['Nébuleuses Hα', 'Sous Lune', 'Bi-color', 'Tri-color'],
     recommendedTargets: ['Nébuleuses émission', 'Rémanents supernovae'],
-    owned: true,
+    owned: false,
     isDefault: true,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',
@@ -131,7 +131,7 @@ const DEFAULT_FILTERS: AstroFilter[] = [
     description: 'Filtre narrowband Oxygène-III.',
     useCases: ['Nébuleuses OIII', 'Sous Lune', 'Bi-color', 'Tri-color'],
     recommendedTargets: ['Nébuleuses planétaires', 'Rémanents supernovae'],
-    owned: true,
+    owned: false,
     isDefault: true,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',
@@ -150,7 +150,7 @@ const DEFAULT_FILTERS: AstroFilter[] = [
     description: 'Filtre narrowband Soufre-II.',
     useCases: ['Nébuleuses SII', 'Sous Lune', 'Tri-color SHO'],
     recommendedTargets: ['Nébuleuses émission', 'Rémanents supernovae'],
-    owned: true,
+    owned: false,
     isDefault: true,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',
@@ -169,7 +169,7 @@ const DEFAULT_FILTERS: AstroFilter[] = [
     description: 'Filtre couleur RGB pour caméra monocouleur.',
     useCases: ['Galaxies', 'Nébuleuses en couleur', 'Amas'],
     recommendedTargets: ['Galaxies', 'Amas', 'Nébuleuses larges'],
-    owned: true,
+    owned: false,
     isDefault: false,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',
@@ -188,7 +188,7 @@ const DEFAULT_FILTERS: AstroFilter[] = [
     description: 'Filtre luminance large bande pour LRGB.',
     useCases: ['Luminance LRGB', 'Nuits sans Lune'],
     recommendedTargets: ['Galaxies', 'Amas', 'Nébuleuses larges'],
-    owned: true,
+    owned: false,
     isDefault: false,
     createdAt: '2025-01-01T00:00:00Z',
     updatedAt: '2025-01-01T00:00:00Z',

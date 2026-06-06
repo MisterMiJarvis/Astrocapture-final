@@ -297,19 +297,14 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             )}
           </div>
 
-          {/* Dynamic filter recommendations — translated to owned filters */}
+          {/* Dynamic filter recommendations — only user's owned filters */}
           {recommendedFilters.length > 0 && (() => {
-            const { owned, missing } = translateRecommendations(recommendedFilters, userFilters);
-            return (
+            const { owned } = translateRecommendations(recommendedFilters, userFilters);
+            return owned.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {owned.map(uf => (
                   <span key={uf.filterType} className={`text-[9px] px-1.5 py-0.5 rounded ${uf.color}`}>
                     {uf.label}{uf.filter.bandwidthNm <= 30 ? ` ${uf.filter.bandwidthNm}nm` : ''}
-                  </span>
-                ))}
-                {missing.map(f => (
-                  <span key={`m-${f}`} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/30 text-slate-500 line-through opacity-60">
-                    {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
                   </span>
                 ))}
               </div>
@@ -733,23 +728,18 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             </div>
           </div>
 
-          {/* Recommended filters — translated to owned filters with coverage */}
+          {/* Recommended filters — only user's owned filters with coverage */}
           {(() => {
             const types = selectedTarget.type ? selectedTarget.type.split(',') : [];
             const recFilters = recommendFiltersForTypes(types);
             const moonIllum = selectedTarget.moonIllumination ?? (selectedTarget.moonSeparation != null ? 0.5 : 0);
-            const { owned, missing } = translateRecommendations(recFilters, userFilters);
-            return (owned.length > 0 || missing.length > 0) && (
+            const { owned } = translateRecommendations(recFilters, userFilters);
+            return owned.length > 0 && (
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs text-text-secondary">Recommended:</span>
+                <span className="text-xs text-text-secondary">Your filters:</span>
                 {owned.map(uf => (
                   <span key={uf.filterType} className={`text-[10px] px-2 py-0.5 rounded-full ${uf.color}`}>
                     {uf.label}{uf.filter.bandwidthNm <= 30 ? ` ${uf.filter.bandwidthNm}nm` : ''}
-                  </span>
-                ))}
-                {missing.map(f => (
-                  <span key={`m-${f}`} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/30 text-slate-500 line-through opacity-60">
-                    {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
                   </span>
                 ))}
                 {(() => {
