@@ -82,14 +82,16 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [preselectedTarget, setPreselectedTarget] = useState<TelescopiusTarget | null>(initialTarget || null);
-  const [filterOptions, setFilterOptions] = useState<{ value: string; label: string }[]>(FILTER_OPTIONS_FALLBACK);
-
-  // Load user's filter options dynamically
-  useEffect(() => {
-    getFilterOptions().then(opts => {
-      if (opts.length > 0) setFilterOptions(opts);
-    }).catch(() => {});
-  }, []);
+  const [filterOptions, setFilterOptions] = useState<{ value: string; label: string }[]>([
+    { value: 'L_Ultimate', label: 'L Ultimate' },
+    { value: 'LPS_D2', label: 'LPS-D2' },
+    { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
+    { value: 'Ha', label: 'Hα' },
+    { value: 'OIII', label: 'OIII' },
+    { value: 'SII', label: 'SII' },
+    { value: 'RGB', label: 'RGB' },
+    { value: 'Luminance', label: 'Luminance' },
+  ]);
 
   // Load projects
   const loadProjects = useCallback(async () => {
