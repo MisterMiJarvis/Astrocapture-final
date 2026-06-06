@@ -8,6 +8,10 @@ import { FilterType, FilterProfile } from '../types/module5';
 const API_BASE = '/api/apls/filters';
 const LOCAL_KEY = 'astrosuite_filters_v2';
 const SEEDED_KEY = 'astrosuite_filters_v2_seeded';
+const OLD_KEY = 'astros…ters'; // old v1 key to migrate
+
+// Migration: clean up old v1 key if present
+try { localStorage.removeItem(OLD_KEY); } catch {}
 
 // ─── Default filters (from module5 FILTER_PROFILES) ──────────────────────
 
