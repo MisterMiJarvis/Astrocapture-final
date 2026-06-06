@@ -26,6 +26,7 @@ import { Search, Filter, X, ChevronLeft, ChevronRight, Star, MapPin, Moon, Eye, 
 interface TargetExplorerProps {
   locationSource: 'current' | 'saintEtienne' | 'pradelles';
   onLocationChange: (source: 'current' | 'saintEtienne' | 'pradelles') => void;
+  onStartProject?: (target: TelescopiusTarget) => void;
 }
 
 const LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
@@ -82,7 +83,7 @@ const FIT_LABELS: Record<string, string> = {
 
 type TabView = 'bestTonight' | 'search';
 
-export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSource, onLocationChange }) => {
+export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSource, onLocationChange, onStartProject }) => {
   const [activeTab, setActiveTab] = useState<TabView>('bestTonight');
   const [results, setResults] = useState<TargetSearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -732,6 +733,16 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
 
           {selectedTarget.commonNames.length > 0 && (
             <div className="text-sm text-text-secondary">Also known as: {selectedTarget.commonNames.join(', ')}</div>
+          )}
+
+          {/* Start Project button */}
+          {onStartProject && (
+            <button
+              onClick={() => onStartProject(selectedTarget)}
+              className="mt-3 w-full py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 flex items-center justify-center gap-2 transition-colors"
+            >
+              📋 Start Project for this Target
+            </button>
           )}
 
           {/* Framing & Exposure Analysis */}

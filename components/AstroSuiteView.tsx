@@ -2,17 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { ViewState, User } from '../types';
 import AplsModule1View from './AplsModule1View';
 import AplsModule2View from './AplsModule2View';
-import AplsModule3View from './AplsModule3View';
-import AplsModule4View from './AplsModule4View';
-import AplsModule5View from './AplsModule5View';
+import ProjectsView from './ProjectsView';
 import AplsModule6View from './AplsModule6View';
 import AstroSuiteLoginView from './AstroSuiteLoginView';
 import AstroSuiteWeatherView from './AstroSuiteWeatherView';
 import { getCurrentAstroSuiteUser, logoutAstroSuite } from '../src/services/userService';
 import TargetExplorerView from './TargetExplorerView';
+import { TelescopiusTarget } from '../src/services/targetExplorerService';
 import { MapPin } from 'lucide-react';
 
-type AplsTab = 'dashboard' | 'equipment' | 'framing' | 'targets' | 'planner' | 'exposure' | 'analysis' | 'weather' | 'help';
+type AplsTab = 'dashboard' | 'equipment' | 'targets' | 'projects' | 'analysis' | 'weather' | 'help';
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
 
 interface AstroSuiteViewProps {
@@ -25,9 +24,7 @@ const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'targets', label: 'Targets', icon: '🎯' },
   { id: 'equipment', label: 'Equipment', icon: '🔭' },
-  { id: 'framing', label: 'Framing', icon: '🖼️' },
-  { id: 'planner', label: 'Planner', icon: '📅' },
-  { id: 'exposure', label: 'Exposure', icon: '⚡' },
+  { id: 'projects', label: 'Projects', icon: '📋' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
   { id: 'help', label: 'Help', icon: '❓' },
 ];
@@ -42,6 +39,13 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
   const [activeTab, setActiveTab] = useState<AplsTab>(initialTab);
   const [user, setUser] = useState<User | null>(null);
   const [locationSource, setLocationSource] = useState<LocationSource>('saintEtienne');
+  const [projectFromTarget, setProjectFromTarget] = useState<TelescopiusTarget | null>(null);
+
+  // Start a project from the Targets tab
+  const handleStartProject = (target: TelescopiusTarget) => {
+    setProjectFromTarget(target);
+    setActiveTab('projects');
+  };
 
   // Persist location in localStorage
   useEffect(() => {
@@ -81,13 +85,9 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
       case 'equipment':
         return <AplsModule2View />;
       case 'targets':
-        return <TargetExplorerView locationSource={locationSource} onLocationChange={handleLocationChange} />;
-      case 'framing':
-        return <AplsModule3View />;
-      case 'planner':
-        return <AplsModule4View />;
-      case 'exposure':
-        return <AplsModule5View />;
+        return <TargetExplorerView locationSource={locationSource} onLocationChange={handleLocationChange} onStartProject={handleStartProject} />;
+      case 'projects':
+        return <ProjectsView locationSource={locationSource} onLocationChange={handleLocationChange} preselectedTarget={projectFromTarget} onClearTarget={() => setProjectFromTarget(null)} />;
       case 'analysis':
         return <AplsModule6View />;
       case 'help':
