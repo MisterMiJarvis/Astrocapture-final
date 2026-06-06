@@ -6,8 +6,8 @@ import { mapNightlyForecast as mapNightlyForecastData } from '../services/weathe
 import { Moon, CloudRain, Cloud, Wind, Star, Clock, Mountain, Eye, ExternalLink } from 'lucide-react';
 
 const PRESET_LOCATIONS: Record<string, { lat: number; lon: number }> = {
-  saintEtienne: { lat: 43.79, lon: 4.72 },
-  pradelles: { lat: 44.77, lon: 3.88 },
+  saintEtienne: { lat: 43.7889, lon: 4.7533 },
+  pradelles: { lat: 44.6167, lon: 3.9667 },
 };
 
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
