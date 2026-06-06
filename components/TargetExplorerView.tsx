@@ -17,6 +17,8 @@ import {
   FramingAnalysis,
   RigInfo,
   recommendFiltersForTypes,
+  mapApiTarget,
+  authHeaders as telescopiusAuthHeaders,
 } from '../src/services/targetExplorerService';
 import { FilterType } from '../types/module5';
 import { RigProfile } from '../types/module2';
@@ -136,21 +138,28 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
       .catch(() => {});
   }, []);
 
-  // Fetch best targets tonight
+  // Fetch best targets tonight (using highlights endpoint for altitude data)
   const loadBestTargets = useCallback(async () => {
     setBestLoading(true);
     setBestError(null);
     try {
-      const bestFilters = getDefaultBestTargetFilters(coords.lat, coords.lon);
-      const result = await searchTargets({
-        ...bestFilters,
-        types: 'neb,gxy,opcl,plnb',
-        minAlt,
+      const params = new URLSearchParams({
+        lat: coords.lat.toString(),
+        lon: coords.lon.toString(),
+        timezone: 'Europe/Paris',
+        min_alt: minAlt.toString(),
+        results_per_page: '30',
       });
-      if (result.source === 'local_fallback' && result.targets.length === 0) {
-        setBestError('Telescopius API unavailable. Showing local fallback data.');
+      const response = await fetch(`/api/telescopius/highlights?${params.toString()}`, {
+        headers: telescopiusAuthHeaders(),
+      });
+      if (!response.ok) throw new Error(`Highlights failed: ${response.status}`);
+      const data = await response.json();
+      const targets: TelescopiusTarget[] = (data.targets || []).map(mapApiTarget);
+      if (targets.length === 0) {
+        setBestError('No targets visible tonight. Try lowering the altitude filter.');
       }
-      setBestTargets(result.targets.filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt));
+      setBestTargets(targets.filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt));
     } catch (err) {
       setBestError('Failed to load best targets.');
     } finally {

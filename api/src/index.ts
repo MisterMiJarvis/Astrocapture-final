@@ -407,11 +407,68 @@ app.get('/api/telescopius/highlights', async (c) => {
   const lon = c.req.query('lon') || '4.7533';
   const timezone = c.req.query('timezone') || 'Europe/Paris';
   const min_alt = c.req.query('min_alt') || '20';
+  const types = c.req.query('types') || '';
+  const mag_max = c.req.query('mag_max') || '';
+  const results_per_page = c.req.query('results_per_page') || '30';
   
   try {
-    const result = callTelescopiusProxy('highlights', { lat, lon, timezone, min_alt });
+    const proxyParams: Record<string, string> = { lat, lon, timezone, min_alt };
+    if (types) proxyParams.types = types;
+    if (mag_max) proxyParams.mag_max = mag_max;
+    if (results_per_page) proxyParams.results_per_page = results_per_page;
+    const result = callTelescopiusProxy('highlights', proxyParams);
     if (result.error) return c.json({ error: result.error }, 500);
-    return c.json(result);
+    
+    // Flatten highlights format to match search format expected by front-end
+    const pageResults = result.page_results || [];
+    const targets = pageResults.map((pr: any) => {
+      const obj = pr.object || {};
+      const tonightVis = pr.tonight_visibility || {};
+      const tonightTimes = pr.tonight_times || {};
+      const transit = pr.transit_observation || {};
+      const windows = tonightVis.windows || [];
+      
+      // Calculate total imaging hours from windows
+      const totalImagingHours = windows.reduce((sum: number, w: any) => sum + (w.imaging_time_hours || w.hours || 0), 0);
+      
+      return {
+        id: obj.main_id || '',
+        main_id: obj.main_id || '',
+        name: obj.main_name || obj.main_id || '',
+        main_name: obj.main_name || '',
+        type: (obj.types || [])[0] || obj.family || 'Unknown',
+        constellation: obj.con || '',
+        con_name: obj.con_name || '',
+        ra: obj.ra || '',
+        dec: obj.dec || '',
+        magnitude: obj.visual_mag ?? null,
+        image_url: obj.main_image_url || obj.thumbnail_url || null,
+        common_names: obj.names || [],
+        // Tonight-specific data (flattened for front-end)
+        altitude_max: tonightVis.max_altitude ?? null,
+        max_altitude_hour: tonightVis.max_altitude_hour || null,
+        moon_separation: transit.dist_au ?? null,
+        total_imaging_hours: totalImagingHours,
+        rise: tonightTimes.rise || null,
+        transit_time: tonightTimes.transit || null,
+        set_time: tonightTimes.set || null,
+        imaging_windows: windows.map((w: any) => ({
+          start: w.start || '',
+          end: w.end || '',
+          hours: w.imaging_time_hours || w.hours || 0,
+          moon_illumination: w.moon_illumination_percent ?? w.moon_illumination ?? null,
+          moon_distance: w.moon_distance_deg ?? w.moon_distance ?? null,
+        })),
+      };
+    });
+    
+    return c.json({
+      targets,
+      total: result.matched || targets.length,
+      page: 1,
+      perPage: targets.length,
+      source: 'telescopius',
+    });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

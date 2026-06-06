@@ -274,7 +274,7 @@ function getToken(): string | null {
   return localStorage.getItem('astrosuite_token');
 }
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const token = getToken();
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) h['Authorization'] = `Bearer ${token}`;
@@ -359,7 +359,7 @@ export async function searchTargets(filters: TargetSearchFilters): Promise<Targe
 /**
  * Map API response target to our TelescopiusTarget format
  */
-function mapApiTarget(t: any): TelescopiusTarget {
+export function mapApiTarget(t: any): TelescopiusTarget {
   return {
     id: t.id || t.main_id || '',
     mainId: t.main_id || t.id || '',
