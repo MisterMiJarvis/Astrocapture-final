@@ -18,7 +18,7 @@ if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // CORS
 app.use('/*', cors({
-  origin: ['https://astrocapture.org', 'http://localhost:5173', 'http://localhost:3000'],
+  origin: ['https://astrocapture.org', 'https://beta.astrocapture.org', 'http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
 }));
 
