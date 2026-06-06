@@ -6,7 +6,7 @@ import { AstroFilter, FilterCategory } from '../types/filter';
 import { FilterType, FilterProfile } from '../types/module5';
 
 const API_BASE = '/api/apls/filters';
-const LOCAL_KEY = 'astrosuite_filters';
+const LOCAL_KEY = 'astrosuite_filters_v2';
 
 // ─── Default filters (from module5 FILTER_PROFILES) ──────────────────────
 
@@ -14,17 +14,17 @@ const DEFAULT_FILTERS: AstroFilter[] = [
   {
     id: 'filter_uv_ir_cut',
     name: 'UV/IR Cut',
-    brand: 'Generic',
+    brand: 'ZWO',
     category: 'broadband',
-    bandwidthNm: 350,
-    peakTransmission: 1.0,
-    centerWavelengthNm: 550,
+    bandwidthNm: 300,
+    peakTransmission: 0.97,
+    centerWavelengthNm: 560,
     skySuppression: 0.0,
     moonCompatible: false,
     color: '#4FC3F7',
-    description: 'Filtre de protection basique. Laisse passer tout le visible.',
-    useCases: ['Nuits sans Lune', 'Pollution faible', 'Galaxies', 'Amas'],
-    recommendedTargets: ['Galaxies', 'Amas ouverts', 'Amas globulaires'],
+    description: 'Filtre de protection ZWO. Transmission plate ~97% de 420-700nm. Bloque UV (<400nm) et IR (>700nm).',
+    useCases: ['Nuits sans Lune', 'Pollution faible', 'Galaxies', 'Amas', 'Luminance'],
+    recommendedTargets: ['Galaxies', 'Amas ouverts', 'Amas globulaires', 'Nébuleuses larges'],
     owned: true,
     isDefault: true,
     createdAt: '2025-01-01T00:00:00Z',
