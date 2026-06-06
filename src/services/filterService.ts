@@ -6,11 +6,12 @@ import { AstroFilter, FilterCategory } from '../types/filter';
 import { FilterType, FilterProfile } from '../types/module5';
 
 const API_BASE = '/api/apls/filters';
-const LOCAL_KEY = 'astrosuite_filters_v3';
-const SEEDED_KEY = 'astrosuite_filters_v3_seeded';
+const LOCAL_KEY = 'astrosuite_filters_v4';
+const SEEDED_KEY = 'astrosuite_filters_v4_seeded';
+const SCHEMA_VERSION = 4;
 
 // Migration: clean up all old localStorage keys
-const OLD_KEYS = ['astrosuite_filters', 'astrosuite_filters_v2', 'astrosuite_filters_v2_seeded'];
+const OLD_KEYS = ['astrosuite_filters', 'astrosuite_filters_v2', 'astrosuite_filters_v2_seeded', 'astrosuite_filters_v3', 'astrosuite_filters_v3_seeded'];
 for (const oldKey of OLD_KEYS) {
   try { localStorage.removeItem(oldKey); } catch {}
 }
@@ -292,7 +293,20 @@ export async function getDefaultFilters(): Promise<AstroFilter[]> {
 function getLocalFilters(): AstroFilter[] {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const filters = JSON.parse(raw) as AstroFilter[];
+      // Check if stored filters match current schema (by comparing L-Ultimate bandwidth)
+      const storedUltimate = filters.find(f => f.id === 'filter_l_ultimate');
+      const defaultUltimate = DEFAULT_FILTERS.find(f => f.id === 'filter_l_ultimate');
+      if (storedUltimate && defaultUltimate && storedUltimate.bandwidthNm !== defaultUltimate.bandwidthNm) {
+        // Schema mismatch — re-seed with updated defaults, preserving user-added filters
+        const userIds = new Set(filters.filter(f => !f.isDefault).map(f => f.id));
+        const merged = [...DEFAULT_FILTERS, ...filters.filter(f => userIds.has(f.id))];
+        saveLocalFilters(merged);
+        return merged;
+      }
+      return filters;
+    }
   } catch {}
   // First time only: seed with defaults
   const alreadySeeded = localStorage.getItem(SEEDED_KEY);
