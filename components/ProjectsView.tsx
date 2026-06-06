@@ -27,6 +27,7 @@ import {
   TelescopiusTarget,
   getDefaultBestTargetFilters,
 } from '../src/services/targetExplorerService';
+import TargetExplorerView from './TargetExplorerView';
 import { FilterType } from '../src/types/module5';
 import {
   Plus, FolderOpen, CheckCircle2, Archive, Trash2, ChevronDown, ChevronRight,
@@ -311,7 +312,7 @@ interface CreateProjectViewProps {
   onCancel: () => void;
 }
 
-const LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
+const CREATE_LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
   saintEtienne: { lat: 43.7889, lon: 4.7533 },
   pradelles: { lat: 44.6167, lon: 3.9667 },
 };
@@ -326,30 +327,34 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const [title, setTitle] = useState('');
   const [selectedTarget, setSelectedTarget] = useState<TelescopiusTarget | null>(preselectedTarget || null);
   const [primaryFilter, setPrimaryFilter] = useState<string>('L_Ultimate');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<TelescopiusTarget[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [exposurePreview, setExposurePreview] = useState<any>(null);
+  const [step, setStep] = useState<'target' | 'details'>(preselectedTarget ? 'details' : 'target');
 
-  const coords = LOCATION_COORDS[locationSource] || LOCATION_COORDS.saintEtienne;
-
-  // Load rigs for preview
+  // Local location/rig state for project creation
+  const [localLocation, setLocalLocation] = useState<string>(locationSource);
   const [rigs, setRigs] = useState<any[]>([]);
   const [activeRig, setActiveRig] = useState<any>(null);
+  const [activeRigId, setActiveRigId] = useState<string>('');
 
+  const localCoords = CREATE_LOCATION_COORDS[localLocation] || CREATE_LOCATION_COORDS.saintEtienne;
+
+  // Load rigs
   useEffect(() => {
     fetch('/api/apls/rigs', { headers: { 'Content-Type': 'application/json' } })
       .then(r => r.ok ? r.json() : [])
       .then((rigList: any[]) => {
         setRigs(rigList);
         const def = rigList.find((r: any) => r.isDefault);
-        if (def) setActiveRig(def);
+        if (def) {
+          setActiveRigId(def.id);
+          setActiveRig(def);
+        }
       })
       .catch(() => {});
   }, []);
 
-  // Update exposure preview when target/filter/rig changes
+  // Update exposure preview
   useEffect(() => {
     if (!selectedTarget) { setExposurePreview(null); return; }
     const preview = calculateExposurePlan({
@@ -365,23 +370,15 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     setExposurePreview(preview);
   }, [selectedTarget, primaryFilter, activeRig]);
 
-  // Search targets
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    try {
-      const result = await searchTargets({
-        name: searchQuery,
-        lat: coords.lat,
-        lon: coords.lon,
-        types: 'neb,gxy,opcl,plnb',
-        minAlt: 20,
-      });
-      setSearchResults(result.targets.slice(0, 12));
-    } finally {
-      setIsSearching(false);
+  // Handle target selection from TargetExplorerView
+  const handleTargetSelect = (target: TelescopiusTarget) => {
+    setSelectedTarget(target);
+    setStep('details');
+    // Auto-fill title if empty
+    if (!title.trim()) {
+      setTitle(`${target.mainName} — ${primaryFilter.replace(/_/g, ' ')} Project`);
     }
-  }, [searchQuery, coords]);
+  };
 
   // Create project
   const handleCreate = async () => {
@@ -398,9 +395,9 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         targetMagnitude: selectedTarget.magnitude ?? null,
         targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
         targetImageUrl: selectedTarget.imageUrl ?? null,
-        locationSource,
-        lat: coords.lat,
-        lon: coords.lon,
+        locationSource: localLocation,
+        lat: localCoords.lat,
+        lon: localCoords.lon,
         rigId: activeRig?.id ?? null,
         primaryFilter,
       });
@@ -410,101 +407,143 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     }
   };
 
+  const handleRigChange = (rigId: string) => {
+    setActiveRigId(rigId);
+    const rig = rigs.find((r: any) => r.id === rigId);
+    setActiveRig(rig || null);
+  };
+
+  // ─── Step 1: Target selection (full TargetExplorerView) ──────────────────
+
+  if (step === 'target') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={onCancel} className="p-2 rounded-lg hover:bg-surface-secondary transition-colors">
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-display font-bold">🎯 Select Target</h1>
+              <p className="text-text-secondary text-sm">Choose a target for your astrophotography project</p>
+            </div>
+          </div>
+          <span className="text-xs text-text-secondary bg-primary/10 text-primary px-3 py-1.5 rounded-full font-medium">
+            Step 1/2
+          </span>
+        </div>
+
+        <TargetExplorerView
+          locationSource={localLocation as any}
+          onLocationChange={(src) => { setLocalLocation(src); onLocationChange(src); }}
+          onStartProject={handleTargetSelect}
+        />
+      </div>
+    );
+  }
+
+  // ─── Step 2: Project details ──────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onCancel} className="p-2 rounded-lg hover:bg-surface-secondary transition-colors">
+        <button onClick={() => setStep('target')} className="p-2 rounded-lg hover:bg-surface-secondary transition-colors">
           <ChevronLeft size={20} />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-display font-bold">🆕 New Project</h1>
-          <p className="text-text-secondary text-sm">Create an astrophotography project from a target</p>
+          <p className="text-text-secondary text-sm">Configure your project details</p>
+        </div>
+        <span className="text-xs text-text-secondary bg-emerald-500/10 text-emerald-300 px-3 py-1.5 rounded-full font-medium">
+          Step 2/2
+        </span>
+      </div>
+
+      {/* Selected target */}
+      <div className="bg-surface border border-primary/30 rounded-xl p-5 space-y-3">
+        <h3 className="font-semibold text-text flex items-center gap-2"><Target size={16} /> Selected Target</h3>
+        <div className="bg-background border border-border rounded-lg p-4 flex items-center gap-4">
+          {selectedTarget?.imageUrl ? (
+            <img src={selectedTarget.imageUrl} alt={selectedTarget.mainName} className="w-20 h-20 rounded-lg object-cover" />
+          ) : (
+            <div className="w-20 h-20 rounded-lg bg-surface-secondary flex items-center justify-center text-3xl">
+              {TYPE_EMOJIS[selectedTarget?.type || ''] || '🔭'}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-text text-lg">{selectedTarget?.mainName}</div>
+            <div className="text-sm text-text-secondary flex items-center gap-3 mt-1">
+              {selectedTarget?.magnitude != null && <span className="font-mono">mag {(selectedTarget.magnitude ?? 0).toFixed(1)}</span>}
+              {selectedTarget?.sizeArcmin != null && (selectedTarget.sizeArcmin ?? 0) > 0 && <span className="font-mono">{(selectedTarget.sizeArcmin ?? 0).toFixed(0)}'</span>}
+              {selectedTarget?.constellation && <span>{selectedTarget.constellation}</span>}
+              {selectedTarget?.type && <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-secondary">{selectedTarget.type}</span>}
+            </div>
+            {selectedTarget?.altitudeMax != null && (
+              <div className="text-xs text-text-secondary mt-1">↑ Max altitude: {(selectedTarget.altitudeMax ?? 0).toFixed(0)}°</div>
+            )}
+          </div>
+          <button onClick={() => { setSelectedTarget(null); setStep('target'); }} className="p-2 text-text-secondary hover:text-primary transition-colors">
+            Change
+          </button>
         </div>
       </div>
 
-      {/* Step 1: Title */}
+      {/* Title */}
       <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-        <h3 className="font-semibold text-text flex items-center gap-2"><span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">1</span> Project Title</h3>
+        <h3 className="font-semibold text-text">✏️ Project Title</h3>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. M42 Orion Nebula - Hα project"
+          placeholder="e.g. M42 Orion Nebula — Hα project"
           className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:border-primary"
         />
       </div>
 
-      {/* Step 2: Target selection */}
-      <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-        <h3 className="font-semibold text-text flex items-center gap-2"><span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">2</span> Target</h3>
-
-        {selectedTarget ? (
-          <div className="bg-background border border-primary/30 rounded-lg p-4 flex items-center gap-4">
-            {selectedTarget.imageUrl ? (
-              <img src={selectedTarget.imageUrl} alt={selectedTarget.mainName} className="w-16 h-16 rounded-lg object-cover" />
-            ) : (
-              <div className="w-16 h-16 rounded-lg bg-surface-secondary flex items-center justify-center text-2xl">
-                {TYPE_EMOJIS[selectedTarget.type] || '🔭'}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-text">{selectedTarget.mainName}</div>
-              <div className="text-xs text-text-secondary flex items-center gap-3">
-                {selectedTarget.magnitude != null && <span>mag {(selectedTarget.magnitude ?? 0).toFixed(1)}</span>}
-                {selectedTarget.sizeArcmin != null && selectedTarget.sizeArcmin > 0 && <span>{(selectedTarget.sizeArcmin ?? 0).toFixed(0)}'</span>}
-                <span>{selectedTarget.constellation}</span>
-                <span>{selectedTarget.type}</span>
-              </div>
-            </div>
-            <button onClick={() => setSelectedTarget(null)} className="p-1.5 text-text-secondary hover:text-red-400">
-              <X size={16} />
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search target (e.g. M42, Andromeda, Orion)..."
-                className="flex-1 bg-background border border-border rounded-lg px-4 py-2 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:border-primary"
-              />
-              <button onClick={handleSearch} disabled={isSearching} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2">
-                {isSearching ? <RotateCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Search
-              </button>
-            </div>
-            {searchResults.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                {searchResults.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTarget(t)}
-                    className="text-left bg-background border border-border rounded-lg p-3 hover:border-primary/50 transition-colors"
-                  >
-                    <div className="font-medium text-sm text-text truncate">{t.mainName}</div>
-                    <div className="text-xs text-text-secondary flex items-center gap-2 mt-1">
-                      {t.magnitude != null && <span>mag {(t.magnitude ?? 0).toFixed(1)}</span>}
-                      <span>{t.constellation}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded bg-surface-secondary`}>{t.type}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Step 3: Filter & Rig */}
+      {/* Setup: Location + Rig + Filter */}
       <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
-        <h3 className="font-semibold text-text flex items-center gap-2"><span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">3</span> Setup</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <h3 className="font-semibold text-text flex items-center gap-2"><Telescope size={16} /> Setup</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Location */}
           <div>
-            <label className="text-xs text-text-secondary block mb-1">Primary Filter</label>
+            <label className="text-xs text-text-secondary block mb-1">📍 Location</label>
+            <select
+              value={localLocation}
+              onChange={(e) => { setLocalLocation(e.target.value); onLocationChange(e.target.value); }}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+            >
+              <option value="saintEtienne">🏠 St-Étienne-du-Grès</option>
+              <option value="pradelles">🏡 Pradelles</option>
+            </select>
+          </div>
+
+          {/* Rig */}
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">🔭 Rig</label>
+            {rigs.length > 0 ? (
+              <select
+                value={activeRigId}
+                onChange={(e) => handleRigChange(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+              >
+                {rigs.map((r: any) => (
+                  <option key={r.id} value={r.id}>{r.name} — {r.telescope?.focalLength ?? '?'}mm</option>
+                ))}
+              </select>
+            ) : (
+              <div className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-secondary">No rigs configured</div>
+            )}
+            {activeRig && (
+              <div className="text-[10px] text-text-secondary mt-1 font-mono">
+                {activeRig.telescope?.focalLength ?? '?'}mm f/{activeRig.telescope?.fRatio ?? '?'} · {activeRig.imagingCamera?.pixelSize ?? '?'}µm/px
+              </div>
+            )}
+          </div>
+
+          {/* Filter */}
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">🔲 Primary Filter</label>
             <select
               value={primaryFilter}
               onChange={(e) => setPrimaryFilter(e.target.value)}
@@ -515,23 +554,17 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               ))}
             </select>
           </div>
-          <div>
-            <label className="text-xs text-text-secondary block mb-1">Rig</label>
-            <div className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text">
-              {activeRig ? `${activeRig.name} — ${activeRig.telescope?.focalLength ?? '?'}mm f/${activeRig.telescope?.fRatio ?? '?'}` : 'No default rig configured'}
-            </div>
-          </div>
         </div>
         <div className="text-xs text-text-secondary flex items-center gap-3">
-          <span className="flex items-center gap-1"><MapPin size={12} /> {locationSource === 'saintEtienne' ? 'St-Étienne-du-Grès' : locationSource === 'pradelles' ? 'Pradelles' : 'Current'}</span>
+          <span className="flex items-center gap-1"><MapPin size={12} /> {localLocation === 'saintEtienne' ? 'St-Étienne-du-Grès' : 'Pradelles'}</span>
           <span className="flex items-center gap-1"><Moon size={12} /> Moon integration included</span>
         </div>
       </div>
 
-      {/* Step 4: Exposure Preview */}
+      {/* Exposure Preview */}
       {exposurePreview && exposurePreview.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold text-text flex items-center gap-2"><span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">4</span> Exposure Plan Preview</h3>
+        <div className="bg-surface border border-emerald-500/30 rounded-xl p-5 space-y-3">
+          <h3 className="font-semibold text-text flex items-center gap-2"><span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm">📸</span> Exposure Plan</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {exposurePreview.map((plan: any, i: number) => (
               <div key={i} className="bg-background p-3 rounded-lg border border-border">
@@ -557,7 +590,6 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     </div>
   );
 };
-
 // ─── Project Detail View ──────────────────────────────────────────────────
 
 interface ProjectDetailViewProps {
