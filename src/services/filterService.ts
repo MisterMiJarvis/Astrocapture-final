@@ -6,12 +6,14 @@ import { AstroFilter, FilterCategory } from '../types/filter';
 import { FilterType, FilterProfile } from '../types/module5';
 
 const API_BASE = '/api/apls/filters';
-const LOCAL_KEY = 'astrosuite_filters_v2';
-const SEEDED_KEY = 'astrosuite_filters_v2_seeded';
-const OLD_KEY = 'astros…ters'; // old v1 key to migrate
+const LOCAL_KEY = 'astrosuite_filters_v3';
+const SEEDED_KEY = 'astrosuite_filters_v3_seeded';
 
-// Migration: clean up old v1 key if present
-try { localStorage.removeItem(OLD_KEY); } catch {}
+// Migration: clean up all old localStorage keys
+const OLD_KEYS = ['astrosuite_filters', 'astrosuite_filters_v2', 'astrosuite_filters_v2_seeded'];
+for (const oldKey of OLD_KEYS) {
+  try { localStorage.removeItem(oldKey); } catch {}
+}
 
 // ─── Default filters (from module5 FILTER_PROFILES) ──────────────────────
 
