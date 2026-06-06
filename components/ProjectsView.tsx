@@ -30,6 +30,12 @@ import {
 import TargetExplorerView from './TargetExplorerView';
 import { FilterType } from '../src/types/module5';
 import {
+  getUserOwnedFilters,
+  UserFilterInfo,
+  FILTER_TYPE_LABELS,
+  getFilterOptions,
+} from '../src/services/filterMapping';
+import {
   Plus, FolderOpen, CheckCircle2, Archive, Trash2, ChevronDown, ChevronRight,
   Telescope, MapPin, Clock, Moon, Target, Camera, Filter, BarChart3,
   X, Eye, Sparkles, Search, RotateCw, Star, ChevronLeft,
@@ -47,7 +53,9 @@ const TYPE_EMOJIS: Record<string, string> = {
   Galaxy: '🌌', Nebula: '💨', Cluster: '⭐', Planetary_Nebula: '🔮',
 };
 
-const FILTER_OPTIONS: { value: string; label: string }[] = [
+// FILTER_OPTIONS is now dynamic — loaded from user's owned filters via filterMapping.ts
+// Kept as fallback for initial render before async load completes
+const FILTER_OPTIONS_FALLBACK: { value: string; label: string }[] = [
   { value: 'L_Ultimate', label: 'L Ultimate' },
   { value: 'Luminance', label: 'Luminance' },
   { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
@@ -74,6 +82,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [preselectedTarget, setPreselectedTarget] = useState<TelescopiusTarget | null>(initialTarget || null);
+  const [filterOptions, setFilterOptions] = useState<{ value: string; label: string }[]>(FILTER_OPTIONS_FALLBACK);
+
+  // Load user's filter options dynamically
+  useEffect(() => {
+    getFilterOptions().then(opts => {
+      if (opts.length > 0) setFilterOptions(opts);
+    }).catch(() => {});
+  }, []);
 
   // Load projects
   const loadProjects = useCallback(async () => {
@@ -549,7 +565,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               onChange={(e) => setPrimaryFilter(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
             >
-              {FILTER_OPTIONS.map(f => (
+              {filterOptions.map(f => (
                 <option key={f.value} value={f.value}>{f.label}</option>
               ))}
             </select>
@@ -742,7 +758,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
               <div>
                 <label className="text-xs text-text-secondary block mb-1">Filter</label>
                 <select value={obsFilter} onChange={(e) => setObsFilter(e.target.value)} className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text">
-                  {FILTER_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  {filterOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </div>
             </div>

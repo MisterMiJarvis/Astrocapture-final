@@ -17,10 +17,16 @@ import {
   FramingAnalysis,
   RigInfo,
   recommendFiltersForTypes,
-  calculateFilterScore,
 } from '../src/services/targetExplorerService';
 import { FilterType } from '../types/module5';
 import { RigProfile } from '../types/module2';
+import {
+  getUserOwnedFilters,
+  UserFilterInfo,
+  FILTER_COLORS,
+  FILTER_TYPE_LABELS,
+  calculateEnhancedFilterScore,
+} from '../src/services/filterMapping';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Star, MapPin, Moon, Eye, SlidersHorizontal, RotateCw, Telescope, Sparkles, Target } from 'lucide-react';
 
 interface TargetExplorerProps {
@@ -56,18 +62,8 @@ const TYPE_LABELS: Record<string, string> = {
   snrm: 'SNR', gxycl: 'Galaxy Cluster', stcl: 'Star Cluster',
 };
 
-const FILTER_COLORS: Record<FilterType, string> = {
-  UV_IR_Cut: 'bg-blue-500/20 text-blue-300',
-  L_Ultimate: 'bg-purple-500/20 text-purple-300',
-  LPS_D2: 'bg-green-500/20 text-green-300',
-  Ha: 'bg-red-500/20 text-red-300',
-  OIII: 'bg-cyan-500/20 text-cyan-300',
-  SII: 'bg-orange-500/20 text-orange-300',
-  RGB: 'bg-pink-500/20 text-pink-300',
-  Luminance: 'bg-slate-500/20 text-slate-300',
-};
-
-const ALL_FILTERS: FilterType[] = ['Ha', 'OIII', 'SII', 'L_Ultimate', 'UV_IR_Cut', 'RGB', 'Luminance', 'LPS_D2'];
+// FILTER_COLORS and ALL_FILTERS now come dynamically from filterMapping.ts
+// See getUserOwnedFilters() — only shows filters the user owns
 
 const FIT_COLORS: Record<string, string> = {
   perfect: 'border-green-500/50 bg-green-500/5',
@@ -98,7 +94,17 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
   const [bestError, setBestError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType | 'all'>('all');
   const [minAlt, setMinAlt] = useState(30);
+  const [userFilters, setUserFilters] = useState<UserFilterInfo[]>([]);
+  const [ownedFilterTypes, setOwnedFilterTypes] = useState<FilterType[]>([]);
   const bestLoadedRef = useRef(false);
+
+  // Load user's owned filters
+  useEffect(() => {
+    getUserOwnedFilters().then(uf => {
+      setUserFilters(uf);
+      setOwnedFilterTypes(uf.map(f => f.filterType).filter((v, i, a) => a.indexOf(v) === i));
+    }).catch(() => {});
+  }, []);
 
   const coords = LOCATION_COORDS[locationSource] || LOCATION_COORDS.saintEtienne;
 
@@ -287,14 +293,21 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             )}
           </div>
 
-          {/* Dynamic filter recommendations */}
+          {/* Dynamic filter recommendations (user-owned filters highlighted) */}
           {recommendedFilters.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {recommendedFilters.slice(0, 3).map(f => (
-                <span key={f} className={`text-[9px] px-1.5 py-0.5 rounded ${FILTER_COLORS[f] || 'bg-slate-500/20 text-slate-300'}`}>
-                  {f.replace(/_/g, ' ')}
-                </span>
-              ))}
+              {recommendedFilters.slice(0, 3).map(f => {
+                const isOwned = ownedFilterTypes.includes(f);
+                return (
+                  <span key={f} className={`text-[9px] px-1.5 py-0.5 rounded ${
+                    isOwned
+                      ? (FILTER_COLORS[f] || 'bg-slate-500/20 text-slate-300')
+                      : 'bg-slate-800/30 text-slate-500 line-through opacity-60'
+                  }`}>
+                    {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
+                  </span>
+                );
+              })}
             </div>
           )}
 
@@ -439,7 +452,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
               >
                 All
               </button>
-              {ALL_FILTERS.map(f => (
+              {ownedFilterTypes.map(f => (
                 <button
                   key={f}
                   onClick={() => setActiveFilter(f)}
@@ -447,7 +460,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                     activeFilter === f ? FILTER_COLORS[f] + ' ring-1 ring-current' : 'bg-surface-secondary text-text-secondary hover:text-text'
                   }`}
                 >
-                  {f.replace(/_/g, ' ')}
+                  {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
                 </button>
               ))}
             </div>
@@ -715,18 +728,33 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             </div>
           </div>
 
-          {/* Recommended filters */}
+          {/* Recommended filters (with ownership status) */}
           {(() => {
             const types = selectedTarget.type ? selectedTarget.type.split(',') : [];
             const recFilters = recommendFiltersForTypes(types);
+            const moonIllum = selectedTarget.moonIllumination ?? (selectedTarget.moonSeparation != null ? 0.5 : 0);
             return recFilters.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs text-text-secondary">Recommended filters:</span>
-                {recFilters.map(f => (
-                  <span key={f} className={`text-[10px] px-2 py-0.5 rounded-full ${FILTER_COLORS[f] || 'bg-slate-500/20 text-slate-300'}`}>
-                    {f.replace(/_/g, ' ')}
-                  </span>
-                ))}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-text-secondary">Recommended:</span>
+                {recFilters.map(f => {
+                  const isOwned = ownedFilterTypes.includes(f);
+                  const ownedFilter = userFilters.find(uf => uf.filterType === f);
+                  return (
+                    <span key={f} className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      isOwned
+                        ? (FILTER_COLORS[f] || 'bg-slate-500/20 text-slate-300')
+                        : 'bg-slate-800/30 text-slate-500 line-through opacity-60'
+                    }`}>
+                      {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
+                      {isOwned && ownedFilter && ` ${ownedFilter.filter.bandwidthNm}nm`}
+                    </span>
+                  );
+                })}
+                {(() => {
+                  const score = calculateEnhancedFilterScore(recFilters, userFilters, moonIllum);
+                  const scoreColor = score >= 80 ? 'text-emerald-300' : score >= 50 ? 'text-yellow-300' : 'text-red-300';
+                  return <span className={`text-[10px] ${scoreColor} ml-1`}>⚡{score}%</span>;
+                })()}
               </div>
             );
           })()}
