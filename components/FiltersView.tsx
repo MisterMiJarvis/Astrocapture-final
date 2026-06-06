@@ -351,19 +351,31 @@ export const FiltersView: React.FC = () => {
                     <span className="text-xs text-text-secondary">Spectral Bandwidth</span>
                     <span className="font-mono text-sm font-bold text-text">{filter.bandwidthNm} nm</span>
                   </div>
-                  <div className="relative h-8 bg-gradient-to-r from-violet-400 via-cyan-400 to-red-400 rounded-full overflow-hidden opacity-20">
+                  {/* Spectrum bar — visible rainbow background with blocked regions dimmed */}
+                  <div className="relative h-10 rounded-lg overflow-hidden" style={{ background: 'linear-gradient(to right, #380036, #4400a8, #0044ff, #00ccff, #00ff44, #ccff00, #ffaa00, #ff2200, #660000)' }}>
+                    {/* Blocked overlays */}
+                    <div className="absolute top-0 bottom-0 left-0 bg-black/70" style={{ width: `${Math.max(0, ((filter.centerWavelengthNm - filter.bandwidthNm / 2) - 400) / 300 * 100)}%` }} />
+                    <div className="absolute top-0 bottom-0 right-0 bg-black/70" style={{ width: `${Math.max(0, (700 - (filter.centerWavelengthNm + filter.bandwidthNm / 2)) / 300 * 100)}%` }} />
+                    {/* Passband highlight */}
                     <div
-                      className="absolute top-0 bottom-0 rounded-full opacity-80"
+                      className="absolute top-1 bottom-1 rounded-md"
                       style={{
-                        left: `${Math.max(5, 50 - (filter.bandwidthNm / 700) * 50)}%`,
-                        width: `${Math.max(3, (filter.bandwidthNm / 700) * 100)}%`,
+                        left: `${((filter.centerWavelengthNm - filter.bandwidthNm / 2) - 400) / 300 * 100}%`,
+                        width: `${(filter.bandwidthNm / 300) * 100}%`,
                         backgroundColor: filter.color,
+                        opacity: 0.9,
+                        boxShadow: `0 0 8px ${filter.color}80, 0 0 20px ${filter.color}40`,
+                        border: '2px solid rgba(255,255,255,0.7)',
                       }}
-                    />
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[10px] font-mono font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{filter.bandwidthNm}nm</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-[9px] text-text-secondary mt-1">
+                  <div className="flex justify-between text-[10px] text-text-secondary mt-1.5 font-mono">
                     <span>400nm</span>
-                    <span>{filter.centerWavelengthNm}nm center</span>
+                    <span className="text-text">{filter.centerWavelengthNm}nm λ<sub>c</sub></span>
                     <span>700nm</span>
                   </div>
                 </div>
