@@ -6,7 +6,7 @@ import { fetchProjects, calculateProgress } from '../src/services/projectService
 import { Project } from '../src/types/project';
 import { TelescopiusTarget } from '../src/services/targetExplorerService';
 import TargetExplorerView from './TargetExplorerView';
-import { Moon, Target } from 'lucide-react';
+import { Moon, Target, Camera } from 'lucide-react';
 
 const PRESET_LOCATIONS: Record<string, { lat: number; lon: number }> = {
   saintEtienne: { lat: 43.7889, lon: 4.7533 },
