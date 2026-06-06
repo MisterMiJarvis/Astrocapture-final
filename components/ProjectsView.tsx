@@ -3,7 +3,7 @@
 // Create projects from targets, track observations, progress tracking
 // ============================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Project,
   ProjectStatus,
