@@ -3,7 +3,7 @@
 // Create projects from targets, track observations, progress tracking
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Project,
   ProjectStatus,
@@ -67,18 +67,6 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [preselectedTarget, setPreselectedTarget] = useState<TelescopiusTarget | null>(initialTarget || null);
-  // Filter options for project filter dropdown
-  // useMemo ensures this stays in the component closure and can't be shadowed by Vite minification
-  const filterOptions = useMemo(() => [
-    { value: 'L_Ultimate', label: 'L Ultimate' },
-    { value: 'LPS_D2', label: 'LPS-D2' },
-    { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
-    { value: 'Ha', label: 'Hα' },
-    { value: 'OIII', label: 'OIII' },
-    { value: 'SII', label: 'SII' },
-    { value: 'RGB', label: 'RGB' },
-    { value: 'Luminance', label: 'Luminance' },
-  ], []);
   // Load projects
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
@@ -553,7 +541,16 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               onChange={(e) => setPrimaryFilter(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
             >
-              {filterOptions.map(f => (
+              {[
+                { value: 'L_Ultimate', label: 'L Ultimate' },
+                { value: 'LPS_D2', label: 'LPS-D2' },
+                { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
+                { value: 'Ha', label: 'Hα' },
+                { value: 'OIII', label: 'OIII' },
+                { value: 'SII', label: 'SII' },
+                { value: 'RGB', label: 'RGB' },
+                { value: 'Luminance', label: 'Luminance' },
+              ].map(f => (
                 <option key={f.value} value={f.value}>{f.label}</option>
               ))}
             </select>
@@ -756,7 +753,16 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
               <div>
                 <label className="text-xs text-text-secondary block mb-1">Filter</label>
                 <select value={obsFilter} onChange={(e) => setObsFilter(e.target.value)} className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text">
-                  {filterOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  {[
+                    { value: 'L_Ultimate', label: 'L Ultimate' },
+                    { value: 'LPS_D2', label: 'LPS-D2' },
+                    { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
+                    { value: 'Ha', label: 'Hα' },
+                    { value: 'OIII', label: 'OIII' },
+                    { value: 'SII', label: 'SII' },
+                    { value: 'RGB', label: 'RGB' },
+                    { value: 'Luminance', label: 'Luminance' },
+                  ].map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </div>
             </div>
