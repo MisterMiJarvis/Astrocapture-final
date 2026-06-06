@@ -411,6 +411,7 @@ app.get('/api/telescopius/highlights', async (c) => {
   const mag_max = c.req.query('mag_max') || '';
   const results_per_page = c.req.query('results_per_page') || '30';
   
+  console.log(`[highlights] lat=${lat} lon=${lon} tz=${timezone} min_alt=${min_alt}`);
   try {
     const proxyParams: Record<string, string> = { lat, lon, timezone, min_alt };
     if (types) proxyParams.types = types;

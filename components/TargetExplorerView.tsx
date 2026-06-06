@@ -62,8 +62,11 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  gxy: 'Galaxy', neb: 'Nebula', opcl: 'Open Cluster', plnb: 'Planetary Nebula',
-  snrm: 'SNR', gxycl: 'Galaxy Cluster', stcl: 'Star Cluster',
+  gxy: 'Galaxy', lgx: 'Lenticular Galaxy', sgx: 'Spiral Galaxy', pogx: 'Peculiar Galaxy', igxs: 'Interacting Galaxy', sfgx: 'Starburst Galaxy', agn: 'AGN',
+  neb: 'Nebula', eneb: 'Emission Nebula', rneb: 'Reflection Nebula', dineb: 'Dark Nebula', h2r: 'HII Region',
+  opcl: 'Open Cluster', gycl: 'Globular Cluster', stcl: 'Star Cluster',
+  plnb: 'Planetary Nebula', snrm: 'SNR', gxycl: 'Galaxy Cluster',
+  dso: 'Deep Sky Object',
 };
 
 // FILTER_COLORS and ALL_FILTERS now come dynamically from filterMapping.ts
@@ -161,7 +164,8 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
       }
       setBestTargets(targets.filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt));
     } catch (err) {
-      setBestError('Failed to load best targets.');
+      console.error('Best targets load error:', err);
+      setBestError(`Failed to load best targets: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setBestLoading(false);
     }

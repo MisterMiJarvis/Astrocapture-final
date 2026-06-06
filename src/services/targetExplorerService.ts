@@ -393,13 +393,15 @@ export function mapApiTarget(t: any): TelescopiusTarget {
   };
 }
 
-function parseRaToDeg(ra: string): number {
+function parseRaToDeg(ra: string | number): number {
+  if (typeof ra === 'number') return ra;
   if (!ra || !ra.includes(':')) return parseFloat(ra) || 0;
   const parts = ra.split(':').map(Number);
   return (parts[0] || 0) * 15 + (parts[1] || 0) * 0.25 + (parts[2] || 0) / 240;
 }
 
-function parseDecToDeg(dec: string): number {
+function parseDecToDeg(dec: string | number): number {
+  if (typeof dec === 'number') return dec;
   if (!dec || !dec.includes(':')) return parseFloat(dec) || 0;
   const sign = dec.startsWith('-') ? -1 : 1;
   const parts = dec.replace(/[+-]/, '').split(':').map(Number);
