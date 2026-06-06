@@ -407,7 +407,7 @@ app.get('/api/telescopius/highlights', async (c) => {
   const lon = c.req.query('lon') || '4.7533';
   const timezone = c.req.query('timezone') || 'Europe/Paris';
   const min_alt = c.req.query('min_alt') || '20';
-  const types = c.req.query('types') || '';
+  const types = c.req.query('types') || c.req.query('type') || '';
   const mag_max = c.req.query('mag_max') || '';
   const results_per_page = c.req.query('results_per_page') || '30';
   

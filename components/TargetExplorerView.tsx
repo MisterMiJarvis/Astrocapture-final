@@ -141,7 +141,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
       .catch(() => {});
   }, []);
 
-  // Fetch best targets tonight (using highlights endpoint for altitude data)
+  // Fetch best targets tonight — single highlights call, then diversify client-side
   const loadBestTargets = useCallback(async () => {
     setBestLoading(true);
     setBestError(null);
@@ -151,18 +151,35 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
         lon: coords.lon.toString(),
         timezone: 'Europe/Paris',
         min_alt: minAlt.toString(),
-        results_per_page: '30',
+        results_per_page: '50',
       });
       const response = await fetch(`/api/telescopius/highlights?${params.toString()}`, {
         headers: telescopiusAuthHeaders(),
       });
       if (!response.ok) throw new Error(`Highlights failed: ${response.status}`);
       const data = await response.json();
-      const targets: TelescopiusTarget[] = (data.targets || []).map(mapApiTarget);
-      if (targets.length === 0) {
+      const allTargets: TelescopiusTarget[] = (data.targets || [])
+        .map(mapApiTarget)
+        .filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt);
+
+      // Group by type category and interleave for diversity
+      const nebulae = allTargets.filter(t => ['eneb','rneb','dineb','h2r','plnb','snrm','neb'].includes(t.type));
+      const galaxies = allTargets.filter(t => ['gxy','lgx','sgx','igxs','sfgx','pogx','cgxs','egx','ggxs'].includes(t.type));
+      const clusters = allTargets.filter(t => ['opcl','gycl','stcl','mcl','glcl'].includes(t.type));
+
+      const groups = [nebulae.slice(0, 10), galaxies.slice(0, 10), clusters.slice(0, 10)];
+      const merged: TelescopiusTarget[] = [];
+      const maxLen = Math.max(...groups.map(g => g.length));
+      for (let i = 0; i < maxLen; i++) {
+        for (const group of groups) {
+          if (group[i]) merged.push(group[i]);
+        }
+      }
+
+      if (merged.length === 0) {
         setBestError('No targets visible tonight. Try lowering the altitude filter.');
       }
-      setBestTargets(targets.filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt));
+      setBestTargets(merged);
     } catch (err) {
       console.error('Best targets load error:', err);
       setBestError(`Failed to load best targets: ${err instanceof Error ? err.message : 'Unknown error'}`);
