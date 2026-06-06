@@ -32,9 +32,7 @@ import { FilterType } from '../src/types/module5';
 import {
   getUserOwnedFilters,
   UserFilterInfo,
-  FILTER_TYPE_LABELS,
-  getFilterOptions,
-} from '../src/services/filterMapping';
+  FILTER_TYPE_LABELS,} from '../src/services/filterMapping';
 import {
   Plus, FolderOpen, CheckCircle2, Archive, Trash2, ChevronDown, ChevronRight,
   Telescope, MapPin, Clock, Moon, Target, Camera, Filter, BarChart3,
@@ -53,19 +51,6 @@ const TYPE_EMOJIS: Record<string, string> = {
   Galaxy: '🌌', Nebula: '💨', Cluster: '⭐', Planetary_Nebula: '🔮',
 };
 
-// FILTER_OPTIONS is now dynamic — loaded from user's owned filters via filterMapping.ts
-// Kept as fallback for initial render before async load completes
-const FILTER_OPTIONS_FALLBACK: { value: string; label: string }[] = [
-  { value: 'L_Ultimate', label: 'L Ultimate' },
-  { value: 'Luminance', label: 'Luminance' },
-  { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
-  { value: 'Ha', label: 'Hα' },
-  { value: 'OIII', label: 'OIII' },
-  { value: 'SII', label: 'SII' },
-  { value: 'RGB', label: 'RGB' },
-  { value: 'LPS_D2', label: 'LPS-D2' },
-];
-
 interface ProjectsViewProps {
   locationSource: string;
   onLocationChange: (source: any) => void;
@@ -82,7 +67,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [preselectedTarget, setPreselectedTarget] = useState<TelescopiusTarget | null>(initialTarget || null);
-  const [filterOptions, setFilterOptions] = useState<{ value: string; label: string }[]>([
+  // Filter options for project filter dropdown
+  // useMemo ensures this stays in the component closure and can't be shadowed by Vite minification
+  const filterOptions = useMemo(() => [
     { value: 'L_Ultimate', label: 'L Ultimate' },
     { value: 'LPS_D2', label: 'LPS-D2' },
     { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
@@ -91,8 +78,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
     { value: 'SII', label: 'SII' },
     { value: 'RGB', label: 'RGB' },
     { value: 'Luminance', label: 'Luminance' },
-  ]);
-
+  ], []);
   // Load projects
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
