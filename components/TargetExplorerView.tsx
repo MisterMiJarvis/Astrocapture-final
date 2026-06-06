@@ -25,6 +25,8 @@ import {
   UserFilterInfo,
   FILTER_COLORS,
   FILTER_TYPE_LABELS,
+  FILTER_TYPE_COVERAGE,
+  translateRecommendations,
   calculateEnhancedFilterScore,
 } from '../src/services/filterMapping';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Star, MapPin, Moon, Eye, SlidersHorizontal, RotateCw, Telescope, Sparkles, Target } from 'lucide-react';
@@ -213,13 +215,15 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
     ([k, v]) => v !== undefined && v !== '' && !['lat', 'lon', 'timezone', 'resultsPerPage'].includes(k)
   ).length;
 
-  // Apply filter to best targets
+  // Apply filter to best targets — use coverage map so L_Ultimate matches Ha/OIII targets
   const filteredBestTargets = activeFilter === 'all'
     ? bestTargets
     : bestTargets.filter(t => {
         const types = t.type ? t.type.split(',') : [];
         const recommended = recommendFiltersForTypes(types);
-        return recommended.includes(activeFilter);
+        // Check if any recommended filter is covered by the active filter
+        const activeFilterCovers = FILTER_TYPE_COVERAGE[activeFilter as FilterType] || [activeFilter];
+        return recommended.some(r => activeFilterCovers.includes(r));
       });
 
   const displayTargets = activeTab === 'bestTonight' ? filteredBestTargets : (results?.targets || []);
@@ -293,23 +297,24 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             )}
           </div>
 
-          {/* Dynamic filter recommendations (user-owned filters highlighted) */}
-          {recommendedFilters.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {recommendedFilters.slice(0, 3).map(f => {
-                const isOwned = ownedFilterTypes.includes(f);
-                return (
-                  <span key={f} className={`text-[9px] px-1.5 py-0.5 rounded ${
-                    isOwned
-                      ? (FILTER_COLORS[f] || 'bg-slate-500/20 text-slate-300')
-                      : 'bg-slate-800/30 text-slate-500 line-through opacity-60'
-                  }`}>
+          {/* Dynamic filter recommendations — translated to owned filters */}
+          {recommendedFilters.length > 0 && (() => {
+            const { owned, missing } = translateRecommendations(recommendedFilters, userFilters);
+            return (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {owned.map(uf => (
+                  <span key={uf.filterType} className={`text-[9px] px-1.5 py-0.5 rounded ${uf.color}`}>
+                    {uf.label}{uf.filter.bandwidthNm <= 30 ? ` ${uf.filter.bandwidthNm}nm` : ''}
+                  </span>
+                ))}
+                {missing.map(f => (
+                  <span key={`m-${f}`} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/30 text-slate-500 line-through opacity-60">
                     {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
                   </span>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Framing indicator */}
           {framing && (() => {
@@ -728,28 +733,25 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             </div>
           </div>
 
-          {/* Recommended filters (with ownership status) */}
+          {/* Recommended filters — translated to owned filters with coverage */}
           {(() => {
             const types = selectedTarget.type ? selectedTarget.type.split(',') : [];
             const recFilters = recommendFiltersForTypes(types);
             const moonIllum = selectedTarget.moonIllumination ?? (selectedTarget.moonSeparation != null ? 0.5 : 0);
-            return recFilters.length > 0 && (
+            const { owned, missing } = translateRecommendations(recFilters, userFilters);
+            return (owned.length > 0 || missing.length > 0) && (
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-xs text-text-secondary">Recommended:</span>
-                {recFilters.map(f => {
-                  const isOwned = ownedFilterTypes.includes(f);
-                  const ownedFilter = userFilters.find(uf => uf.filterType === f);
-                  return (
-                    <span key={f} className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      isOwned
-                        ? (FILTER_COLORS[f] || 'bg-slate-500/20 text-slate-300')
-                        : 'bg-slate-800/30 text-slate-500 line-through opacity-60'
-                    }`}>
-                      {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
-                      {isOwned && ownedFilter && ` ${ownedFilter.filter.bandwidthNm}nm`}
-                    </span>
-                  );
-                })}
+                {owned.map(uf => (
+                  <span key={uf.filterType} className={`text-[10px] px-2 py-0.5 rounded-full ${uf.color}`}>
+                    {uf.label}{uf.filter.bandwidthNm <= 30 ? ` ${uf.filter.bandwidthNm}nm` : ''}
+                  </span>
+                ))}
+                {missing.map(f => (
+                  <span key={`m-${f}`} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/30 text-slate-500 line-through opacity-60">
+                    {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
+                  </span>
+                ))}
                 {(() => {
                   const score = calculateEnhancedFilterScore(recFilters, userFilters, moonIllum);
                   const scoreColor = score >= 80 ? 'text-emerald-300' : score >= 50 ? 'text-yellow-300' : 'text-red-300';

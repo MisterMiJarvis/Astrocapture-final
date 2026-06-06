@@ -108,11 +108,31 @@ export const FILTER_COLORS: Record<FilterType, string> = {
   Luminance: 'bg-slate-500/20 text-slate-300',
 };
 
+/**
+ * Coverage map: which FilterTypes does each FilterType cover?
+ * L_Ultimate (dual-3nm) covers Ha + OIII
+ * LPS_D2 (anti-pollution) covers UV_IR_Cut in light-polluted areas
+ * Ha, OIII, SII cover themselves only
+ * RGB covers Luminance (wider band, similar use)
+ */
+export const FILTER_TYPE_COVERAGE: Record<FilterType, FilterType[]> = {
+  UV_IR_Cut: ['UV_IR_Cut'],
+  L_Ultimate: ['L_Ultimate', 'Ha', 'OIII'], // dual Ha+OIII
+  LPS_D2: ['LPS_D2', 'UV_IR_Cut'], // anti-pollution covers broadband role too
+  Ha: ['Ha'],
+  OIII: ['OIII'],
+  SII: ['SII'],
+  RGB: ['RGB', 'Luminance'], // RGB set covers luminance role
+  Luminance: ['Luminance', 'RGB'], // Luminance covers RGB role in LRGB
+};
+
 export interface UserFilterInfo {
   filter: AstroFilter;
   filterType: FilterType;
   label: string;
   color: string;
+  /** Which FilterTypes this filter can substitute for */
+  covers: FilterType[];
 }
 
 /**
@@ -128,7 +148,8 @@ export async function getUserOwnedFilters(): Promise<UserFilterInfo[]> {
       const filterType = getFilterType(filter);
       const label = FILTER_TYPE_LABELS[filterType] || filter.name;
       const color = FILTER_COLORS[filterType] || 'bg-slate-500/20 text-slate-300';
-      return { filter, filterType, label, color };
+      const covers = FILTER_TYPE_COVERAGE[filterType] || [filterType];
+      return { filter, filterType, label, color, covers };
     })
     .sort((a, b) => {
       // Sort: narrowband → dualband → anti_pollution → broadband
@@ -192,8 +213,51 @@ export async function getOwnedFilterByType(filterType: FilterType): Promise<Astr
 }
 
 /**
- * Enhanced filter score using real filter specs.
- * Takes into account bandwidth, transmission, and moon compatibility.
+ * Translate generic filter recommendations (from TYPE_FILTER_MAP) into
+ * user-owned filters, using the coverage map.
+ * E.g. if recommended = ['Ha', 'OIII', 'SII'] and user owns L_Ultimate,
+ * result = ['L_Ultimate'] (covers Ha+OIII), and SII stays as "missing".
+ */
+export function translateRecommendations(
+  recommendedFilters: FilterType[],
+  userFilters: UserFilterInfo[],
+): { owned: UserFilterInfo[]; missing: FilterType[] } {
+  // Build a map: for each FilterType the user owns, what does it cover?
+  const coverageMap = new Map<FilterType, UserFilterInfo>();
+  for (const uf of userFilters) {
+    for (const coveredType of uf.covers) {
+      // Prefer the more specific filter (e.g., Ha over L_Ultimate for Ha)
+      const existing = coverageMap.get(coveredType);
+      if (!existing || uf.filter.bandwidthNm < existing.filter.bandwidthNm) {
+        coverageMap.set(coveredType, uf);
+      }
+    }
+  }
+
+  const ownedResult: UserFilterInfo[] = [];
+  const missingResult: FilterType[] = [];
+  const addedOwned = new Set<FilterType>();
+
+  for (const rec of recommendedFilters) {
+    const matchingOwned = coverageMap.get(rec);
+    if (matchingOwned) {
+      // Add the owned filter that covers this recommendation
+      if (!addedOwned.has(matchingOwned.filterType)) {
+        addedOwned.add(matchingOwned.filterType);
+        ownedResult.push(matchingOwned);
+      }
+    } else {
+      missingResult.push(rec);
+    }
+  }
+
+  return { owned: ownedResult, missing: missingResult };
+}
+
+/**
+ * Enhanced filter score using real filter specs + coverage.
+ * Takes into account bandwidth, transmission, moon compatibility, and
+ * how well the user's owned filters cover the recommendations.
  */
 export function calculateEnhancedFilterScore(
   recommendedFilters: FilterType[],
@@ -202,37 +266,40 @@ export function calculateEnhancedFilterScore(
 ): number {
   if (recommendedFilters.length === 0) return 50;
 
-  const ownedTypes = new Set(userFilters.map(uf => uf.filterType));
+  const { owned, missing } = translateRecommendations(recommendedFilters, userFilters);
 
-  // Check if best recommended filter is owned
-  const bestFilter = recommendedFilters[0];
-  if (!ownedTypes.has(bestFilter)) {
-    // Check if any recommended filter is owned
-    const matchCount = recommendedFilters.filter(f => ownedTypes.has(f)).length;
-    if (matchCount === 0) return 20;
-    return Math.round(30 + (matchCount / recommendedFilters.length) * 70);
+  // Base score from coverage ratio
+  const coverageRatio = owned.length / recommendedFilters.length;
+  if (coverageRatio === 0) return 20; // nothing covered
+
+  let score = Math.round(40 + coverageRatio * 60); // 40-100 base
+
+  // If best recommended filter is covered
+  const bestRec = recommendedFilters[0];
+  const coversBest = owned.some(uf => uf.covers.includes(bestRec));
+  if (coversBest) score = Math.max(score, 85);
+
+  // Moon adjustments
+  if (moonIllumination > 0.2) {
+    const moonOwned = owned.find(uf => uf.filter.moonCompatible);
+    if (moonOwned) {
+      score += 5; // bonus for moon-compatible filter available
+    } else {
+      score -= Math.round(moonIllumination * 15); // penalty
+    }
   }
 
-  // Best filter is owned — refine score based on specs and moon conditions
-  const bestOwned = userFilters.find(uf => uf.filterType === bestFilter);
-  if (!bestOwned) return 100;
-
-  let score = 100;
-
-  // Moon penalty: if filter is not moon-compatible and moon is up
-  if (moonIllumination > 0.2 && !bestOwned.filter.moonCompatible) {
-    const penalty = moonIllumination * 20; // up to -20 points
-    score -= penalty;
+  // Bandwidth bonus for narrowband targets
+  const narrowbandOwned = owned.find(uf => uf.filter.bandwidthNm <= 7);
+  if (narrowbandOwned) {
+    if (narrowbandOwned.filter.bandwidthNm <= 3) score += 5;
+    else score += 2;
   }
 
-  // Moon bonus: if filter IS moon-compatible and moon is up, less penalty
-  if (moonIllumination > 0.2 && bestOwned.filter.moonCompatible) {
-    score += 5; // small bonus for moon compatibility
+  // Missing critical filters penalty
+  if (missing.length > 0 && missing.includes(bestRec)) {
+    score -= 15; // best filter not covered
   }
-
-  // Bandwidth bonus: narrower = better for emission targets
-  if (bestOwned.filter.bandwidthNm <= 3) score += 5;
-  if (bestOwned.filter.bandwidthNm <= 7 && bestOwned.filter.bandwidthNm > 3) score += 2;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
