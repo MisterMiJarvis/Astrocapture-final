@@ -635,28 +635,38 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   const statusCfg = STATUS_CONFIG[project.status];
 
   const handleAddObservation = async () => {
-    const obs: AddObservationData = {
-      date: obsDate,
-      exposuresTaken: obsExposures,
-      exposureDuration: obsDuration,
-      filter: obsFilter,
-      seeing: obsSeeing ? parseFloat(obsSeeing) : null,
-      guidingRms: obsGuiding ? parseFloat(obsGuiding) : null,
-      notes: obsNotes,
-    };
-    const updated = await addObservation(project.id, obs);
-    setProject(updated);
-    onUpdate(updated);
-    setShowAddObs(false);
-    setObsExposures(10);
-    setObsDuration(120);
-    setObsNotes('');
+    try {
+      const obs: AddObservationData = {
+        date: obsDate,
+        exposuresTaken: obsExposures,
+        exposureDuration: obsDuration,
+        filter: obsFilter,
+        seeing: obsSeeing ? parseFloat(obsSeeing) : null,
+        guidingRms: obsGuiding ? parseFloat(obsGuiding) : null,
+        notes: obsNotes,
+      };
+      const updated = await addObservation(project.id, obs);
+      setProject(updated);
+      onUpdate(updated);
+      setShowAddObs(false);
+      setObsExposures(10);
+      setObsDuration(120);
+      setObsNotes('');
+    } catch (err) {
+      console.error('Failed to add observation:', err);
+      alert('Failed to add observation: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
   };
 
   const handleDeleteObservation = async (obsId: string) => {
-    const updated = await deleteObservation(project.id, obsId);
-    setProject(updated);
-    onUpdate(updated);
+    try {
+      const updated = await deleteObservation(project.id, obsId);
+      setProject(updated);
+      onUpdate(updated);
+    } catch (err) {
+      console.error('Failed to delete observation:', err);
+      alert('Failed to delete observation: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
   };
 
   const handleStatusChange = async (status: ProjectStatus) => {
