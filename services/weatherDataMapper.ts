@@ -282,6 +282,21 @@ export const mapNightlyForecast = (data: AstroForecastResponse | null): NightlyF
         }
     };
 
+    // Helper to estimate moon illumination percentage (0-100)
+    const getMoonIllumination = (date: Date): number => {
+        let year = date.getFullYear();
+        let month = date.getMonth() + 1;
+        let day = date.getDate();
+        if (month < 3) { year--; month += 12; }
+        const c = 365.25 * year;
+        const e = 30.6 * month;
+        const jd = c + e + day - 694039.09;
+        const b = jd / 29.5305882;
+        const phase = b - Math.floor(b); // fractional part = phase angle (0=New, 0.5=Full)
+        // Illumination = (1 - cos(phase * 2π)) / 2 * 100
+        return Math.round(((1 - Math.cos(phase * 2 * Math.PI)) / 2) * 100);
+    };
+
     // Iterate through days
     // We start from today.
     const today = new Date();
@@ -358,6 +373,7 @@ export const mapNightlyForecast = (data: AstroForecastResponse | null): NightlyF
             avgCloudCover: avgCloud,
             precipitationChance: totalPrecip > 0 ? 100 : 0, // Simplified
             moonPhase: getMoonPhase(currentDate),
+            moonIllumination: getMoonIllumination(currentDate),
             condition,
             summary
         });

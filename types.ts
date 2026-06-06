@@ -347,6 +347,7 @@ export interface NightlyForecast {
   avgCloudCover: number;
   precipitationChance: number;
   moonPhase: string;
+  moonIllumination: number;
   condition: 'Excellent' | 'Good' | 'Fair' | 'Poor';
   summary: string;
 }
