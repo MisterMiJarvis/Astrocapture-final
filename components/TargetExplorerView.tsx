@@ -242,18 +242,18 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           )}
           {target.altitudeMax != null && (
             <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full font-mono">
-              ↑{target.altitudeMax.toFixed(0)}°
+              ↑{(target.altitudeMax ?? 0).toFixed(0)}°
             </div>
           )}
           {target.moonSeparation != null && (
             <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
-              <Moon size={10} /> {target.moonSeparation.toFixed(0)}°
+              <Moon size={10} /> {(target.moonSeparation ?? 0).toFixed(0)}°
             </div>
           )}
           {/* Imaging hours badge */}
           {target.totalImagingHours > 0 && (
             <div className="absolute bottom-2 right-2 bg-emerald-500/80 text-white text-xs px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
-              ⏱ {target.totalImagingHours.toFixed(1)}h
+              ⏱ {(target.totalImagingHours ?? 0).toFixed(1)}h
             </div>
           )}
         </div>
@@ -276,12 +276,12 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             )}
             {target.magnitude != null && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300 font-mono">
-                mag {target.magnitude.toFixed(1)}
+                mag {(target.magnitude ?? 0).toFixed(1)}
               </span>
             )}
             {target.sizeArcmin != null && target.sizeArcmin > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300 font-mono">
-                {target.sizeArcmin.toFixed(0)}'
+                {(target.sizeArcmin ?? 0).toFixed(0)}'
               </span>
             )}
           </div>
@@ -308,7 +308,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                   {fitIcons[framing.fitStatus]} {framing.fitStatus === 'too_large' ? 'Mosaic' : framing.fitStatus === 'perfect' ? 'Perfect' : framing.fitStatus === 'good' ? 'Good' : framing.fitStatus === 'tight' ? 'Tight' : '?'}
                 </span>
                 {framing.coveragePercent != null && (
-                  <span className="text-[10px] text-text-secondary font-mono">{framing.coveragePercent.toFixed(0)}% FOV</span>
+                  <span className="text-[10px] text-text-secondary font-mono">{(framing.coveragePercent ?? 0).toFixed(0)}% FOV</span>
                 )}
               </div>
             );
@@ -320,9 +320,9 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
               {target.imagingWindows.slice(0, 2).map((w, i) => (
                 <div key={i} className="flex items-center justify-between text-[9px] text-text-secondary font-mono bg-background/50 px-1.5 py-0.5 rounded">
                   <span>{w.start} → {w.end}</span>
-                  <span>{w.hours.toFixed(1)}h</span>
+                  <span>{(w.hours ?? 0).toFixed(1)}h</span>
                   {w.moonIllumination != null && (
-                    <span>🌑 {(w.moonIllumination * 100).toFixed(0)}%</span>
+                    <span>🌑 {((w.moonIllumination ?? 0) * 100).toFixed(0)}%</span>
                   )}
                 </div>
               ))}
@@ -464,9 +464,9 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           {/* Rig info */}
           {defaultRig && (
             <div className="text-xs text-text-secondary flex items-center gap-3">
-              <span>📐 FOV: {defaultRig.fovWidth.toFixed ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.focalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.focalLength).toFixed(1)}'` : '—'}</span>
+              <span>📐 FOV: {defaultRig.sensorWidth && defaultRig.focalLength ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.focalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.focalLength).toFixed(1)}'` : '—'}</span>
               <span>|</span>
-              <span>📏 Scale: {defaultRig.pixelSize ? `${((defaultRig.pixelSize * 206.265) / defaultRig.focalLength).toFixed(2)}"/px` : '—'}</span>
+              <span>📏 Scale: {defaultRig.pixelSize && defaultRig.focalLength ? `${((defaultRig.pixelSize * 206.265) / defaultRig.focalLength).toFixed(2)}"/px` : '—'}</span>
               <span>|</span>
               <span>🔭 {defaultRig.focalLength}mm f/{defaultRig.fRatio}</span>
             </div>
@@ -687,25 +687,25 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             {selectedTarget.magnitude != null && (
               <div className="bg-background p-3 rounded-lg border border-border">
                 <span className="text-text-secondary text-xs block mb-1">Magnitude</span>
-                <span className="font-mono font-bold text-text">{selectedTarget.magnitude.toFixed(1)}</span>
+                <span className="font-mono font-bold text-text">{(selectedTarget.magnitude ?? 0).toFixed(1)}</span>
               </div>
             )}
             {selectedTarget.sizeArcmin != null && selectedTarget.sizeArcmin > 0 && (
               <div className="bg-background p-3 rounded-lg border border-border">
                 <span className="text-text-secondary text-xs block mb-1">Size</span>
-                <span className="font-mono font-bold text-text">{selectedTarget.sizeArcmin.toFixed(1)}'</span>
+                <span className="font-mono font-bold text-text">{(selectedTarget.sizeArcmin ?? 0).toFixed(1)}'</span>
               </div>
             )}
             {selectedTarget.surfaceBrightness != null && (
               <div className="bg-background p-3 rounded-lg border border-border">
                 <span className="text-text-secondary text-xs block mb-1">Surface Br.</span>
-                <span className="font-mono font-bold text-text">{selectedTarget.surfaceBrightness.toFixed(1)}</span>
+                <span className="font-mono font-bold text-text">{(selectedTarget.surfaceBrightness ?? 0).toFixed(1)}</span>
               </div>
             )}
             {selectedTarget.altitudeMax != null && (
               <div className="bg-background p-3 rounded-lg border border-border">
                 <span className="text-text-secondary text-xs block mb-1">Max Altitude</span>
-                <span className="font-mono font-bold text-text">{selectedTarget.altitudeMax.toFixed(1)}°</span>
+                <span className="font-mono font-bold text-text">{(selectedTarget.altitudeMax ?? 0).toFixed(1)}°</span>
               </div>
             )}
             <div className="bg-background p-3 rounded-lg border border-border">
@@ -747,7 +747,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div className="bg-background p-3 rounded-lg border border-border">
                     <span className="text-text-secondary text-xs block mb-1">FOV</span>
-                    <span className="font-mono font-bold text-text">{f.fovWidth.toFixed(1)}' × {f.fovHeight.toFixed(1)}'</span>
+                    <span className="font-mono font-bold text-text">{(f.fovWidth ?? 0).toFixed(1)}' × {(f.fovHeight ?? 0).toFixed(1)}'</span>
                   </div>
                   <div className="bg-background p-3 rounded-lg border border-border">
                     <span className="text-text-secondary text-xs block mb-1">Pixel Scale</span>
@@ -760,14 +760,14 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                   {f.targetSizeArcmin != null && f.targetSizeArcmin > 0 && (
                     <div className="bg-background p-3 rounded-lg border border-border">
                       <span className="text-text-secondary text-xs block mb-1">Target / FOV</span>
-                      <span className="font-mono font-bold text-text">{f.targetSizeArcmin.toFixed(0)}' / {Math.max(f.fovWidth, f.fovHeight).toFixed(0)}'</span>
+                      <span className="font-mono font-bold text-text">{(f.targetSizeArcmin ?? 0).toFixed(0)}' / {Math.max(f.fovWidth ?? 0, f.fovHeight ?? 0).toFixed(0)}'</span>
                     </div>
                   )}
                 </div>
                 {f.coveragePercent != null && (
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
-                      <span>FOV Coverage</span><span className="font-mono">{f.coveragePercent.toFixed(0)}%</span>
+                      <span>FOV Coverage</span><span className="font-mono">{(f.coveragePercent ?? 0).toFixed(0)}%</span>
                     </div>
                     <div className="w-full h-2 bg-background rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all ${fitBarColors[f.fitStatus]}`} style={{ width: `${Math.min(100, f.coveragePercent)}%` }} />
@@ -781,7 +781,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="bg-background p-2 rounded-lg border border-border">
                         <span className="text-text-secondary text-[10px] block mb-0.5">Imaging Window</span>
-                        <span className="font-mono text-sm font-bold text-text">⏱ {f.totalImagingHours.toFixed(1)}h</span>
+                        <span className="font-mono text-sm font-bold text-text">⏱ {(f.totalImagingHours ?? 0).toFixed(1)}h</span>
                       </div>
                       <div className="bg-background p-2 rounded-lg border border-border">
                         <span className="text-text-secondary text-[10px] block mb-0.5">Sub-exposure</span>
@@ -793,7 +793,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                       </div>
                       <div className="bg-background p-2 rounded-lg border border-border">
                         <span className="text-text-secondary text-[10px] block mb-0.5">Integration / SNR</span>
-                        <span className="font-mono text-sm font-bold text-text">{f.totalIntegrationHours.toFixed(1)}h ({f.snrEstimate})</span>
+                        <span className="font-mono text-sm font-bold text-text">{(f.totalIntegrationHours ?? 0).toFixed(1)}h ({f.snrEstimate ?? '—'})</span>
                       </div>
                     </div>
                     {f.imagingWindows.length > 0 && (
@@ -801,8 +801,8 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                         {f.imagingWindows.map((w, i) => (
                           <div key={i} className="flex items-center justify-between text-[10px] text-text-secondary bg-background p-1.5 rounded">
                             <span className="font-mono">{w.start} → {w.end}</span>
-                            <span className="font-mono">{w.hours.toFixed(1)}h</span>
-                            {w.moonIllumination != null && <span className="font-mono">🌑 {(w.moonIllumination * 100).toFixed(0)}% {w.moonDistance != null ? `${w.moonDistance.toFixed(0)}°` : ''}</span>}
+                            <span className="font-mono">{(w.hours ?? 0).toFixed(1)}h</span>
+                            {w.moonIllumination != null && <span className="font-mono">🌑 {((w.moonIllumination ?? 0) * 100).toFixed(0)}% {w.moonDistance != null ? `${(w.moonDistance ?? 0).toFixed(0)}°` : ''}</span>}
                           </div>
                         ))}
                       </div>

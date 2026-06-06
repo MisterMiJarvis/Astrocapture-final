@@ -381,9 +381,9 @@ const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate, equipment
                         {coordinates && (
                             <div className="bg-background border border-border p-4 rounded-md font-mono text-sm text-center">
                                 <p>
-                                    <span className="text-text-secondary">Lat:</span> {coordinates.lat.toFixed(2)}
+                                    <span className="text-text-secondary">Lat:</span> {(coordinates.lat ?? 0).toFixed(2)}
                                     <span className="text-text-secondary mx-2">|</span>
-                                    <span className="text-text-secondary">Lon:</span> {coordinates.lon.toFixed(2)}
+                                    <span className="text-text-secondary">Lon:</span> {(coordinates.lon ?? 0).toFixed(2)}
                                 </p>
                                 {currentBortle && (
                                     <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-center gap-2">
@@ -576,7 +576,7 @@ const BestTargetsView: React.FC<BestTargetsViewProps> = ({ onNavigate, equipment
                                             </div>
                                             <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-xs font-mono font-bold border border-white/10 flex items-center gap-1 pointer-events-none">
                                                 <Clock size={12} className="text-primary" />
-                                                {target.imagingWindow.duration.toFixed(1)}h Window
+                                                {(target.imagingWindow?.duration ?? 0).toFixed(1)}h Window
                                             </div>
                                         </div>
                                         <div className="p-5 space-y-3 flex-grow flex flex-col">
