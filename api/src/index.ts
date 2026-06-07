@@ -513,24 +513,7 @@ app.get('/api/telescopius/lists', async (c) => {
 });
 
 // =====================
-// DSO SEARCH
-// =====================
 
-app.get('/api/dso/search/:query', async (c) => {
-  const query = c.req.param('query');
-  try {
-    const stmt = db.prepare('SELECT * FROM dso_cache WHERE id LIKE ? OR data LIKE ? LIMIT 1');
-    const row = stmt.get(`%${query}%`, `%${query}%`) as any;
-    if (!row) return c.json({ error: 'Not found' }, 404);
-    return c.json(JSON.parse(row.data || '{}'));
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500);
-  }
-});
-
-// =====================
-// LOG ANALYSIS (Nova DSO Tracker)
-// =====================
 
 app.post('/api/logs/analyze', async (c) => {
   const { content, type } = await c.req.json();
@@ -1241,6 +1224,25 @@ app.get('/api/dso/search/:name', async (c) => {
       age: null,
       ageUnit: 'years'
     },
+    'M81': {
+      _aliases: ['BODESGALAXY', 'BODE', 'NGC3031', 'NGC 3031'],
+      id: 'M81',
+      commonName: "Bode's Galaxy",
+      objectType: 'Spiral Galaxy',
+      constellation: 'Ursa Major',
+      rightAscension: '09 55 33.2',
+      declination: '+69 03 55',
+      distance: 11800000,
+      distanceUnit: 'ly',
+      magnitude: 6.9,
+      catalogDenominations: ['M81', 'NGC 3031', 'Bode\'s Galaxy'],
+      composition: ['Stars', 'Dust', 'Dark Matter'],
+      age: null,
+      ageUnit: 'years'
+    },
+    'NGC3031': { _ref: 'M81' },
+    'BODESGALAXY': { _ref: 'M81' },
+    'BODE': { _ref: 'M81' },
   };
   
   const upperName = objectName.toUpperCase().replace(/\s+/g, '');
