@@ -399,7 +399,17 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   // Load user filters from API
   useEffect(() => {
     fetchFilters()
-      .then((filters: AstroFilter[]) => setUserFilters(filters.filter(f => f.owned)))
+      .then((filters: AstroFilter[]) => {
+        const owned = filters.filter(f => f.owned);
+        setUserFilters(owned);
+        // If current primaryFilter is not in owned filters, select the first owned one
+        if (owned.length > 0) {
+          const currentMatch = owned.find((f: any) => f.filterType === primaryFilter || f.id === primaryFilter);
+          if (!currentMatch) {
+            setPrimaryFilter(owned[0].filterType || owned[0].id);
+          }
+        }
+      })
       .catch(() => setUserFilters([]));
   }, []);
 
