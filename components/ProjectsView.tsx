@@ -773,8 +773,9 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                         max={600}
                         value={currentSubExposure}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value) || plan.subExposure;
-                          setManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subExposure: val } }));
+                          if (e.target.value === '') return;
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) setManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subExposure: val } }));
                         }}
                         className="w-full bg-surface border border-border rounded px-1.5 py-1 text-xs text-text font-mono focus:outline-none focus:border-primary"
                       />
@@ -787,8 +788,9 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                         min={1}
                         value={currentSubCount}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value) || plan.subCount;
-                          setManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subCount: val } }));
+                          if (e.target.value === '') return;
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) setManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subCount: val } }));
                         }}
                         className="w-full bg-surface border border-border rounded px-1.5 py-1 text-xs text-text font-mono focus:outline-none focus:border-primary"
                       />
