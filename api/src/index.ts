@@ -4,8 +4,8 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Jwt } from 'hono/utils/jwt';
 import bcrypt from 'bcryptjs';
-import { mkdirSync, existsSync, writeFileSync } from 'fs';
-import { join, extname } from 'path';
+import { mkdirSync, existsSync, writeFileSync, readFileSync, statSync, createReadStream, unlinkSync } from 'fs';
+import { join, extname, basename } from 'path';
 import db from './db.js';
 
 type Variables = { user: { id: string; email: string } };
@@ -1116,8 +1116,8 @@ app.get('/api/dso/search/:name', async (c) => {
       commonName: 'Eagle Nebula',
       objectType: 'Emission Nebula',
       constellation: 'Serpens',
-      rightAscension: '18 18 48',
-      declination: '-13 49 00',
+      rightAscension: '18 18 58.30',
+      declination: '-13 49 33.2',
       distance: 7000,
       distanceUnit: 'ly',
       magnitude: 6.0,
@@ -1243,6 +1243,25 @@ app.get('/api/dso/search/:name', async (c) => {
     'NGC3031': { _ref: 'M81' },
     'BODESGALAXY': { _ref: 'M81' },
     'BODE': { _ref: 'M81' },
+    'WHIRLPOOL': {
+      _aliases: ['M51', 'NGC5194', 'NGC 5194', 'WHIRLPOOLGALAXY', 'M51A'],
+      id: 'M51',
+      commonName: 'Whirlpool Galaxy',
+      objectType: 'Spiral Galaxy',
+      constellation: 'Canes Venatici',
+      rightAscension: '13 29 52.7',
+      declination: '+47 11 43',
+      distance: 23000000,
+      distanceUnit: 'ly',
+      magnitude: 8.4,
+      catalogDenominations: ['M51', 'NGC 5194', 'NGC 5195', 'Arp 85'],
+      composition: ['Stars', 'Dust', 'Dark Matter', 'HII Regions'],
+      age: null,
+      ageUnit: 'years'
+    },
+    'M51': { _ref: 'WHIRLPOOL' },
+    'NGC5194': { _ref: 'WHIRLPOOL' },
+    'NGC5195': { _ref: 'WHIRLPOOL' },
   };
   
   const upperName = objectName.toUpperCase().replace(/\s+/g, '');
@@ -1797,6 +1816,7 @@ function parseAplsRig(row: any) {
       resolutionY: row.resolution_y,
       readNoise: row.read_noise,
       quantumEfficiency: row.quantum_efficiency,
+      fullWellDepth: row.full_well_depth ?? 50000,
       isColor: Boolean(row.is_color),
       hasCooling: Boolean(row.has_cooling),
       binningAcquisition: row.binning_acquisition || 1,
@@ -1842,10 +1862,11 @@ app.post('/api/apls/rigs', auth, async (c) => {
     modifier_type, modifier_factor, effective_focal_length,
     sensor_width, sensor_height, pixel_size, resolution_x, resolution_y,
     read_noise, quantum_efficiency, is_color, has_cooling, binning_acquisition,
+    full_well_depth,
     camera_name, guiding_camera_name, guiding_pixel_size, guiding_binning, guiding_mode, guiding_focal_length,
     mount_name, mount_type, mount_max_payload,
     created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.name || 'New Rig', body.isDefault ? 1 : 0,
     body.telescope?.name || '', body.telescope?.focalLength || 0, body.telescope?.aperture || 0,
     body.telescope?.fRatio || 0, body.telescope?.type || 'Refractor',
@@ -1855,6 +1876,7 @@ app.post('/api/apls/rigs', auth, async (c) => {
     body.imagingCamera?.resolutionY || 0, body.imagingCamera?.readNoise || 0,
     body.imagingCamera?.quantumEfficiency || 0, body.imagingCamera?.isColor ? 1 : 0,
     body.imagingCamera?.hasCooling ? 1 : 0, body.imagingCamera?.binningAcquisition || 1,
+    body.imagingCamera?.fullWellDepth ?? 50000,
     body.imagingCamera?.name || null,
     body.guidingCamera?.name || null, body.guidingCamera?.pixelSize || null,
     body.guidingCamera?.binning || null, body.guidingCamera?.mode || null,
@@ -1880,6 +1902,7 @@ app.put('/api/apls/rigs/:id', auth, async (c) => {
     modifier_type = ?, modifier_factor = ?, effective_focal_length = ?,
     sensor_width = ?, sensor_height = ?, pixel_size = ?, resolution_x = ?, resolution_y = ?,
     read_noise = ?, quantum_efficiency = ?, is_color = ?, has_cooling = ?, binning_acquisition = ?,
+    full_well_depth = ?,
     camera_name = ?,
     guiding_camera_name = ?, guiding_pixel_size = ?, guiding_binning = ?, guiding_mode = ?, guiding_focal_length = ?,
     mount_name = ?, mount_type = ?, mount_max_payload = ?,
@@ -1894,6 +1917,7 @@ app.put('/api/apls/rigs/:id', auth, async (c) => {
     body.imagingCamera?.resolutionY || 0, body.imagingCamera?.readNoise || 0,
     body.imagingCamera?.quantumEfficiency || 0, body.imagingCamera?.isColor ? 1 : 0,
     body.imagingCamera?.hasCooling ? 1 : 0, body.imagingCamera?.binningAcquisition || 1,
+    body.imagingCamera?.fullWellDepth ?? 50000,
     body.imagingCamera?.name || null,
     body.guidingCamera?.name || null, body.guidingCamera?.pixelSize || null,
     body.guidingCamera?.binning || null, body.guidingCamera?.mode || null,
@@ -2181,7 +2205,7 @@ app.get('/api/apls/targets/moon', async (c) => {
   let apiKey = '';
   try {
     const fs = require('fs');
-    apiKey = JSON.parse(fs.readFileSync('.secrets/telescopius.json', 'utf8')).apiKey;
+    apiKey = JSON.parse(fs.readFileSync('.secrets/telescopius.json', 'utf8')).api_key || JSON.parse(fs.readFileSync('.secrets/telescopius.json', 'utf8')).apiKey;
   } catch {}
   const url = `https://api.telescopius.com/api/v2/moon?lat=${lat}&lon=${lon}${date ? `&date=${date}` : ''}`;
   try {
@@ -2305,6 +2329,7 @@ function parseProject(row: any) {
     targetDec: row.target_dec,
     targetMagnitude: row.target_magnitude,
     targetSizeArcmin: row.target_size_arcmin,
+    surfaceBrightness: row.surface_brightness ?? null,
     targetImageUrl: row.target_image_url,
     locationSource: row.location_source,
     lat: row.lat,
@@ -2317,6 +2342,7 @@ function parseProject(row: any) {
     sensorWidth: row.sensor_width,
     sensorHeight: row.sensor_height,
     primaryFilter: row.primary_filter,
+    snrTarget: row.snr_target ?? 30,
     exposurePlan: JSON.parse(row.exposure_plan || '[]'),
     totalPlannedHours: row.total_planned_hours,
     observations: [] as any[],  // filled separately
@@ -2382,22 +2408,22 @@ app.post('/api/apls/projects', auth, async (c) => {
   db.prepare(`INSERT INTO apls_projects (
     id, user_id, title, status,
     target_id, target_name, target_type, target_ra, target_dec,
-    target_magnitude, target_size_arcmin, target_image_url,
+    target_magnitude, target_size_arcmin, surface_brightness, target_image_url,
     location_source, lat, lon,
     rig_id, rig_name, focal_length, aperture, pixel_size, sensor_width, sensor_height,
     primary_filter, exposure_plan, total_planned_hours,
-    total_exposure_seconds, completion_percent, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    total_exposure_seconds, completion_percent, snr_target, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, userId, body.title || '', body.status || 'planning',
     body.targetId || '', body.targetName || '', body.targetType || '',
     body.targetRa || '', body.targetDec || '',
-    body.targetMagnitude ?? null, body.targetSizeArcmin ?? null, body.targetImageUrl ?? null,
+    body.targetMagnitude ?? null, body.targetSizeArcmin ?? null, body.surfaceBrightness ?? null, body.targetImageUrl ?? null,
     body.locationSource || '', body.lat ?? 0, body.lon ?? 0,
     body.rigId ?? null, body.rigName ?? null, body.focalLength ?? null,
     body.aperture ?? null, body.pixelSize ?? null, body.sensorWidth ?? null, body.sensorHeight ?? null,
     body.primaryFilter || '', JSON.stringify(body.exposurePlan || []),
     body.totalPlannedHours ?? 0, body.totalExposureSeconds ?? 0,
-    body.completionPercent ?? 0, now, now
+    body.completionPercent ?? 0, body.snrTarget ?? 30, now, now
   );
   // Insert observations if provided
   const observations = body.observations || [];
@@ -2435,6 +2461,7 @@ app.patch('/api/apls/projects/:id', auth, async (c) => {
   if (body.targetDec !== undefined) fields.target_dec = body.targetDec;
   if (body.targetMagnitude !== undefined) fields.target_magnitude = body.targetMagnitude;
   if (body.targetSizeArcmin !== undefined) fields.target_size_arcmin = body.targetSizeArcmin;
+  if (body.surfaceBrightness !== undefined) fields.surface_brightness = body.surfaceBrightness;
   if (body.targetImageUrl !== undefined) fields.target_image_url = body.targetImageUrl;
   if (body.locationSource !== undefined) fields.location_source = body.locationSource;
   if (body.lat !== undefined) fields.lat = body.lat;
@@ -2447,6 +2474,7 @@ app.patch('/api/apls/projects/:id', auth, async (c) => {
   if (body.sensorWidth !== undefined) fields.sensor_width = body.sensorWidth;
   if (body.sensorHeight !== undefined) fields.sensor_height = body.sensorHeight;
   if (body.primaryFilter !== undefined) fields.primary_filter = body.primaryFilter;
+  if (body.snrTarget !== undefined) fields.snr_target = body.snrTarget;
   if (body.exposurePlan !== undefined) fields.exposure_plan = JSON.stringify(body.exposurePlan);
   if (body.totalPlannedHours !== undefined) fields.total_planned_hours = body.totalPlannedHours;
   if (body.totalExposureSeconds !== undefined) fields.total_exposure_seconds = body.totalExposureSeconds;
@@ -2608,17 +2636,17 @@ app.post('/api/apls/sync', auth, async (c) => {
       } else {
         db.prepare(`INSERT INTO apls_projects (
           id, user_id, title, status, target_id, target_name, target_type, target_ra, target_dec,
-          target_magnitude, target_size_arcmin, target_image_url,
+          target_magnitude, target_size_arcmin, surface_brightness, target_image_url,
           location_source, lat, lon, rig_id, rig_name, focal_length, aperture,
           pixel_size, sensor_width, sensor_height, primary_filter,
           exposure_plan, total_planned_hours, total_exposure_seconds,
           completion_percent, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
           project.id, userId, project.title || '', project.status || 'planning',
           project.targetId || '', project.targetName || '', project.targetType || '',
           project.targetRa || '', project.targetDec || '',
           project.targetMagnitude ?? null, project.targetSizeArcmin ?? null,
-          project.targetImageUrl ?? null, project.locationSource || '',
+          project.surfaceBrightness ?? null, project.targetImageUrl ?? null, project.locationSource || '',
           project.lat ?? 0, project.lon ?? 0, project.rigId ?? null,
           project.rigName ?? null, project.focalLength ?? null, project.aperture ?? null,
           project.pixelSize ?? null, project.sensorWidth ?? null, project.sensorHeight ?? null,
@@ -2673,6 +2701,437 @@ app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISO
 
 // Start
 console.log(`🔭 AstroCapture API starting on port ${PORT}...`);
+
+// Seed default filters for existing users if they have none
+try {
+  const users = db.prepare('SELECT id FROM users').all() as any[];
+  const filterCount = (db.prepare('SELECT COUNT(*) as c FROM apls_filters').get() as any).c;
+  if (filterCount === 0 && users.length > 0) {
+    const defaultFilters = [
+      { id: 'filter_uv_ir_cut', name: 'UV/IR Cut', brand: 'ZWO', category: 'broadband', bandwidth_nm: 300, peak_transmission: 0.97, center_wavelength_nm: 560, sky_suppression: 0.0, moon_compatible: 0, color: '#4FC3F7', description: 'ZWO protection filter. Flat ~97% transmission from 420-700nm.', use_cases: JSON.stringify(['Nuits sans Lune', 'Pollution faible', 'Galaxies', 'Amas', 'Luminance']), recommended_targets: JSON.stringify(['Galaxies', 'Amas ouverts', 'Amas globulaires', 'Nébuleuses larges']), owned: 1, is_default: 1 },
+      { id: 'filter_l_ultimate', name: 'L-Ultimate', brand: 'Optolong', category: 'dualband', bandwidth_nm: 3, peak_transmission: 0.90, center_wavelength_nm: 500, sky_suppression: 0.95, moon_compatible: 1, color: '#7C4DFF', description: 'Dual-3nm Hα + OIII filter. Blocking >OD4.', use_cases: JSON.stringify(['Nébuleuses Hα/OIII', 'Sous Lune', 'Pollution urbaine', 'Anti-halos']), recommended_targets: JSON.stringify(['Nébuleuses émission', 'Nébuleuses planétaires', 'Rémanents supernovae']), owned: 1, is_default: 1 },
+      { id: 'filter_lps_d2', name: 'LPS-D2', brand: 'IDAS', category: 'anti_pollution', bandwidth_nm: 69, peak_transmission: 0.975, center_wavelength_nm: 525, sky_suppression: 0.85, moon_compatible: 0, color: '#FF9800', description: 'IDAS light pollution suppression filter.', use_cases: JSON.stringify(['Pollution urbaine', 'Banlieue', 'Nuits claires', 'Galaxies sous pollution']), recommended_targets: JSON.stringify(['Galaxies', 'Nébuleuses', 'Amas', 'Amas ouverts']), owned: 1, is_default: 0 },
+      { id: 'filter_ha', name: 'Hα 7nm', brand: 'ZWO', category: 'narrowband', bandwidth_nm: 7, peak_transmission: 0.90, center_wavelength_nm: 656.3, sky_suppression: 0.95, moon_compatible: 1, color: '#F44336', description: 'Narrowband Hydrogen-alpha filter.', use_cases: JSON.stringify(['Nébuleuses Hα', 'Sous Lune', 'Bi-color', 'Tri-color']), recommended_targets: JSON.stringify(['Nébuleuses émission', 'Rémanents supernovae']), owned: 0, is_default: 1 },
+      { id: 'filter_oiii', name: 'OIII 7nm', brand: 'ZWO', category: 'narrowband', bandwidth_nm: 7, peak_transmission: 0.90, center_wavelength_nm: 500.7, sky_suppression: 0.95, moon_compatible: 1, color: '#00BCD4', description: 'Narrowband Oxygen-III filter.', use_cases: JSON.stringify(['Nébuleuses OIII', 'Sous Lune', 'Bi-color', 'Tri-color']), recommended_targets: JSON.stringify(['Nébuleuses planétaires', 'Rémanents supernovae']), owned: 0, is_default: 1 },
+      { id: 'filter_sii', name: 'SII 7nm', brand: 'ZWO', category: 'narrowband', bandwidth_nm: 7, peak_transmission: 0.85, center_wavelength_nm: 672.4, sky_suppression: 0.95, moon_compatible: 1, color: '#9C27B0', description: 'Narrowband Sulfur-II filter.', use_cases: JSON.stringify(['Nébuleuses SII', 'Sous Lune', 'Tri-color SHO']), recommended_targets: JSON.stringify(['Nébuleuses émission', 'Rémanents supernovae']), owned: 0, is_default: 1 },
+      { id: 'filter_rgb', name: 'RGB', brand: 'Generic', category: 'broadband', bandwidth_nm: 350, peak_transmission: 0.95, center_wavelength_nm: 550, sky_suppression: 0.0, moon_compatible: 0, color: '#4CAF50', description: 'RGB color filter set for monochrome camera.', use_cases: JSON.stringify(['Galaxies', 'Nébuleuses en couleur', 'Amas']), recommended_targets: JSON.stringify(['Galaxies', 'Amas', 'Nébuleuses larges']), owned: 0, is_default: 0 },
+      { id: 'filter_luminance', name: 'Luminance', brand: 'Generic', category: 'broadband', bandwidth_nm: 400, peak_transmission: 0.95, center_wavelength_nm: 550, sky_suppression: 0.0, moon_compatible: 0, color: '#E0E0E0', description: 'Broadband luminance filter for LRGB imaging.', use_cases: JSON.stringify(['Luminance LRGB', 'Nuits sans Lune']), recommended_targets: JSON.stringify(['Galaxies', 'Amas', 'Nébuleuses larges']), owned: 0, is_default: 0 },
+    ];
+    const adminUser = users.find((u: any) => u.is_admin) || users[0];
+    const insertStmt = db.prepare('INSERT OR IGNORE INTO apls_filters (id, user_id, name, brand, category, bandwidth_nm, peak_transmission, center_wavelength_nm, sky_suppression, moon_compatible, color, description, use_cases, recommended_targets, owned, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    for (const f of defaultFilters) {
+      insertStmt.run(f.id, adminUser.id, f.name, f.brand, f.category, f.bandwidth_nm, f.peak_transmission, f.center_wavelength_nm, f.sky_suppression, f.moon_compatible, f.color, f.description, f.use_cases, f.recommended_targets, f.owned, f.is_default);
+    }
+    console.log(`[Seed] Inserted ${defaultFilters.length} default filters for user ${adminUser.id}`);
+  }
+} catch (err) {
+  console.error('[Seed] Failed to seed default filters:', err);
+}
+
+// =====================
+// ANALYTICS / PAGE VIEWS
+// =====================
+
+// Track a page view (public, no auth required)
+app.post('/api/analytics/track', async (c) => {
+  const { path: pagePath, referrer, sessionId } = await c.req.json();
+  if (!pagePath || typeof pagePath !== 'string') return c.json({ error: 'path required' }, 400);
+  // Sanitize: strip query params, limit length
+  const cleanPath = pagePath.split('?')[0].slice(0, 200);
+  const cleanReferrer = (referrer || '').slice(0, 500);
+  const cleanSession = (sessionId || '').slice(0, 100);
+  const ua = (c.req.header('User-Agent') || '').slice(0, 500);
+
+  // Simple bot filter: skip common bots
+  if (/bot|crawl|spider|slurp|mediapartners/i.test(ua)) return c.json({ ok: true, bot: true });
+
+  db.prepare(`INSERT INTO page_views (path, referrer, user_agent, session_id, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
+    .run(cleanPath, cleanReferrer, ua, cleanSession);
+  return c.json({ ok: true });
+});
+
+// Get analytics summary (admin only)
+app.get('/api/analytics/stats', auth, async (c) => {
+  const authUser = c.get('user') as AuthUser;
+  if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
+
+  const days = parseInt(c.req.query('days') || '30');
+
+  // Total views, unique sessions, top pages
+  const totalViews = (db.prepare(`SELECT COUNT(*) as count FROM page_views WHERE created_at >= datetime('now', ?)`).get(`-${days} days`) as any).count;
+  const uniqueSessions = (db.prepare(`SELECT COUNT(DISTINCT session_id) as count FROM page_views WHERE created_at >= datetime('now', ?)`).get(`-${days} days`) as any).count;
+  const uniquePages = (db.prepare(`SELECT COUNT(DISTINCT path) as count FROM page_views WHERE created_at >= datetime('now', ?)`).get(`-${days} days`) as any).count;
+
+  // Top pages
+  const topPages = db.prepare(`
+    SELECT path, COUNT(*) as views, COUNT(DISTINCT session_id) as unique_visitors
+    FROM page_views
+    WHERE created_at >= datetime('now', ?)
+    GROUP BY path
+    ORDER BY views DESC
+    LIMIT 20
+  `).all(`-${days} days`);
+
+  // Top referrers
+  const topReferrers = db.prepare(`
+    SELECT referrer, COUNT(*) as count
+    FROM page_views
+    WHERE created_at >= datetime('now', ?) AND referrer != ''
+    GROUP BY referrer
+    ORDER BY count DESC
+    LIMIT 10
+  `).all(`-${days} days`);
+
+  // Views today
+  const todayViews = (db.prepare(`SELECT COUNT(*) as count FROM page_views WHERE date(created_at) = date('now')`).get() as any).count;
+  const todaySessions = (db.prepare(`SELECT COUNT(DISTINCT session_id) as count FROM page_views WHERE date(created_at) = date('now')`).get() as any).count;
+
+  return c.json({
+    days,
+    totalViews,
+    uniqueSessions,
+    uniquePages,
+    todayViews,
+    todaySessions,
+    topPages,
+    topReferrers,
+  });
+});
+
+// Get daily timeline (admin only)
+app.get('/api/analytics/timeline', auth, async (c) => {
+  const authUser = c.get('user') as AuthUser;
+  if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
+
+  const days = parseInt(c.req.query('days') || '30');
+
+  const timeline = db.prepare(`
+    SELECT date(created_at) as date, COUNT(*) as views, COUNT(DISTINCT session_id) as unique_visitors
+    FROM page_views
+    WHERE created_at >= datetime('now', ?)
+    GROUP BY date(created_at)
+    ORDER BY date ASC
+  `).all(`-${days} days`);
+
+  return c.json(timeline);
+});
+
+// =====================
+// PHD2 LOG ANALYSIS
+// =====================
+
+// DB table for saved PHD2 sessions
+function initPhd2Table() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS phd2_sessions (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL DEFAULT '',
+      session_index INTEGER NOT NULL DEFAULT 0,
+      start_time TEXT NOT NULL DEFAULT '',
+      end_time TEXT NOT NULL DEFAULT '',
+      duration_seconds REAL NOT NULL DEFAULT 0,
+      camera TEXT NOT NULL DEFAULT '',
+      exposure_ms REAL NOT NULL DEFAULT 0,
+      focal_length_mm REAL NOT NULL DEFAULT 0,
+      pixel_scale REAL NOT NULL DEFAULT 0,
+      mount TEXT NOT NULL DEFAULT '',
+      frame_count INTEGER NOT NULL DEFAULT 0,
+      rms_total_arcsec REAL NOT NULL DEFAULT 0,
+      rms_ra_arcsec REAL NOT NULL DEFAULT 0,
+      rms_dec_arcsec REAL NOT NULL DEFAULT 0,
+      peak_ra_arcsec REAL NOT NULL DEFAULT 0,
+      peak_dec_arcsec REAL NOT NULL DEFAULT 0,
+      mean_snr REAL NOT NULL DEFAULT 0,
+      mean_star_mass REAL NOT NULL DEFAULT 0,
+      dither_count INTEGER NOT NULL DEFAULT 0,
+      star_lost_count INTEGER NOT NULL DEFAULT 0,
+      settling_failed_count INTEGER NOT NULL DEFAULT 0,
+      raw_log TEXT NOT NULL DEFAULT '',
+      analysis_json TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+}
+initPhd2Table();
+
+// Save PHD2 sessions
+app.post('/api/phd2/sessions', async (c) => {
+  try {
+    const { sessions, analyses, filename, raw_log } = await c.req.json();
+    if (!sessions || !Array.isArray(sessions)) {
+      return c.json({ error: 'sessions array required' }, 400);
+    }
+
+    const saved = [];
+    for (let i = 0; i < sessions.length; i++) {
+      const s = sessions[i];
+      const a = analyses?.[i] || {};
+      const id = `phd2_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
+
+      db.prepare(`
+        INSERT OR REPLACE INTO phd2_sessions
+        (id, filename, session_index, start_time, end_time, duration_seconds,
+         camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
+         rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
+         mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
+         raw_log, analysis_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id, filename || '', s.index ?? i, s.start_time || '', s.end_time || '', s.duration_seconds || 0,
+        s.camera || '', s.exposure_ms || 0, s.focal_length_mm || 0, s.pixel_scale || 0, s.mount || '', s.frame_count || 0,
+        a.rms_total_arcsec || 0, a.rms_ra_arcsec || 0, a.rms_dec_arcsec || 0, a.peak_ra_arcsec || 0, a.peak_dec_arcsec || 0,
+        a.mean_snr || 0, a.mean_star_mass || 0, a.dither_count || 0, a.star_lost_count || 0, a.settling_failed_count || 0,
+        raw_log || '', JSON.stringify(a)
+      );
+
+      saved.push({ id, ...s, analysis: a });
+    }
+
+    return c.json({ saved: saved.length, sessions: saved });
+  } catch (err: any) {
+    console.error('PHD2 save error:', err);
+    return c.json({ error: 'Failed to save sessions' }, 500);
+  }
+});
+
+// List saved PHD2 sessions
+app.get('/api/phd2/sessions', async (c) => {
+  try {
+    const sessions = db.prepare(`
+      SELECT id, filename, session_index, start_time, end_time, duration_seconds,
+             camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
+             rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
+             mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
+             created_at
+      FROM phd2_sessions ORDER BY created_at DESC
+    `).all();
+    return c.json({ sessions });
+  } catch (err: any) {
+    console.error('PHD2 list error:', err);
+    return c.json({ error: 'Failed to list sessions' }, 500);
+  }
+});
+
+// Delete a PHD2 session
+app.delete('/api/phd2/sessions/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const result = db.prepare('DELETE FROM phd2_sessions WHERE id = ?').run(id);
+    if (result.changes === 0) {
+      return c.json({ error: 'Session not found' }, 404);
+    }
+    return c.json({ deleted: true });
+  } catch (err: any) {
+    console.error('PHD2 delete error:', err);
+    return c.json({ error: 'Failed to delete session' }, 500);
+  }
+});
+
+// Get a single PHD2 session with full analysis
+app.get('/api/phd2/sessions/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const row: any = db.prepare('SELECT * FROM phd2_sessions WHERE id = ?').get(id);
+    if (!row) {
+      return c.json({ error: 'Session not found' }, 404);
+    }
+    // Parse analysis_json
+    let analysis = null;
+    if (row.analysis_json) {
+      try { analysis = JSON.parse(row.analysis_json); } catch {}
+    }
+    return c.json({ session: row, analysis });
+  } catch (err: any) {
+    console.error('PHD2 get session error:', err);
+    return c.json({ error: 'Failed to get session' }, 500);
+  }
+});
+
+// Get PHD2 global stats
+app.get('/api/phd2/stats', async (c) => {
+  try {
+    const stats = db.prepare(`
+      SELECT
+        COUNT(*) as total_sessions,
+        SUM(frame_count) as total_frames,
+        SUM(duration_seconds) as total_duration_seconds,
+        AVG(rms_total_arcsec) as avg_rms_total_arcsec,
+        AVG(rms_ra_arcsec) as avg_rms_ra_arcsec,
+        AVG(rms_dec_arcsec) as avg_rms_dec_arcsec,
+        AVG(mean_snr) as avg_snr,
+        SUM(dither_count) as total_dithers,
+        SUM(star_lost_count) as total_star_lost,
+        SUM(settling_failed_count) as total_settle_fail,
+        MIN(rms_total_arcsec) as best_rms_total_arcsec,
+        MAX(mean_snr) as max_snr,
+        AVG(mean_star_mass) as avg_star_mass
+      FROM phd2_sessions
+    `).get();
+
+    const bestSession = db.prepare(`
+      SELECT id, start_time, camera, rms_total_arcsec, mean_snr
+      FROM phd2_sessions ORDER BY rms_total_arcsec ASC LIMIT 1
+    `).get();
+
+    return c.json({ ...(stats as Record<string, any>), best_session: bestSession || null });
+  } catch (err: any) {
+    console.error('PHD2 stats error:', err);
+    return c.json({ error: 'Failed to get stats' }, 500);
+  }
+});
+
+app.post('/api/phd2/analyze', async (c) => {
+  try {
+    const { content } = await c.req.json();
+    if (!content || typeof content !== 'string') {
+      return c.json({ error: 'Log content required' }, 400);
+    }
+    if (content.length > 50 * 1024 * 1024) { // 50MB max
+      return c.json({ error: 'Log file too large (max 50MB)' }, 413);
+    }
+
+    const { execFileSync } = await import('child_process');
+    const scriptPath = join(process.cwd(), '..', 'skills', 'phd2-analysis', 'phd2_parser.py');
+    
+    // Write content to temp file to avoid shell escaping issues
+    const tmpFile = join(process.cwd(), 'tmp_phd2_log_' + Date.now() + '.txt');
+    writeFileSync(tmpFile, content, 'utf-8');
+    
+    try {
+      const result = execFileSync('python3', [scriptPath, tmpFile], {
+        maxBuffer: 50 * 1024 * 1024,
+        timeout: 30000,
+        encoding: 'utf-8',
+      });
+      
+      // Clean up temp file
+      try { unlinkSync(tmpFile); } catch {}
+      
+      return c.json(JSON.parse(result));
+    } catch (err: any) {
+      // Clean up temp file on error
+      try { unlinkSync(tmpFile); } catch {}
+      
+      if (err.stderr) {
+        console.error('PHD2 parser error:', err.stderr.toString());
+      }
+      return c.json({ error: 'Failed to parse PHD2 log', details: err.stderr?.toString()?.slice(0, 500) }, 500);
+    }
+  } catch (err) {
+    return c.json({ error: 'Invalid request' }, 400);
+  }
+});
+
+// =====================
+// IMAGE RESIZE PROXY
+// =====================
+
+app.get('/api/images/resize', async (c) => {
+  const url = c.req.query('url');
+  const width = Math.min(parseInt(c.req.query('width') || '800'), 2000);  // Cap at 2000px
+  const height = Math.min(parseInt(c.req.query('height') || '0'), 2000);
+  const quality = Math.min(parseInt(c.req.query('quality') || '80'), 100);
+  const format = c.req.query('format') === 'webp' ? 'webp' : 'jpeg';
+
+  if (!url || !url.startsWith('/uploads/')) {
+    return c.json({ error: 'Invalid URL' }, 400);
+  }
+
+  const filepath = join(UPLOAD_DIR, basename(url));
+  if (!existsSync(filepath)) {
+    return c.json({ error: 'Image not found' }, 404);
+  }
+
+  // Cache key for resized images
+  const cacheDir = join(UPLOAD_DIR, '.resized');
+  if (!existsSync(cacheDir)) mkdirSync(cacheDir, { recursive: true });
+  const ext = format === 'webp' ? 'webp' : 'jpg';
+  const cacheKey = `${basename(url, extname(url))}_${width}x${height}_q${quality}.${ext}`;
+  const cachePath = join(cacheDir, cacheKey);
+
+  // Serve from cache if exists and original hasn't changed
+  if (existsSync(cachePath)) {
+    const origStat = statSync(filepath);
+    const cacheStat = statSync(cachePath);
+    if (cacheStat.mtimeMs > origStat.mtimeMs) {
+      const contentType = format === 'webp' ? 'image/webp' : 'image/jpeg';
+      return new Response(readFileSync(cachePath), {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+          'Vary': 'Accept',
+        },
+      });
+    }
+  }
+
+  try {
+    const sharp = await import('sharp');
+    const resizeOpts: any = { width };
+    if (height > 0) resizeOpts.height = height;
+    resizeOpts.fit = 'inside';
+    resizeOpts.withoutEnlargement = true;
+
+    let pipeline = sharp.default(filepath).resize(resizeOpts).rotate(); // auto-rotate based on EXIF
+    if (format === 'webp') {
+      pipeline = pipeline.webp({ quality });
+    } else {
+      pipeline = pipeline.jpeg({ quality });
+    }
+
+    const buffer = await pipeline.toBuffer();
+
+    // Cache the result
+    writeFileSync(cachePath, buffer);
+
+    const contentType = format === 'webp' ? 'image/webp' : 'image/jpeg';
+    return new Response(new Uint8Array(buffer), {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Vary': 'Accept',
+      },
+    });
+  } catch (err) {
+    console.error('Image resize error:', err);
+    // Fallback: serve original
+    const stream = createReadStream(filepath);
+    return new Response(stream as any, {
+      headers: { 'Content-Type': 'image/webp' },
+    });
+  }
+});
+
+// =====================
+// RAG QUERY (Astrophotography Knowledge Base)
+// =====================
+
+app.post('/api/rag-query', async (c) => {
+  try {
+    const { question, history } = await c.req.json();
+    if (!question?.trim()) {
+      return c.json({ error: 'Question required' }, 400);
+    }
+    const res = await fetch('http://localhost:5090/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, history: history || [] }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('[RAG Error]', err);
+      return c.json({ error: 'Knowledge base query failed' }, 502);
+    }
+    const data = await res.json();
+    return c.json(data);
+  } catch (err: any) {
+    console.error('[RAG Error]', err.message);
+    return c.json({ error: 'Knowledge base unavailable' }, 503);
+  }
+});
+
+// =====================
+
 const server = serve({ fetch: app.fetch, port: PORT });
 // Increase timeouts for large file uploads (FITS/XISF can be 300MB+)
 if ('timeout' in server) {
