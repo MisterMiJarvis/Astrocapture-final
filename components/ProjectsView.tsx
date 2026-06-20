@@ -823,9 +823,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   }, []);
 
   // Recalculate exposure plan on edit changes
+  const isFirstEditRender = useRef(true);
   useEffect(() => {
-    if (!isEditing) return;
-    setEditManualOverrides({});
+    if (!isEditing) { isFirstEditRender.current = true; return; }
+    // Don't reset overrides on first render — they were pre-filled by startEditing()
+    if (!isFirstEditRender.current) {
+      setEditManualOverrides({});
+    }
+    isFirstEditRender.current = false;
     const bortle = editLocation === 'pradelles' ? 2 : 4;
     const editEffectiveRig = activeRig || rigs.find((r: any) => r.id === editRigId);
     const filterData = userFilters.find((f: any) => f.filterType === editFilter || f.type === editFilter);
@@ -863,6 +868,18 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
     setEditRigId(project.rigId || '');
     const currentRig = rigs.find((r: any) => r.id === project.rigId);
     if (currentRig) setActiveRig(currentRig);
+    // Pre-fill manual overrides with the project's saved exposure plan values
+    // so the UI shows what was saved, not the formula defaults
+    if (project.exposurePlan && project.exposurePlan.length > 0) {
+      const savedOverrides: Record<number, { subExposure?: number; subCount?: number }> = {};
+      project.exposurePlan.forEach((plan: any, i: number) => {
+        savedOverrides[i] = {
+          subExposure: plan.subExposure,
+          subCount: plan.subCount,
+        };
+      });
+      setEditManualOverrides(savedOverrides);
+    }
     setIsEditing(true);
   };
 
