@@ -553,7 +553,6 @@ const App = () => {
               <NavButton active={view === ViewState.IMAGE_OF_THE_DAY} onClick={() => handleNav(ViewState.IMAGE_OF_THE_DAY)}>IOTD</NavButton>
               <NavButton active={view === ViewState.WALL_OF_IMAGES} onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</NavButton>
               <NavButton active={view === ViewState.POST_PROCESSING} onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</NavButton>
-              <NavButton active={view === ViewState.ASTRO_INDEX} onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</NavButton>
               <NavButton active={[ViewState.ASTRO_SUITE, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6].includes(view)} onClick={() => handleNav(ViewState.ASTRO_SUITE)}>AstroSuite</NavButton>
               <GlobalSearch posts={posts} processingPosts={processingPosts} onNavigate={handleSearchNavigate} />
             </div>
@@ -571,7 +570,6 @@ const App = () => {
               <MobileNavButton onClick={() => handleNav(ViewState.IMAGE_OF_THE_DAY)}>IOTD</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.WALL_OF_IMAGES)}>Image Wall</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.POST_PROCESSING)}>Articles</MobileNavButton>
-              <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_INDEX)}>Astro Weather</MobileNavButton>
               <MobileNavButton onClick={() => handleNav(ViewState.ASTRO_SUITE)}>AstroSuite</MobileNavButton>
             </div>
           </div>
