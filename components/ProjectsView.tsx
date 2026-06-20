@@ -98,6 +98,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   const completedCount = projects.filter(p => p.status === 'completed').length;
   const planningCount = projects.filter(p => p.status === 'planning').length;
 
+  // Cumulative KPIs across all projects
+  const allExposurePlans = projects.flatMap(p => p.exposurePlan || []);
+  const totalSubs = allExposurePlans.reduce((sum, plan) => sum + (plan.subCount || 0), 0);
+  const totalPlannedHours = projects.reduce((sum, p) => sum + (p.totalPlannedHours || 0), 0);
+  const totalCapturedHours = projects.reduce((sum, p) => sum + (p.totalExposureSeconds || 0), 0) / 3600;
+  const totalObservations = projects.reduce((sum, p) => sum + (p.observations?.length || 0), 0);
+  const overallProgress = totalPlannedHours > 0 ? Math.min(100, Math.round((totalCapturedHours / totalPlannedHours) * 100)) : 0;
+
   const handleProjectCreated = (project: Project) => {
     setProjects(prev => [...prev, project]);
     setSelectedProject(project);
@@ -194,6 +202,35 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
           <div className="text-xs text-text-secondary">✅ Done</div>
         </button>
       </div>
+
+      {/* Cumulative KPIs */}
+      {projects.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-surface border border-border rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-primary">{totalSubs.toLocaleString()}</div>
+            <div className="text-[10px] text-text-secondary">📸 Total Subs</div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-yellow-400">{totalCapturedHours.toFixed(1)}h</div>
+            <div className="text-[10px] text-text-secondary">⏱️ Captured</div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-orange-400">{totalPlannedHours.toFixed(1)}h</div>
+            <div className="text-[10px] text-text-secondary">🎯 Planned</div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-emerald-400">{totalObservations}</div>
+            <div className="text-[10px] text-text-secondary">🔭 Sessions</div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-blue-400">{overallProgress}%</div>
+            <div className="text-[10px] text-text-secondary">📊 Overall Progress</div>
+            <div className="w-full h-1.5 bg-background rounded-full overflow-hidden mt-1.5">
+              <div className={`h-full rounded-full transition-all ${overallProgress >= 100 ? 'bg-amber-500' : overallProgress >= 50 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, overallProgress)}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter */}
       {filterStatus !== 'all' && (
