@@ -332,7 +332,7 @@ const ProjectCard: React.FC<{ project: Project; onClick: () => void; onDelete: (
       {/* Observations count */}
       <div className="flex items-center gap-3 mt-2 text-xs text-text-secondary">
         <span className="flex items-center gap-1"><Camera size={12} /> {project.observations.length} observation{project.observations.length !== 1 ? 's' : ''}</span>
-        <span className="flex items-center gap-1"><MapPin size={12} /> {project.locationSource}</span>
+        <span className="flex items-center gap-1"><MapPin size={12} /> {project.locationSource === 'saintEtienne' ? 'St-Étienne-du-Grès' : project.locationSource === 'pradelles' ? 'Pradelles' : project.locationSource}</span>
       </div>
     </div>
   );
