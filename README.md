@@ -1,73 +1,55 @@
 # AstroCapture
 
-> 🌌 An astrophotography portfolio & blog with real-time astronomy data
+> 🌌 Astrophotography portfolio, planning suite & community platform
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss)](https://tailwindcss.com)
+[![Hono](https://img.shields.io/badge/Hono-4-E36002)](https://hono.dev)
+[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)](https://sqlite.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Development](#development)
-- [Build & Deploy](#build--deploy)
-- [API Backend](#api-backend)
-- [Environment Variables](#environment-variables)
-- [Design System](#design-system)
-- [Roadmap](#roadmap)
-- [License](#license)
 
 ---
 
 ## Overview
 
-**AstroCapture** is a modern astrophotography portfolio and blog application. It showcases deep-sky object captures, processing tutorials, gear reviews, and provides real-time astronomy data including weather forecasts and target visibility scoring.
+**AstroCapture** is a full-stack astrophotography platform combining a public portfolio/blog with a complete imaging planning suite (AstroSuite). It features target discovery, exposure calculation, project tracking, gear management, PHD2 log analysis, and real-time weather/astronomy data.
 
-The application features a custom design system with dark-mode-first aesthetics, smooth animations, and a responsive layout optimized for both desktop and mobile viewing.
-
-**Live site:** [https://astro.stephanemee.com](https://astro.stephanemee.com)
+**Live site:** [https://astrocapture.org](https://astrocapture.org)  
+**Beta:** [https://beta.astrocapture.org](https://beta.astrocapture.org)
 
 ---
 
 ## Features
 
-### Public Pages
-| Feature | Description |
-|---------|-------------|
-| **Home / Gallery** | Image gallery with filtering by tags, hero slider, featured posts |
-| **Image of the Day** | Daily curated astrophotography showcase |
-| **Image Wall** | Masonry-style infinite scroll wall of all images |
-| **Articles** | Processing tutorials and technical articles |
-| **Astro Weather** | Real-time astronomy conditions, seeing forecast, moon phase |
-| **About** | Photographer profile and bio |
+### Public Site
+- **Gallery** — Image gallery with tag filtering, hero slider, featured posts
+- **Image of the Day** — Daily curated astrophotography showcase
+- **Image Wall** — Masonry-style infinite scroll
+- **Articles** — Processing tutorials and technical articles
+- **Gear Reviews** — Equipment reviews and ratings
+- **About** — Photographer profile
 
-### Admin Panel (Authenticated)
-| Feature | Description |
-|---------|-------------|
-| **Gallery Editor** | CRUD for gallery posts with rich metadata |
-| **Articles Editor** | CRUD for processing articles with markdown support |
-| **Global Config** | Site settings, SEO, social links |
-| **Hero Slider** | Manage homepage hero slides |
-| **Gear Reviews** | Equipment reviews and ratings |
-| **Image Wall Config** | Manage image wall layout |
+### AstroSuite (Planning Tools)
+- **Module 1 — Targets** — Best targets tonight, NovaRank scoring, Telescopius integration, imaging windows
+- **Module 2 — Rigs** — Telescope/camera/filter profile management, FOV calculator, sampling calculator
+- **Module 3 — Framing** — Aladin Lite integration, real-time framing preview, sensor overlay
+- **Module 4 — Filters** — Filter management, transmission curves, exposure impact analysis
+- **Module 5 — Exposure Calculator** — SB-based exposure calculator v4 (calibrated against SkyTools), emission/continuum object handling, continuous SNR targeting, dark current, size weighting, editable sub-exposure/sub-count overrides
+- **Module 6 — Projects** — Project management with exposure plans, observation tracking, cumulative KPIs (total subs, captured/planned hours, sessions, overall progress), status-based sorting
+- **PHD2 Analysis** — Guiding log analyzer with RMS graphs, drift detection, star loss tracking
+- **Weather** — Astronomy forecast, seeing, moon phase, imaging windows (Open-Meteo)
 
-### Technical Features
-- ⚡ **Vite** for fast development and optimized builds
-- 🎨 **Custom Design System** with CSS variables and Tailwind
+### Technical
+- ⚡ **Vite 6** for fast development and optimized builds
+- 🎨 **Custom dark-mode-first design system** with Tailwind CSS 4
 - 📱 **PWA** with service worker for offline support
 - 🔄 **React.lazy** code splitting for performance
-- 🌙 **Dark mode** as default with smooth transitions
-- 🔍 **Global Search** across posts and articles
+- 🔍 **Global search** across posts and articles
 - 🖼️ **Lightbox** with keyboard navigation
 - 📊 **SEO optimized** with meta tags and structured data
+- 🔐 **JWT auth** with bcrypt password hashing
 
 ---
 
@@ -77,27 +59,27 @@ The application features a custom design system with dark-mode-first aesthetics,
 | Technology | Purpose |
 |-----------|---------|
 | React 19 | UI framework |
-| TypeScript | Type safety |
-| Vite | Build tool & dev server |
+| TypeScript 5.7 | Type safety |
+| Vite 6 | Build tool & dev server |
 | Tailwind CSS 4 | Utility-first styling |
-| Framer Motion | Animations |
+| Motion (Framer) | Animations |
 | Lucide React | Icon library |
-| date-fns | Date formatting |
+| Recharts | Charts & graphs |
 
 ### Backend
 | Technology | Purpose |
 |-----------|---------|
-| Hono | Lightweight web framework |
-| SQLite | Embedded database |
-| better-sqlite3 | SQLite driver |
-| Zod | Schema validation |
+| Hono 4 | Lightweight web framework |
+| SQLite (better-sqlite3) | Embedded database |
+| JWT (jsonwebtoken) | Authentication |
 | bcryptjs | Password hashing |
-| jose | JWT handling |
+| Cloudscraper | Telescopius API proxy |
+| Sharp | Image processing |
 
 ### External APIs
 - **Open-Meteo** — Weather data & astronomy seeing forecasts
-- **SunCalc** — Sun/moon position calculations
-- **Telescopius** — Deep-sky object data & framing
+- **Telescopius** — Deep-sky object data, target visibility, framing
+- **Google Gemini** — AI features (Ask Hal)
 
 ---
 
@@ -108,54 +90,52 @@ astrocapture/
 ├── api/                          # Backend API (Hono + SQLite)
 │   ├── src/
 │   │   ├── index.ts              # API routes & server
-│   │   ├── db.ts                 # Database setup & queries
-│   │   ├── seed.ts               # Seed data
-│   │   └── telescopius_proxy.py  # Telescopius API proxy
-│   ├── package.json
-│   └── tsconfig.json
+│   │   ├── db.ts                 # Database connection
+│   │   └── telescopius_proxy.py  # Telescopius API proxy (cloudscraper)
+│   ├── data/astrocapture.db      # SQLite database
+│   └── package.json
 │
-├── components/                   # React components
-│   ├── Shared.tsx                # Reusable UI components (Card, Lightbox, etc.)
-│   ├── GalleryView.tsx           # Home gallery
-│   ├── ImageOfTheDayView.tsx     # IOTD showcase
-│   ├── ImageWallView.tsx         # Masonry image wall
-│   ├── ProcessingView.tsx        # Articles listing
-│   ├── PostDetailView.tsx        # Article detail
-│   ├── AstroIndexView.tsx        # Astro Weather dashboard
-│   ├── WeatherDisplayView.tsx    # Weather widget
-│   ├── NightlyForecastView.tsx   # Nightly seeing forecast
-│   ├── GearReviewsView.tsx       # Equipment reviews
-│   ├── GearSettingsForm.tsx      # Gear review editor
-│   ├── EquipmentTrackerForm.tsx  # Equipment tracker
-│   ├── AboutView.tsx             # About page
-│   ├── LoginView.tsx             # Admin login
-│   └── ...                       # Other components
+├── src/                          # AstroSuite modules
+│   ├── components/
+│   │   ├── Module1/              # Targets
+│   │   ├── Module2/              # Rigs
+│   │   ├── Module3/              # Framing
+│   │   ├── Module4/              # Filters
+│   │   ├── Module5/              # Exposure Calculator
+│   │   ├── Module6/              # Projects
+│   │   ├── Module1/              # Targets
+│   │   └── admin/                # Admin components
+│   ├── services/
+│   │   ├── module1/              # Target service, NovaRank
+│   │   ├── module2/              # Rig profiles
+│   │   ├── module3/              # Framing service
+│   │   ├── module5/              # Exposure calculator v4
+│   │   ├── module6/              # Project service
+│   │   ├── filterService.ts      # Filter CRUD
+│   │   ├── filterMapping.ts      # Filter type mapping
+│   │   ├── projectService.ts     # Project CRUD + exposure plans
+│   │   ├── targetExplorerService.ts  # Telescopius integration
+│   │   └── userService.ts        # User auth
+│   └── types/                    # TypeScript type definitions
 │
-├── services/                     # Business logic & API clients
-│   ├── dsoService.ts             # Deep-sky object data
-│   ├── equipmentService.ts       # Equipment management
-│   ├── observationPlannerService.ts
-│   ├── targetScorer.ts           # Target visibility scoring
-│   ├── api.ts                    # API client
-│   └── firebase.ts               # Firebase config
-│
-├── design-system/                # Design system documentation
-│   ├── DESIGN_SYSTEM.md          # Design tokens & guidelines
-│   ├── components.tsx            # Design system components
-│   ├── Navbar.tsx                # Navigation patterns
-│   └── index.css                 # Base styles
-│
-├── public/                       # Static assets
-│   ├── service-worker.js         # PWA service worker
+├── components/                   # Shared/top-level components
+│   ├── AstroSuiteView.tsx        # AstroSuite dashboard
+│   ├── ProjectsView.tsx          # Projects (create/edit/detail)
+│   ├── TargetExplorerView.tsx    # Target search
+│   ├── GearReviewsView.tsx       # Gear reviews
+│   ├── PHD2Analysis.tsx          # PHD2 log analyzer
+│   ├── Shared.tsx                # Reusable UI (Card, Lightbox, etc.)
 │   └── ...
 │
+├── services/                     # Legacy shared services
+├── design-system/                # Design system docs & tokens
+├── public/                       # Static assets + service worker
+├── docs/                         # Documentation
+├── planning/                     # Planning notes
+│
 ├── App.tsx                       # Main app component & routing
-├── index.tsx                     # Entry point
-├── initialData.ts                # Default content seed
-├── types.ts                      # TypeScript types
 ├── vite.config.ts                # Vite configuration
-├── package.json
-└── README.md                     # This file
+└── package.json
 ```
 
 ---
@@ -163,8 +143,9 @@ astrocapture/
 ## Getting Started
 
 ### Prerequisites
-- **Node.js** 20+ 
+- **Node.js** 22+
 - **npm** 10+
+- **Python 3** (for Telescopius proxy)
 
 ### Installation
 
@@ -188,15 +169,13 @@ astrocapture/
    ```bash
    npm run dev
    ```
-   
    The app will be available at `http://localhost:5173`
 
 5. **Start the API server** (in another terminal)
    ```bash
    cd api && npm run dev
    ```
-   
-   The API will be available at `http://localhost:3001`
+   The API runs on `http://localhost:3002`
 
 ---
 
@@ -207,37 +186,29 @@ astrocapture/
 ```bash
 # Frontend
 npm run dev          # Start Vite dev server
-npm run build        # Production build
+npm run build        # Production build → dist/
 npm run preview      # Preview production build
 
 # Backend
-npm run dev          # Start Hono dev server (in api/)
+cd api && npm run dev    # Start Hono dev server with watch
+cd api && npm run build  # Compile TypeScript → dist/
 ```
-
-### Adding New Content
-
-Content is managed through the **Admin Dashboard** (requires login):
-
-1. Navigate to `/admin`
-2. Login with admin credentials
-3. Use the panel buttons to manage:
-   - Gallery posts
-   - Processing articles
-   - Hero slides
-   - Site configuration
-   - Gear reviews
 
 ### Database
 
-The application uses **SQLite** with the following main tables:
-- `posts` — Gallery posts
-- `processing_posts` — Processing articles
-- `hero_slides` — Homepage hero slides
-- `my_equipment` — Equipment tracker data
-- `observations` — Observation log
-- `config` — Site configuration
+SQLite database at `api/data/astrocapture.db`. Main tables:
 
-Database file: `api/data.sqlite`
+| Table | Purpose |
+|-------|---------|
+| `posts` | Gallery posts |
+| `processing_posts` | Processing articles |
+| `hero_slides` | Homepage hero slides |
+| `apls_projects` | AstroSuite projects (with exposure plans, SNR target, rig assignment) |
+| `apls_project_observations` | Observation sessions per project |
+| `apls_rigs` | Rig profiles (telescope + camera + modifiers) |
+| `apls_filters` | User filters (transmission, bandwidth, sky suppression) |
+| `my_equipment` | Equipment tracker |
+| `config` | Site configuration |
 
 ---
 
@@ -249,47 +220,54 @@ Database file: `api/data.sqlite`
 # Build frontend
 npm run build
 
-# Output is in dist/ — deploy to your static host
-cp -r dist/* /var/www/astrocapture/
-```
+# Build backend
+cd api && npm run build
 
-### Backend Deployment
+# Deploy frontend
+sudo rsync -av --delete dist/ /var/www/astrocapture/
 
-The backend API runs as a separate Node.js process:
-
-```bash
-cd api
-npm install
-npm run build
-# Use PM2, systemd, or Docker to keep running
+# Restart backend
+sudo systemctl restart astrocapture-api
 ```
 
 ### Current Deployment
 
-- **Frontend:** Static files served by Caddy
-- **Backend:** Hono API on port 3001 (proxied by Caddy)
-- **Domain:** https://astro.stephanemee.com
+| Component | Details |
+|-----------|---------|
+| **Frontend** | Static files served by Caddy |
+| **Backend** | Hono API on port 3002, systemd service `astrocapture-api` |
+| **Domain** | astrocapture.org (production), beta.astrocapture.org (beta) |
+| **Server** | VPS (Ubuntu 24.04, Node 22) |
 
 ---
 
-## API Backend
+## API Endpoints
 
-The backend is built with **Hono** and provides RESTful endpoints for:
-
+### Public
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/posts` | List all gallery posts |
-| `POST /api/posts` | Create a new post |
-| `PUT /api/posts/:id` | Update a post |
-| `DELETE /api/posts/:id` | Delete a post |
-| `GET /api/processing-posts` | List all articles |
-| `POST /api/processing-posts` | Create an article |
-| `PUT /api/processing-posts/:id` | Update an article |
-| `GET /api/config` | Get site config |
-| `PUT /api/config` | Update site config |
-| `POST /api/login` | Admin login |
+| `GET /api/posts` | Gallery posts |
+| `GET /api/processing-posts` | Articles |
+| `GET /api/config` | Site config |
+| `GET /api/gear` | Gear reviews |
 
-Full API documentation is available in `api/src/index.ts`.
+### Telescopius Proxy
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/telescopius/search` | Search deep-sky objects |
+| `GET /api/telescopius/highlights` | Best targets tonight |
+| `GET /api/telescopius/visibility` | Object visibility |
+| `GET /api/telescopius/mosaic` | Mosaic calculator |
+
+### AstroSuite (Auth required)
+| Endpoint | Description |
+|----------|-------------|
+| `GET/POST /api/apls/projects` | Project CRUD |
+| `PATCH/DELETE /api/apls/projects/:id` | Project update/delete |
+| `POST /api/apls/projects/:id/observations` | Add observation |
+| `GET/POST /api/apls/rigs` | Rig profiles |
+| `GET/POST /api/apls/filters` | Filter management |
+| `POST /api/login` | Admin login (JWT) |
 
 ---
 
@@ -298,30 +276,34 @@ Full API documentation is available in `api/src/index.ts`.
 Create `.env` in the project root (not committed):
 
 ```env
-# OpenWeatherMap API key
-VITE_OPENWEATHER_API_KEY=your_key_here
-
-# Telescopius API key
-VITE_TELESCOPIUS_API_KEY=your_key_here
-
+# Telescopius API key (in .secrets/telescopius.json)
 # Gemini API key (for AI features)
-VITE_GEMINI_API_KEY=your_key_here
-
-# Admin password (for backend)
-ADMIN_PASSWORD_HASH=bcrypt_hash_here
+# Admin password hash (bcrypt)
 ```
+
+---
+
+## Exposure Calculator v4
+
+The exposure calculator uses a surface-brightness-based model calibrated against SkyTools:
+
+- **Sky flux** from Bortle class + skySuppression per filter
+- **Object flux** using SB (mag/arcsec²) instead of total magnitude
+- **Emission vs continuum** — galaxies attenuated by filter skySuppression, emission nebulae not
+- **Continuous SNR target** — `500 × √(contrast)` with size weighting
+- **Dark current** included in noise budget
+- **Editable overrides** — users can manually adjust sub-exposure time and sub-count per filter
 
 ---
 
 ## Design System
 
-The application uses a custom **dark-mode-first** design system:
-
-- **Colors:** CSS custom properties for theming
-- **Typography:** Display + body font pairing
-- **Spacing:** Consistent 4px grid
-- **Components:** Card, Button, Badge, Modal, Lightbox
-- **Animations:** Fade-in, slide-up, hover transitions
+Custom **dark-mode-first** design system with:
+- CSS custom properties for theming
+- Display + body font pairing
+- Consistent 4px grid spacing
+- Card, Button, Badge, Modal, Lightbox components
+- Fade-in, slide-up, hover transitions
 
 See `design-system/DESIGN_SYSTEM.md` for full documentation.
 
@@ -333,17 +315,20 @@ See `design-system/DESIGN_SYSTEM.md` for full documentation.
 - [x] Processing articles with markdown
 - [x] Astro Weather dashboard
 - [x] Equipment tracker & FOV calculator
-- [x] Image of the Day
-- [x] Image Wall (masonry layout)
+- [x] Image of the Day & Image Wall
 - [x] Gear Reviews
 - [x] Admin Dashboard
 - [x] PWA support
-- [x] SQLite backend
-- [ ] Astro Suite v2 (planned refactor)
+- [x] SQLite backend (migrated from Firebase)
+- [x] AstroSuite v2 — Targets, Rigs, Framing, Filters, Exposure Calculator, Projects
+- [x] Exposure Calculator v4 (SB-based, SkyTools-calibrated)
+- [x] PHD2 log analysis
+- [x] Project tracking with KPIs
 - [ ] Multi-language support
 - [ ] Advanced search with filters
 - [ ] Image upload optimization
 - [ ] RSS feed
+- [ ] Community features
 
 ---
 
