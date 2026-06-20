@@ -586,7 +586,7 @@ const App = () => {
         {view === ViewState.WALL_OF_IMAGES && <ImageWallView posts={posts} processingPosts={processingPosts} onOpenLightbox={openLightbox} />}
         {view === ViewState.GEAR_REVIEWS && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><GearReviewsView items={gearItems} /></React.Suspense>}
         {view === ViewState.ABOUT && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AboutView config={aboutConfig} /></div>}
-        {view === ViewState.ASTRO_INDEX && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AstroIndexView /></div>}
+        {view === ViewState.ASTRO_INDEX && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AstroIndexView initialLocation={locationSource} onLocationChange={(src) => setLocationSource(src as any)} /></div>}
         {view === ViewState.NOVA_LOG_ANALYZER && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><PHD2Analysis /></React.Suspense></div>}
         {view === ViewState.LOGIN && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><LazyLoginView onLogin={(token) => { setIsAuthenticated(true); setView(ViewState.GALLERY); }} /></React.Suspense>}
         {view === ViewState.LICENSE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LicenseView config={licenseConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
@@ -2689,6 +2689,21 @@ const AstroIndexView: React.FC = () => {
         pradelles: { lat: 44.77, lon: 3.88, name: "Pradelles (43420)", bortle: 2 }
     };
 
+    // Sync location from navigation bar
+    React.useEffect(() => {
+        if (initialLocation && initialLocation !== locationSource) {
+            setLocationSource(initialLocation as typeof locationSource);
+            const src = initialLocation as 'saintEtienne' | 'pradelles' | 'current' | '';
+            if (src === 'saintEtienne') {
+                setCoordinates(PRESET_LOCATIONS.saintEtienne);
+                setCurrentBortle(PRESET_LOCATIONS.saintEtienne.bortle);
+            } else if (src === 'pradelles') {
+                setCoordinates(PRESET_LOCATIONS.pradelles);
+                setCurrentBortle(PRESET_LOCATIONS.pradelles.bortle);
+            }
+        }
+    }, [initialLocation]);
+
     // Fetch astronomical data when location or date changes
     React.useEffect(() => {
         if (coordinates) {
@@ -2747,6 +2762,7 @@ const AstroIndexView: React.FC = () => {
     const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const source = e.target.value as typeof locationSource;
         setLocationSource(source);
+        if (onLocationChange) onLocationChange(source);
         setCoordinates(null);
         setLocationError(null);
         setCurrentBortle(null);
