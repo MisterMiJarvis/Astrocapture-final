@@ -90,9 +90,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   }, [loadProjects]);
 
   // Filter projects
-  const filteredProjects = filterStatus === 'all'
+  const STATUS_ORDER: Record<string, number> = { in_progress: 0, planning: 1, completed: 2, archived: 3 };
+  const filteredProjects = (filterStatus === 'all'
     ? projects
-    : projects.filter(p => p.status === filterStatus);
+    : projects.filter(p => p.status === filterStatus)
+  ).sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
 
   const inProgressCount = projects.filter(p => p.status === 'in_progress').length;
   const completedCount = projects.filter(p => p.status === 'completed').length;
