@@ -3,13 +3,15 @@
 // Create projects from targets, track observations, progress tracking
 // ============================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Project,
   ProjectStatus,
   ProjectObservation,
   CreateProjectData,
   AddObservationData,
+  SNRTarget,
+  SNR_TARGET_CONFIG,
 } from '../src/types/project';
 import {
   fetchProjects,
@@ -32,11 +34,14 @@ import { FilterType } from '../src/types/module5';
 import {
   getUserOwnedFilters,
   UserFilterInfo,
-  FILTER_TYPE_LABELS,} from '../src/services/filterMapping';
+  FILTER_TYPE_LABELS,
+} from '../src/services/filterMapping';
+import { AstroFilter, fetchFilters } from '../src/services/filterService';
 import {
   Plus, FolderOpen, CheckCircle2, Archive, Trash2, ChevronDown, ChevronRight,
   Telescope, MapPin, Clock, Moon, Target, Camera, Filter, BarChart3,
   X, Eye, Sparkles, Search, RotateCw, Star, ChevronLeft,
+  Crosshair, Maximize2, Pencil, Save,
 } from 'lucide-react';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
@@ -108,12 +113,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
 
   const handleDeleteProject = async (id: string) => {
     if (!confirm('Delete this project? This cannot be undone.')) return;
-    await deleteProject(id);
+    // Optimistic: remove from state immediately
     setProjects(prev => prev.filter(p => p.id !== id));
     if (selectedProject?.id === id) {
       setSelectedProject(null);
       setViewMode('list');
     }
+    // Fire and forget — don't block UI
+    deleteProject(id).catch(err => console.error('Delete failed:', err));
   };
 
   // Public method to start project from targets tab
@@ -319,15 +326,19 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const [title, setTitle] = useState('');
   const [selectedTarget, setSelectedTarget] = useState<TelescopiusTarget | null>(preselectedTarget || null);
   const [primaryFilter, setPrimaryFilter] = useState<string>('L_Ultimate');
+  const [snrTarget, setSnrTarget] = useState<SNRTarget>(30);
   const [isCreating, setIsCreating] = useState(false);
   const [exposurePreview, setExposurePreview] = useState<any>(null);
+  const [manualOverrides, setManualOverrides] = useState<Record<number, { subExposure?: number; subCount?: number }>>({});
   const [step, setStep] = useState<'target' | 'details'>(preselectedTarget ? 'details' : 'target');
+  const [showFraming, setShowFraming] = useState(false);
 
   // Local location/rig state for project creation
   const [localLocation, setLocalLocation] = useState<string>(locationSource);
   const [rigs, setRigs] = useState<any[]>([]);
   const [activeRig, setActiveRig] = useState<any>(null);
   const [activeRigId, setActiveRigId] = useState<string>('');
+  const [userFilters, setUserFilters] = useState<AstroFilter[]>([]);
 
   const localCoords = CREATE_LOCATION_COORDS[localLocation] || CREATE_LOCATION_COORDS.saintEtienne;
 
@@ -337,7 +348,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       .then(r => r.ok ? r.json() : [])
       .then((rigList: any[]) => {
         setRigs(rigList);
-        const def = rigList.find((r: any) => r.isDefault);
+        const def = rigList.find((r: any) => r.isDefault) || rigList[0];
         if (def) {
           setActiveRigId(def.id);
           setActiveRig(def);
@@ -346,21 +357,44 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       .catch(() => {});
   }, []);
 
+  // Load user filters from API
+  useEffect(() => {
+    fetchFilters()
+      .then((filters: AstroFilter[]) => setUserFilters(filters))
+      .catch(() => setUserFilters([]));
+  }, []);
+
+  // Clear overrides when exposure preview recalculates (filter/rig/snr change)
+  useEffect(() => {
+    setManualOverrides({});
+  }, [primaryFilter, snrTarget, activeRigId, localLocation]);
+
   // Update exposure preview
   useEffect(() => {
     if (!selectedTarget) { setExposurePreview(null); return; }
+    const effectiveRig = activeRig || rigs[0];
+    const bortle = localLocation === 'pradelles' ? 2 : 4;
+    // Find the actual filter data from user's collection
+    const filterData = userFilters.find((f: AstroFilter) => f.filterType === primaryFilter || f.id === primaryFilter);
     const preview = calculateExposurePlan({
       targetMagnitude: selectedTarget.magnitude ?? null,
       targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
+      surfaceBrightness: selectedTarget.surfaceBrightness ?? null,
       filter: primaryFilter,
-      focalLength: activeRig?.telescope?.focalLength ?? 800,
-      aperture: activeRig?.telescope?.aperture ?? 200,
-      pixelSize: activeRig?.imagingCamera?.pixelSize ?? 3.76,
+      focalLength: effectiveRig?.opticModifier?.effectiveFocalLength ?? effectiveRig?.telescope?.focalLength ?? 800,
+      aperture: effectiveRig?.telescope?.aperture ?? 200,
+      pixelSize: effectiveRig?.imagingCamera?.pixelSize ?? 3.76,
+      readNoise: effectiveRig?.imagingCamera?.readNoise ?? 1.5,
+      quantumEfficiency: effectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
+      fullWellDepth: effectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
       moonIllumination: 0.5,
       avgSeeing: 2.5,
+      bortle,
+      snrTarget,
+      filterData, // Pass real filter specs!
     });
     setExposurePreview(preview);
-  }, [selectedTarget, primaryFilter, activeRig]);
+  }, [selectedTarget, primaryFilter, activeRig, rigs, snrTarget, userFilters, localLocation]);
 
   // Handle target selection from TargetExplorerView
   const handleTargetSelect = (target: TelescopiusTarget) => {
@@ -377,7 +411,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     if (!selectedTarget || !title.trim()) return;
     setIsCreating(true);
     try {
-      const project = await createProject({
+      let project = await createProject({
         title: title.trim(),
         targetId: selectedTarget.id,
         targetName: selectedTarget.mainName,
@@ -386,13 +420,33 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         targetDec: selectedTarget.dec,
         targetMagnitude: selectedTarget.magnitude ?? null,
         targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
+        surfaceBrightness: selectedTarget.surfaceBrightness ?? null,
         targetImageUrl: selectedTarget.imageUrl ?? null,
         locationSource: localLocation,
         lat: localCoords.lat,
         lon: localCoords.lon,
         rigId: activeRig?.id ?? null,
         primaryFilter,
+        snrTarget,
       });
+      // Apply manual overrides to exposure plan if any
+      if (Object.keys(manualOverrides).length > 0 && project.exposurePlan) {
+        const overriddenPlan = project.exposurePlan.map((plan, i) => {
+          const ov = manualOverrides[i];
+          if (!ov) return plan;
+          const subExposure = ov.subExposure ?? plan.subExposure;
+          const subCount = ov.subCount ?? plan.subCount;
+          return {
+            ...plan,
+            subExposure,
+            subCount,
+            totalExposureTime: subExposure * subCount,
+            totalWithOverhead: Math.round(subExposure * subCount * 1.15),
+          };
+        });
+        const totalPlannedHours = overriddenPlan.reduce((sum, p) => sum + p.totalExposureTime, 0) / 3600;
+        project = await updateProject(project.id, { exposurePlan: overriddenPlan, totalPlannedHours });
+      }
       onCreated(project);
     } finally {
       setIsCreating(false);
@@ -520,7 +574,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
               >
                 {rigs.map((r: any) => (
-                  <option key={r.id} value={r.id}>{r.name} — {r.telescope?.focalLength ?? '?'}mm</option>
+                  <option key={r.id} value={r.id}>{r.name} — {r?.opticModifier?.effectiveFocalLength ?? r?.telescope?.focalLength ?? '?'}mm</option>
                 ))}
               </select>
             ) : (
@@ -541,19 +595,36 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               onChange={(e) => setPrimaryFilter(e.target.value)}
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
             >
-              {[
-                { value: 'L_Ultimate', label: 'L Ultimate' },
-                { value: 'LPS_D2', label: 'LPS-D2' },
-                { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
-                { value: 'Ha', label: 'Hα' },
-                { value: 'OIII', label: 'OIII' },
-                { value: 'SII', label: 'SII' },
-                { value: 'RGB', label: 'RGB' },
-                { value: 'Luminance', label: 'Luminance' },
-              ].map(f => (
-                <option key={f.value} value={f.value}>{f.label}</option>
-              ))}
+              {userFilters.length > 0 ? (
+                userFilters.map((f: any) => (
+                  <option key={f.id} value={f.filterType || f.type}>
+                    {f.name} — τ={((f.peakTransmission ?? 0) * 100).toFixed(0)}% | SS={((f.skySuppression ?? 0) * 100).toFixed(0)}%
+                  </option>
+                ))
+              ) : (
+                [
+                  { value: 'L_Ultimate', label: 'L Ultimate' },
+                  { value: 'LPS_D2', label: 'LPS-D2' },
+                  { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
+                  { value: 'Ha', label: 'Hα' },
+                  { value: 'OIII', label: 'OIII' },
+                  { value: 'SII', label: 'SII' },
+                  { value: 'RGB', label: 'RGB' },
+                  { value: 'Luminance', label: 'Luminance' },
+                ].map(f => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))
+              )}
             </select>
+            {(() => {
+              const selected = userFilters.find((f: any) => (f.filterType || f.type) === primaryFilter);
+              if (!selected) return null;
+              return (
+                <div className="text-[10px] text-text-secondary mt-1 font-mono">
+                  τ={((selected.peakTransmission ?? 0) * 100).toFixed(0)}% | BW={selected.bandwidthNm ?? '?'}nm | SS={((selected.skySuppression ?? 0) * 100).toFixed(0)}%
+                </div>
+              );
+            })()}
           </div>
         </div>
         <div className="text-xs text-text-secondary flex items-center gap-3">
@@ -562,19 +633,131 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         </div>
       </div>
 
+      {/* SNR Target Selector */}
+      <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <h3 className="font-semibold text-text flex items-center gap-2"><BarChart3 size={16} /> Objectif SNR</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {([15, 30, 60, 100] as SNRTarget[]).map(snr => {
+            const cfg = SNR_TARGET_CONFIG[snr];
+            const isSelected = snrTarget === snr;
+            return (
+              <button
+                key={snr}
+                onClick={() => setSnrTarget(snr)}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  isSelected
+                    ? 'border-primary bg-primary/10 ring-1 ring-primary/50'
+                    : 'border-border bg-background hover:border-primary/30'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{cfg.icon}</span>
+                  <span className={`text-sm font-semibold ${isSelected ? 'text-primary' : 'text-text'}`}>SNR {snr}</span>
+                </div>
+                <div className={`text-xs ${isSelected ? 'text-primary/80' : 'text-text-secondary'}`}>{cfg.label}</div>
+                <div className="text-[10px] text-text-secondary mt-0.5">{cfg.description}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Framing Assistant */}
+      {selectedTarget && (activeRig || rigs.length > 0) && (
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-text flex items-center gap-2"><Crosshair size={16} /> Cadrage</h3>
+            <button
+              onClick={() => setShowFraming(!showFraming)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-surface-secondary text-text-secondary transition-colors"
+            >
+              {showFraming ? 'Masquer' : 'Voir Aladin'}
+            </button>
+          </div>
+          <FramingPreview
+            ra={selectedTarget.ra}
+            dec={selectedTarget.dec}
+            targetName={selectedTarget.mainName}
+            focalLength={activeRig?.opticModifier?.effectiveFocalLength ?? activeRig?.telescope?.focalLength ?? 800}
+            sensorWidth={activeRig?.imagingCamera?.sensorWidth ?? 11.3}
+            sensorHeight={activeRig?.imagingCamera?.sensorHeight ?? 11.3}
+          />
+          {showFraming && (
+            <AladinFramerInline
+              ra={selectedTarget.ra}
+              dec={selectedTarget.dec}
+              targetName={selectedTarget.mainName}
+              focalLength={activeRig?.opticModifier?.effectiveFocalLength ?? activeRig?.telescope?.focalLength ?? 800}
+              sensorWidth={activeRig?.imagingCamera?.sensorWidth ?? 11.3}
+              sensorHeight={activeRig?.imagingCamera?.sensorHeight ?? 11.3}
+            />
+          )}
+        </div>
+      )}
+
       {/* Exposure Preview */}
       {exposurePreview && exposurePreview.length > 0 && (
         <div className="bg-surface border border-emerald-500/30 rounded-xl p-5 space-y-3">
           <h3 className="font-semibold text-text flex items-center gap-2"><span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm">📸</span> Exposure Plan</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {exposurePreview.map((plan: any, i: number) => (
-              <div key={i} className="bg-background p-3 rounded-lg border border-border">
-                <div className="text-[10px] text-text-secondary block mb-1">{plan.filter.replace(/_/g, ' ')}</div>
-                <div className="font-mono font-bold text-text">{plan.subExposure}s × {plan.subCount}</div>
-                <div className="text-xs text-text-secondary mt-1">{(plan.totalExposureTime / 3600).toFixed(1)}h total</div>
-                <div className="text-xs text-emerald-300 mt-0.5">{plan.snrEstimate}</div>
-              </div>
-            ))}
+            {exposurePreview.map((plan: any, i: number) => {
+              const ov = manualOverrides[i] || {};
+              const currentSubExposure = ov.subExposure ?? plan.subExposure;
+              const currentSubCount = ov.subCount ?? plan.subCount;
+              const currentTotal = currentSubExposure * currentSubCount;
+              const currentWithOverhead = Math.round(currentSubExposure * currentSubCount * 1.15);
+              const isOverridden = !!manualOverrides[i];
+              return (
+                <div key={i} className={`bg-background p-3 rounded-lg border ${isOverridden ? 'border-amber-500/50' : 'border-border'}`}>
+                  <div className="text-[10px] text-text-secondary block mb-1">{plan.filter.replace(/_/g, ' ')}</div>
+                  <div className="flex items-end gap-1 mb-1">
+                    <div className="flex-1">
+                      <label className="text-[9px] text-text-secondary block">Sub(s)</label>
+                      <input
+                        type="number"
+                        step={10}
+                        min={10}
+                        max={600}
+                        value={currentSubExposure}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || plan.subExposure;
+                          setManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subExposure: val } }));
+                        }}
+                        className="w-full bg-surface border border-border rounded px-1.5 py-1 text-xs text-text font-mono focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[9px] text-text-secondary block">#Subs</label>
+                      <input
+                        type="number"
+                        step={1}
+                        min={1}
+                        value={currentSubCount}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || plan.subCount;
+                          setManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subCount: val } }));
+                        }}
+                        className="w-full bg-surface border border-border rounded px-1.5 py-1 text-xs text-text font-mono focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-xs text-text-secondary mt-1">{(currentWithOverhead / 3600).toFixed(1)}h total</div>
+                  <div className="text-[10px] text-amber-300 mt-0.5">Range: {plan.subExposureMin}s–{plan.subExposureMax}s</div>
+                  <div className="text-xs text-emerald-300 mt-0.5">{plan.snrEstimate}</div>
+                  <div className="text-[9px] text-text-secondary/60 mt-0.5">
+                    {plan.sampling ? plan.sampling + '"/px' : ''} · τ<sub>s</sub>={plan.tauSignal ? (plan.tauSignal * 100).toFixed(0) + '%' : '?'} · τ<sub>sky</sub>={plan.tauSky ? (plan.tauSky * 100).toFixed(0) + '%' : '?'}
+                  </div>
+                  {isOverridden && (
+                    <button
+                      onClick={() => setManualOverrides(prev => { const next = { ...prev }; delete next[i]; return next; })}
+                      className="mt-1 text-[9px] text-amber-400 hover:text-amber-300 flex items-center gap-0.5"
+                    >
+                      <RotateCw size={9} /> Auto
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -603,6 +786,122 @@ interface ProjectDetailViewProps {
 const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialProject, onBack, onUpdate, onDelete }) => {
   const [project, setProject] = useState<Project>(initialProject);
   const [showAddObs, setShowAddObs] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Edit state
+  const [editTitle, setEditTitle] = useState(project.title);
+  const [editLocation, setEditLocation] = useState(project.locationSource);
+  const [editFilter, setEditFilter] = useState(project.primaryFilter);
+  const [editSnrTarget, setEditSnrTarget] = useState<SNRTarget>(project.snrTarget);
+  const [editRigId, setEditRigId] = useState(project.rigId || '');
+
+  // Rigs & filters for edit mode
+  const [rigs, setRigs] = useState<any[]>([]);
+  const [activeRig, setActiveRig] = useState<any>(null);
+  const [userFilters, setUserFilters] = useState<any[]>([]);
+  const [editExposurePreview, setEditExposurePreview] = useState<any>(null);
+  const [editManualOverrides, setEditManualOverrides] = useState<Record<number, { subExposure?: number; subCount?: number }>>({});
+  const [showFraming, setShowFraming] = useState(false);
+
+  // Load rigs and filters
+  useEffect(() => {
+    fetch('/api/apls/rigs', { headers: { 'Content-Type': 'application/json' } })
+      .then(r => r.ok ? r.json() : [])
+      .then((rigList: any[]) => {
+        setRigs(rigList);
+        const current = rigList.find((r: any) => r.id === project.rigId);
+        const def = current || rigList.find((r: any) => r.isDefault);
+        if (def) {
+          setActiveRig(def);
+          if (!editRigId) setEditRigId(def.id);
+        }
+      })
+      .catch(() => {});
+    fetchFilters()
+      .then((filters: any[]) => setUserFilters(filters))
+      .catch(() => setUserFilters([]));
+  }, []);
+
+  // Recalculate exposure plan on edit changes
+  useEffect(() => {
+    if (!isEditing) return;
+    setEditManualOverrides({});
+    const bortle = editLocation === 'pradelles' ? 2 : 4;
+    const editEffectiveRig = activeRig || rigs.find((r: any) => r.id === editRigId);
+    const filterData = userFilters.find((f: any) => f.filterType === editFilter || f.type === editFilter);
+    const preview = calculateExposurePlan({
+      targetMagnitude: project.targetMagnitude,
+      targetSizeArcmin: project.targetSizeArcmin,
+      surfaceBrightness: project.surfaceBrightness ?? null,
+      filter: editFilter,
+      focalLength: editEffectiveRig?.opticModifier?.effectiveFocalLength ?? editEffectiveRig?.telescope?.focalLength ?? project.focalLength ?? 800,
+      aperture: editEffectiveRig?.telescope?.aperture ?? project.aperture ?? 200,
+      pixelSize: editEffectiveRig?.imagingCamera?.pixelSize ?? project.pixelSize ?? 3.76,
+      readNoise: editEffectiveRig?.imagingCamera?.readNoise ?? 1.5,
+      quantumEfficiency: editEffectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
+      fullWellDepth: editEffectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
+      moonIllumination: 0.5,
+      avgSeeing: 2.5,
+      bortle,
+      snrTarget: editSnrTarget,
+      filterData,
+    });
+    setEditExposurePreview(preview);
+  }, [isEditing, editFilter, editSnrTarget, editLocation, editRigId, rigs, activeRig, userFilters, project]);
+
+  const handleRigChange = (rigId: string) => {
+    setEditRigId(rigId);
+    const rig = rigs.find((r: any) => r.id === rigId);
+    setActiveRig(rig || null);
+  };
+
+  const startEditing = () => {
+    setEditTitle(project.title);
+    setEditLocation(project.locationSource);
+    setEditFilter(project.primaryFilter);
+    setEditSnrTarget(project.snrTarget);
+    setEditRigId(project.rigId || '');
+    const currentRig = rigs.find((r: any) => r.id === project.rigId);
+    if (currentRig) setActiveRig(currentRig);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditExposurePreview(null);
+  };
+
+  const saveEdits = async () => {
+    const rig = rigs.find((r: any) => r.id === editRigId);
+    const updates: any = {
+      title: editTitle.trim(),
+      locationSource: editLocation,
+      primaryFilter: editFilter,
+      snrTarget: editSnrTarget,
+      rigId: editRigId || null,
+      rigName: rig?.name || null,
+      focalLength: rig?.opticModifier?.effectiveFocalLength ?? rig?.telescope?.focalLength ?? null,
+      aperture: rig?.telescope?.aperture ?? null,
+      pixelSize: rig?.imagingCamera?.pixelSize ?? null,
+      sensorWidth: rig?.imagingCamera?.sensorWidth ?? null,
+      sensorHeight: rig?.imagingCamera?.sensorHeight ?? null,
+    };
+    // Recalculate exposure plan
+    if (editExposurePreview && editExposurePreview.length > 0) {
+      updates.exposurePlan = editExposurePreview;
+      updates.totalPlannedHours = editExposurePreview.reduce((sum: number, p: any) => sum + p.totalExposureTime, 0) / 3600;
+    }
+    try {
+      const updated = await updateProject(project.id, updates);
+      setProject(updated);
+      onUpdate(updated);
+      setIsEditing(false);
+      setEditExposurePreview(null);
+    } catch (err) {
+      console.error('Failed to update project:', err);
+      alert('Erreur lors de la sauvegarde');
+    }
+  };
 
   // Observation form state
   const [obsDate, setObsDate] = useState(new Date().toISOString().split('T')[0]);
@@ -660,6 +959,268 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
     onUpdate(updated);
   };
 
+  // ─── Edit Mode ──────────────────────────────────────────────────────────────
+
+  if (isEditing) {
+    const LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
+      saintEtienne: { lat: 43.7889, lon: 4.7533 },
+      pradelles: { lat: 44.6167, lon: 3.9667 },
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={cancelEditing} className="p-2 rounded-lg hover:bg-surface-secondary transition-colors">
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+                ✏️ Modifier le projet
+              </h1>
+              <p className="text-sm text-text-secondary">Modifiez les paramètres du projet</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveEdits}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
+            >
+              <Save size={14} /> Sauvegarder
+            </button>
+            <button onClick={cancelEditing} className="px-4 py-2 bg-surface-secondary text-text-secondary rounded-lg text-sm font-medium hover:bg-surface transition-colors">
+              Annuler
+            </button>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
+          <h3 className="font-semibold text-text">Titre du projet</h3>
+          <input
+            type="text"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            placeholder="e.g. M42 Orion Nebula — Hα project"
+            className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text placeholder:text-text-secondary/50 focus:outline-none focus:border-primary"
+          />
+        </div>
+
+        {/* Target info (read-only in edit — target change would require new project) */}
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
+          <h3 className="font-semibold text-text flex items-center gap-2"><Target size={16} /> Cible</h3>
+          <div className="bg-background border border-border rounded-lg p-4 flex items-center gap-4">
+            {project.targetImageUrl ? (
+              <img src={project.targetImageUrl} alt={project.targetName} className="w-16 h-16 rounded-lg object-cover" />
+            ) : (
+              <div className="w-16 h-16 rounded-lg bg-surface-secondary flex items-center justify-center text-2xl">
+                {TYPE_EMOJIS[project.targetType] || '🔭'}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-text">{project.targetName}</div>
+              <div className="text-sm text-text-secondary flex items-center gap-3 mt-1">
+                {project.targetMagnitude != null && <span className="font-mono">mag {(project.targetMagnitude ?? 0).toFixed(1)}</span>}
+                {project.targetSizeArcmin != null && (project.targetSizeArcmin ?? 0) > 0 && <span className="font-mono">{(project.targetSizeArcmin ?? 0).toFixed(0)}'</span>}
+                <span className="font-mono text-xs text-text-secondary">{project.targetRa} / {project.targetDec}</span>
+              </div>
+            </div>
+            <span className="text-xs text-text-secondary bg-surface-secondary px-2 py-1 rounded">Changer = nouveau projet</span>
+          </div>
+        </div>
+
+        {/* Setup: Location + Rig + Filter */}
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <h3 className="font-semibold text-text flex items-center gap-2"><Telescope size={16} /> Configuration</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Location */}
+            <div>
+              <label className="text-xs text-text-secondary block mb-1">📍 Lieu</label>
+              <select
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+              >
+                <option value="saintEtienne">🏠 St-Étienne-du-Grès</option>
+                <option value="pradelles">🏡 Pradelles</option>
+              </select>
+            </div>
+
+            {/* Rig */}
+            <div>
+              <label className="text-xs text-text-secondary block mb-1">🔭 Rig</label>
+              {rigs.length > 0 ? (
+                <select
+                  value={editRigId}
+                  onChange={(e) => handleRigChange(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                >
+                  {rigs.map((r: any) => (
+                    <option key={r.id} value={r.id}>{r.name} — {r?.opticModifier?.effectiveFocalLength ?? r?.telescope?.focalLength ?? '?'}mm</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-secondary">Aucun rig configuré</div>
+              )}
+              {activeRig && (
+                <div className="text-[10px] text-text-secondary mt-1 font-mono">
+                  {activeRig.telescope?.focalLength ?? '?'}mm f/{activeRig.telescope?.fRatio ?? '?'} · {activeRig.imagingCamera?.pixelSize ?? '?'}µm/px
+                </div>
+              )}
+            </div>
+
+            {/* Filter */}
+            <div>
+              <label className="text-xs text-text-secondary block mb-1">🔲 Filtre principal</label>
+              <select
+                value={editFilter}
+                onChange={(e) => setEditFilter(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+              >
+                {userFilters.length > 0 ? (
+                  userFilters.map((f: any) => (
+                    <option key={f.id} value={f.filterType || f.type}>
+                      {f.name} — τ={((f.peakTransmission ?? 0) * 100).toFixed(0)}% | SS={((f.skySuppression ?? 0) * 100).toFixed(0)}%
+                    </option>
+                  ))
+                ) : (
+                  [
+                    { value: 'L_Ultimate', label: 'L Ultimate' },
+                    { value: 'LPS_D2', label: 'LPS-D2' },
+                    { value: 'UV_IR_Cut', label: 'UV/IR Cut' },
+                    { value: 'Ha', label: 'Hα' },
+                    { value: 'OIII', label: 'OIII' },
+                    { value: 'SII', label: 'SII' },
+                    { value: 'RGB', label: 'RGB' },
+                    { value: 'Luminance', label: 'Luminance' },
+                  ].map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))
+                )}
+              </select>
+              {(() => {
+                const selected = userFilters.find((f: any) => (f.filterType || f.type) === editFilter);
+                if (!selected) return null;
+                return (
+                  <div className="text-[10px] text-text-secondary mt-1 font-mono">
+                    τ={((selected.peakTransmission ?? 0) * 100).toFixed(0)}% | BW={selected.bandwidthNm ?? '?'}nm | SS={((selected.skySuppression ?? 0) * 100).toFixed(0)}%
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* SNR Target Selector */}
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <h3 className="font-semibold text-text flex items-center gap-2"><BarChart3 size={16} /> Objectif SNR</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {([15, 30, 60, 100] as SNRTarget[]).map(snr => {
+              const cfg = SNR_TARGET_CONFIG[snr];
+              const isSelected = editSnrTarget === snr;
+              return (
+                <button
+                  key={snr}
+                  onClick={() => setEditSnrTarget(snr)}
+                  className={`p-3 rounded-lg border text-left transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary/10 ring-1 ring-primary/50'
+                      : 'border-border bg-background hover:border-primary/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{cfg.icon}</span>
+                    <span className={`text-sm font-semibold ${isSelected ? 'text-primary' : 'text-text'}`}>SNR {snr}</span>
+                  </div>
+                  <div className={`text-xs ${isSelected ? 'text-primary/80' : 'text-text-secondary'}`}>{cfg.label}</div>
+                  <div className="text-[10px] text-text-secondary mt-0.5">{cfg.description}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Framing */}
+        {(activeRig || project.targetRa) && (
+          <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-text flex items-center gap-2"><Crosshair size={16} /> Cadrage</h3>
+              <button
+                onClick={() => setShowFraming(!showFraming)}
+                className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-surface-secondary text-text-secondary transition-colors"
+              >
+                {showFraming ? 'Masquer' : 'Voir Aladin'}
+              </button>
+            </div>
+            <FramingPreview
+              ra={project.targetRa}
+              dec={project.targetDec}
+              targetName={project.targetName}
+              focalLength={activeRig?.opticModifier?.effectiveFocalLength ?? activeRig?.telescope?.focalLength ?? project.focalLength ?? 800}
+              sensorWidth={activeRig?.imagingCamera?.sensorWidth ?? project.sensorWidth ?? 11.3}
+              sensorHeight={activeRig?.imagingCamera?.sensorHeight ?? project.sensorHeight ?? 11.3}
+            />
+            {showFraming && (
+              <AladinFramerInline
+                ra={project.targetRa}
+                dec={project.targetDec}
+                targetName={project.targetName}
+                focalLength={activeRig?.opticModifier?.effectiveFocalLength ?? activeRig?.telescope?.focalLength ?? project.focalLength ?? 800}
+                sensorWidth={activeRig?.imagingCamera?.sensorWidth ?? project.sensorWidth ?? 11.3}
+                sensorHeight={activeRig?.imagingCamera?.sensorHeight ?? project.sensorHeight ?? 11.3}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Exposure Plan Preview */}
+        {editExposurePreview && editExposurePreview.length > 0 && (
+          <div className="bg-surface border border-emerald-500/30 rounded-xl p-5 space-y-3">
+            <h3 className="font-semibold text-text flex items-center gap-2">
+              <span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm">📸</span> Plan d'exposition recalculé
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {editExposurePreview.map((plan: any, i: number) => (
+                <div key={i} className="bg-background p-3 rounded-lg border border-border">
+                  <div className="text-[10px] text-text-secondary block mb-1">{plan.filter.replace(/_/g, ' ')}</div>
+                  <div className="font-mono font-bold text-text">{plan.subExposure}s × {plan.subCount}</div>
+                  <div className="text-xs text-text-secondary mt-1">{(plan.totalWithOverhead / 3600).toFixed(1)}h total</div>
+                  <div className="text-[10px] text-amber-300 mt-0.5">Range: {plan.subExposureMin}s–{plan.subExposureMax}s</div>
+                  <div className="text-xs text-emerald-300 mt-0.5">{plan.snrEstimate}</div>
+                  <div className="text-[9px] text-text-secondary/60 mt-0.5">
+                    {plan.sampling ? plan.sampling + '"/px' : ''} · τ<sub>s</sub>={plan.tauSignal ? (plan.tauSignal * 100).toFixed(0) + '%' : '?'} · τ<sub>sky</sub>={plan.tauSky ? (plan.tauSky * 100).toFixed(0) + '%' : '?'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-text-secondary">
+              Total: {editExposurePreview.reduce((sum: number, p: any) => sum + p.totalExposureTime, 0) / 3600}h
+            </div>
+          </div>
+        )}
+
+        {/* Save / Cancel at bottom */}
+        <div className="flex gap-3">
+          <button
+            onClick={saveEdits}
+            className="flex-1 py-3 bg-emerald-500 text-white rounded-lg font-semibold text-sm hover:bg-emerald-600 flex items-center justify-center gap-2 transition-colors"
+          >
+            <Save size={16} /> Sauvegarder les modifications
+          </button>
+          <button
+            onClick={cancelEditing}
+            className="px-6 py-3 bg-surface-secondary text-text-secondary rounded-lg font-medium text-sm hover:bg-surface transition-colors"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── View Mode (original detail view) ──────────────────────────────────────
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -680,6 +1241,12 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={startEditing}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-sm text-text-secondary hover:text-primary hover:border-primary/50 transition-colors"
+          >
+            <Pencil size={14} /> Modifier
+          </button>
           <select
             value={project.status}
             onChange={(e) => handleStatusChange(e.target.value as ProjectStatus)}
@@ -851,8 +1418,249 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
           )}
         </div>
       </div>
+
+      {/* Setup summary */}
+      <div className="bg-surface border border-border rounded-xl p-5">
+        <h3 className="font-semibold text-text mb-3 flex items-center gap-2"><Telescope size={16} /> Configuration</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <div className="bg-background p-3 rounded-lg border border-border">
+            <span className="text-text-secondary text-xs block mb-1">Lieu</span>
+            <span className="font-semibold text-text">{project.locationSource === 'saintEtienne' ? 'St-Étienne-du-Grès' : 'Pradelles'}</span>
+          </div>
+          <div className="bg-background p-3 rounded-lg border border-border">
+            <span className="text-text-secondary text-xs block mb-1">Filtre</span>
+            <span className="font-semibold text-text">{project.primaryFilter.replace(/_/g, ' ')}</span>
+          </div>
+          <div className="bg-background p-3 rounded-lg border border-border">
+            <span className="text-text-secondary text-xs block mb-1">SNR cible</span>
+            <span className="font-mono font-bold text-text">{project.snrTarget}</span>
+          </div>
+          <div className="bg-background p-3 rounded-lg border border-border">
+            <span className="text-text-secondary text-xs block mb-1">Rig</span>
+            <span className="font-semibold text-text">{project.rigName || 'Non assigné'}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
 export default ProjectsView;
+
+// ─── Framing Preview Component ────────────────────────────────────────────
+
+interface FramingPreviewProps {
+  ra: string;
+  dec: string;
+  targetName: string;
+  focalLength: number;
+  sensorWidth: number;
+  sensorHeight: number;
+}
+
+/**
+ * Shows FOV dimensions and fit assessment for the target + rig combination.
+ */
+const FramingPreview: React.FC<FramingPreviewProps> = ({
+  ra, dec, targetName, focalLength, sensorWidth, sensorHeight,
+}) => {
+  // Calculate FOV in arcmin
+  const fovWidth = sensorWidth / focalLength * 3438;  // arcmin
+  const fovHeight = sensorHeight / focalLength * 3438;  // arcmin
+  const fovDiagonal = Math.sqrt(fovWidth * fovWidth + fovHeight * fovHeight);
+  const resolution = (sensorWidth / focalLength * 206.265); // arcsec/px (approx)
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="bg-background p-3 rounded-lg border border-border">
+        <span className="text-text-secondary text-xs block mb-1">Champ de vue</span>
+        <span className="font-mono font-bold text-text">{fovWidth.toFixed(1)}' × {fovHeight.toFixed(1)}'</span>
+      </div>
+      <div className="bg-background p-3 rounded-lg border border-border">
+        <span className="text-text-secondary text-xs block mb-1">Résolution</span>
+        <span className="font-mono font-bold text-text">{resolution.toFixed(2)}"/px</span>
+      </div>
+      <div className="bg-background p-3 rounded-lg border border-border">
+        <span className="text-text-secondary text-xs block mb-1">Cible</span>
+        <span className="font-mono text-xs text-text">{ra} {dec}</span>
+      </div>
+      <div className="bg-background p-3 rounded-lg border border-border">
+        <span className="text-text-secondary text-xs block mb-1">Diagonale</span>
+        <span className="font-mono font-bold text-text">{fovDiagonal.toFixed(1)}'</span>
+      </div>
+    </div>
+  );
+};
+
+// ─── Aladin Framer Inline ────────────────────────────────────────────────
+
+interface AladinFramerInlineProps {
+  ra: string;
+  dec: string;
+  targetName: string;
+  focalLength: number;
+  sensorWidth: number;
+  sensorHeight: number;
+}
+
+/**
+ * Inline Aladin Lite viewer for framing in project creation.
+ * Loads Aladin dynamically and shows FOV overlay.
+ */
+const AladinFramerInline: React.FC<AladinFramerInlineProps> = ({
+  ra, dec, targetName, focalLength, sensorWidth, sensorHeight,
+}) => {
+  const aladinRef = useRef<HTMLDivElement | null>(null);
+  const aladinInstanceRef = useRef<any>(null);
+  const [aladinLoaded, setAladinLoaded] = useState(false);
+  const [scriptError, setScriptError] = useState(false);
+  const [rotationAngle, setRotationAngle] = useState(0);
+
+  const fovWidth = sensorWidth / focalLength * 3438;
+  const fovHeight = sensorHeight / focalLength * 3438;
+
+  // Parse RA/Dec into degrees — Telescopius returns RA in hours, Dec in degrees
+  const centerRA = parseRaToDeg(ra);
+  const centerDec = parseDecToDeg(dec);
+
+  useEffect(() => {
+    if ((window as any).A) {
+      setAladinLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.js';
+    script.charset = 'utf-8';
+    script.onload = () => setAladinLoaded(true);
+    script.onerror = () => setScriptError(true);
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!aladinLoaded || !aladinRef.current || !(window as any).A) return;
+    try {
+      const A = (window as any).A;
+      // Destroy previous instance if exists
+      if (aladinInstanceRef.current) {
+        try { aladinInstanceRef.current = null; } catch {}
+        if (aladinRef.current) aladinRef.current.innerHTML = '';
+      }
+      // Initialize Aladin with a generic target, then reposition via gotoRaDec
+      const aladin = A.aladin(aladinRef.current, {
+        target: '0 0', // placeholder — will reposition below
+        fov: Math.max(fovWidth, fovHeight) / 60 * 1.3,
+        cooFrame: 'ICRS',
+        showReticle: true,
+        showZoomControl: true,
+        showFullscreenControl: false,
+        showLayersControl: true,
+        survey: 'https://alasky.cds.unistra.fr/DSS/color',
+      });
+
+      // Reposition to correct coordinates using gotoRaDec (degrees, unambiguous)
+      if (centerRA != null && centerDec != null && !isNaN(centerRA) && !isNaN(centerDec)) {
+        aladin.gotoRaDec(centerRA, centerDec);
+      }
+
+      // Store instance for cleanup
+      aladinInstanceRef.current = aladin;
+      // FOV overlay rectangle
+      const overlay = A.graphicOverlay({ name: 'FOV', color: '#3b82f6', lineWidth: 2 });
+      aladin.addOverlay(overlay);
+
+      // Draw FOV rectangle
+      const fovWDeg = fovWidth / 60;
+      const fovHDeg = fovHeight / 60;
+
+      if (centerRA != null && centerDec != null) {
+        const corners = getRotatedCorners(centerRA, centerDec, fovWDeg, fovHDeg, rotationAngle);
+        overlay.addFootprints([A.polygon(corners)]);
+      }
+    } catch (err) {
+      console.error('Aladin init error:', err);
+      setScriptError(true);
+    }
+  }, [aladinLoaded, centerRA, centerDec, focalLength, sensorWidth, sensorHeight, rotationAngle]);
+
+  if (scriptError) {
+    return (
+      <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-center text-sm text-red-300">
+        ⚠️ Impossible de charger Aladin Lite
+      </div>
+    );
+  }
+
+  if (!aladinLoaded) {
+    return (
+      <div className="p-8 rounded-lg bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-text-secondary">PA:</span>
+        <input
+          type="number"
+          value={rotationAngle}
+          onChange={(e) => setRotationAngle(Number(e.target.value))}
+          className="w-16 px-2 py-1 rounded-lg border border-border bg-background text-sm text-text"
+        />
+        <span className="text-xs text-text-secondary">°</span>
+        <button onClick={() => setRotationAngle(0)} className="text-xs px-2 py-1 rounded border border-border hover:bg-surface-secondary text-text-secondary">
+          Reset
+        </button>
+      </div>
+      <div
+        ref={aladinRef}
+        style={{ width: '100%', height: '400px' }}
+        className="rounded-lg border border-border overflow-hidden"
+      />
+    </div>
+  );
+};
+
+// ─── Helper: Parse coordinates ─────────────────────────────────────────────
+
+function parseRaToDeg(ra: string | number): number | null {
+  try {
+    // Telescopius API returns RA in hours (J2000), not degrees!
+    if (typeof ra === 'number') return ra * 15; // hours → degrees
+    if (!ra) return null;
+    if (!ra.includes(':')) return (parseFloat(ra) || 0) * 15 || null; // hours → degrees
+    const parts = ra.split(':').map(Number);
+    return parts[0] * 15 + parts[1] * 15 / 60 + parts[2] * 15 / 3600;
+  } catch { return null; }
+}
+
+function parseDecToDeg(dec: string | number): number | null {
+  try {
+    if (typeof dec === 'number') return dec;
+    if (!dec) return null;
+    if (!dec.includes(':')) return parseFloat(dec) || null;
+    const sign = (dec.startsWith('-')) ? -1 : 1;
+    const parts = dec.replace(/[+-]/, '').split(':').map(Number);
+    return sign * (parts[0] + parts[1] / 60 + parts[2] / 3600);
+  } catch { return null; }
+}
+
+function getRotatedCorners(
+  centerRA: number, centerDec: number,
+  widthDeg: number, heightDeg: number, rotationDeg: number
+): [number, number][] {
+  const rotRad = (rotationDeg * Math.PI) / 180;
+  const cosR = Math.cos(rotRad);
+  const sinR = Math.sin(rotRad);
+  const hw = widthDeg / 2;
+  const hh = heightDeg / 2;
+  const corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+  return corners.map(([x, y]) => {
+    const rx = x * cosR - y * sinR;
+    const ry = x * sinR + y * cosR;
+    const ra = centerRA + rx / Math.cos((centerDec * Math.PI) / 180);
+    const dec = centerDec + ry;
+    return [ra, dec] as [number, number];
+  });
+}
