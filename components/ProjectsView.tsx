@@ -35,6 +35,7 @@ import {
   getUserOwnedFilters,
   UserFilterInfo,
   FILTER_TYPE_LABELS,
+  getFilterType,
 } from '../src/services/filterMapping';
 import { AstroFilter, fetchFilters } from '../src/services/filterService';
 import {
@@ -404,7 +405,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         setUserFilters(owned);
         // If current primaryFilter is not in owned filters, select the first owned one
         if (owned.length > 0) {
-          const currentMatch = owned.find((f: any) => f.filterType === primaryFilter || f.id === primaryFilter);
+          const currentMatch = owned.find((f: any) => getFilterType(f) === primaryFilter);
           if (!currentMatch) {
             setPrimaryFilter(owned[0].filterType || owned[0].id);
           }
@@ -424,7 +425,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     const effectiveRig = activeRig || rigs[0];
     const bortle = localLocation === 'pradelles' ? 2 : 4;
     // Find the actual filter data from user's collection
-    const filterData = userFilters.find((f: AstroFilter) => f.filterType === primaryFilter || f.id === primaryFilter);
+    const filterData = userFilters.find((f: AstroFilter) => getFilterType(f) === primaryFilter);
     const preview = calculateExposurePlan({
       targetMagnitude: selectedTarget.magnitude ?? null,
       targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
@@ -645,11 +646,14 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
             >
               {userFilters.length > 0 ? (
-                userFilters.map((f: any) => (
-                  <option key={f.id} value={f.filterType || f.type}>
+                userFilters.map((f: any) => {
+                  const ft = getFilterType(f);
+                  return (
+                  <option key={f.id} value={ft}>
                     {f.name} — τ={((f.peakTransmission ?? 0) * 100).toFixed(0)}% | SS={((f.skySuppression ?? 0) * 100).toFixed(0)}%
                   </option>
-                ))
+                  );
+                })
               ) : (
                 [
                   { value: 'L_Ultimate', label: 'L Ultimate' },
@@ -666,7 +670,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               )}
             </select>
             {(() => {
-              const selected = userFilters.find((f: any) => (f.filterType || f.type) === primaryFilter);
+              const selected = userFilters.find((f: any) => getFilterType(f) === primaryFilter);
               if (!selected) return null;
               return (
                 <div className="text-[10px] text-text-secondary mt-1 font-mono">
@@ -882,7 +886,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
     isFirstEditRender.current = false;
     const bortle = editLocation === 'pradelles' ? 2 : 4;
     const editEffectiveRig = activeRig || rigs.find((r: any) => r.id === editRigId);
-    const filterData = userFilters.find((f: any) => f.filterType === editFilter || f.type === editFilter);
+    const filterData = userFilters.find((f: any) => getFilterType(f) === editFilter);
     const preview = calculateExposurePlan({
       targetMagnitude: project.targetMagnitude,
       targetSizeArcmin: project.targetSizeArcmin,
@@ -1160,11 +1164,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
               >
                 {userFilters.length > 0 ? (
-                  userFilters.map((f: any) => (
-                    <option key={f.id} value={f.filterType || f.type}>
+                  userFilters.map((f: any) => {
+                    const ft = getFilterType(f);
+                    return (
+                    <option key={f.id} value={ft}>
                       {f.name} — τ={((f.peakTransmission ?? 0) * 100).toFixed(0)}% | SS={((f.skySuppression ?? 0) * 100).toFixed(0)}%
                     </option>
-                  ))
+                    );
+                  })
                 ) : (
                   [
                     { value: 'L_Ultimate', label: 'L Ultimate' },
@@ -1181,7 +1188,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
                 )}
               </select>
               {(() => {
-                const selected = userFilters.find((f: any) => (f.filterType || f.type) === editFilter);
+                const selected = userFilters.find((f: any) => getFilterType(f) === editFilter);
                 if (!selected) return null;
                 return (
                   <div className="text-[10px] text-text-secondary mt-1 font-mono">
