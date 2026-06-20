@@ -397,7 +397,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   // Load user filters from API
   useEffect(() => {
     fetchFilters()
-      .then((filters: AstroFilter[]) => setUserFilters(filters))
+      .then((filters: AstroFilter[]) => setUserFilters(filters.filter(f => f.owned)))
       .catch(() => setUserFilters([]));
   }, []);
 
@@ -855,7 +855,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       })
       .catch(() => {});
     fetchFilters()
-      .then((filters: any[]) => setUserFilters(filters))
+      .then((filters: any[]) => setUserFilters(filters.filter((f: any) => f.owned)))
       .catch(() => setUserFilters([]));
   }, []);
 
