@@ -256,7 +256,7 @@ const ProjectCard: React.FC<{ project: Project; onClick: () => void; onDelete: (
             <span className="flex items-center gap-1">
               <Target size={12} /> {project.targetName}
             </span>
-            {project.targetMagnitude != null && (
+            {project.targetMagnitude != null && project.targetMagnitude > 0 && (
               <span className="font-mono">mag {project.targetMagnitude.toFixed(1)}</span>
             )}
             <span className="flex items-center gap-1">
@@ -520,7 +520,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-text text-lg">{selectedTarget?.mainName}</div>
             <div className="text-sm text-text-secondary flex items-center gap-3 mt-1">
-              {selectedTarget?.magnitude != null && <span className="font-mono">mag {(selectedTarget.magnitude ?? 0).toFixed(1)}</span>}
+              {selectedTarget?.magnitude != null && selectedTarget.magnitude > 0 && <span className="font-mono">mag {(selectedTarget.magnitude ?? 0).toFixed(1)}</span>}
               {selectedTarget?.sizeArcmin != null && (selectedTarget.sizeArcmin ?? 0) > 0 && <span className="font-mono">{(selectedTarget.sizeArcmin ?? 0).toFixed(0)}'</span>}
               {selectedTarget?.constellation && <span>{selectedTarget.constellation}</span>}
               {selectedTarget?.type && <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-secondary">{selectedTarget.type}</span>}
@@ -1468,7 +1468,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
             <span className="text-text-secondary text-xs block mb-1">Coordinates</span>
             <span className="font-mono text-text text-xs">{project.targetRa} / {project.targetDec}</span>
           </div>
-          {project.targetMagnitude != null && (
+          {project.targetMagnitude != null && project.targetMagnitude > 0 && (
             <div className="bg-background p-3 rounded-lg border border-border">
               <span className="text-text-secondary text-xs block mb-1">Magnitude</span>
               <span className="font-mono font-bold text-text">{(project.targetMagnitude ?? 0).toFixed(1)}</span>
