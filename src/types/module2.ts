@@ -48,6 +48,7 @@ export interface RigProfile {
     resolutionY: number;        // px
     readNoise: number;          // e⁻
     quantumEfficiency: number;  // 0-1
+    fullWellDepth: number;       // e⁻ (full well capacity)
     isColor: boolean;
     hasCooling: boolean;
     binningAcquisition: 1 | 2;  // 1x1 ou 2x2

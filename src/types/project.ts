@@ -4,6 +4,16 @@
 
 export type ProjectStatus = 'planning' | 'in_progress' | 'completed' | 'archived';
 
+/** SNR target quality levels — drives total integration time */
+export type SNRTarget = 15 | 30 | 60 | 100;
+
+export const SNR_TARGET_CONFIG: Record<SNRTarget, { label: string; description: string; icon: string }> = {
+  15: { label: 'Aperçu rapide', description: 'Preview — visible but noisy', icon: '⚡' },
+  30: { label: 'Bonne qualité', description: 'Good — clean details, some noise in shadows', icon: '📸' },
+  60: { label: 'Qualité publication', description: 'Publication — smooth, low noise, print-ready', icon: '🏆' },
+  100: { label: 'Chef-d\'œuvre ciel profond', description: 'Masterpiece — ultra-deep, maximum detail', icon: '💎' },
+};
+
 export interface ProjectObservation {
   id: string;
   date: string;                 // ISO date
@@ -28,9 +38,19 @@ export interface ProjectImagingWindow {
 export interface ProjectExposurePlan {
   filter: string;
   subExposure: number;         // seconds
+  subExposureMin: number;      // minimum recommended sub (seconds)
+  subExposureMax: number;      // maximum recommended sub (seconds)
   subCount: number;
   totalExposureTime: number;   // seconds
+  totalWithOverhead: number;    // seconds (including dither/download overhead)
   snrEstimate: string;
+  snrValue: number;            // computed SNR value
+  skyElectronRate: number;     // e-/px/s from sky (includes dark current)
+  objectElectronRate: number;  // e-/px/s from object
+  sampling: number;            // arcsec/pixel
+  darkCurrent: number;         // e-/px/s
+  tauSignal: number;            // filter transmission for object signal
+  tauSky: number;               // filter transmission for sky background
 }
 
 export interface Project {
@@ -46,6 +66,7 @@ export interface Project {
   targetDec: string;
   targetMagnitude: number | null;
   targetSizeArcmin: number | null;
+  surfaceBrightness: number | null;
   targetImageUrl: string | null;
 
   // Location
@@ -62,8 +83,12 @@ export interface Project {
   sensorWidth: number | null;
   sensorHeight: number | null;
 
+  // SNR target
+  snrTarget: SNRTarget;
+
   // Imaging plan
   primaryFilter: string;
+  primaryFilterId?: string | null; // ID of the actual AstroFilter from filter collection
   exposurePlan: ProjectExposurePlan[];
   totalPlannedHours: number;
 
@@ -88,12 +113,14 @@ export interface CreateProjectData {
   targetDec: string;
   targetMagnitude: number | null;
   targetSizeArcmin: number | null;
+  surfaceBrightness: number | null;
   targetImageUrl: string | null;
   locationSource: string;
   lat: number;
   lon: number;
   rigId: string | null;
   primaryFilter: string;
+  snrTarget?: SNRTarget;
 }
 
 export interface AddObservationData {

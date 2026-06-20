@@ -368,8 +368,8 @@ export function mapApiTarget(t: any): TelescopiusTarget {
     constellation: t.constellation || '',
     ra: t.ra || '',
     dec: t.dec || '',
-    raDeg: t.ra_deg || parseRaToDeg(t.ra || ''),
-    decDeg: t.dec_deg || parseDecToDeg(t.dec || ''),
+    raDeg: parseRaToDeg(t.ra_deg || t.ra || 0),
+    decDeg: parseDecToDeg(t.dec_deg || t.dec || 0),
     magnitude: t.magnitude ?? t.visual_mag ?? null,
     surfaceBrightness: t.surface_brightness ?? t.subr ?? null,
     sizeArcmin: t.size_arcmin ?? t.size?.width ?? null,
@@ -394,15 +394,20 @@ export function mapApiTarget(t: any): TelescopiusTarget {
 }
 
 function parseRaToDeg(ra: string | number): number {
-  if (typeof ra === 'number') return ra;
-  if (!ra || !ra.includes(':')) return parseFloat(ra) || 0;
+  // Telescopius API returns RA in hours (J2000), not degrees!
+  // Must multiply by 15 to convert hours → degrees.
+  if (typeof ra === 'number') return ra * 15; // hours → degrees
+  if (!ra) return 0;
+  if (!ra.includes(':')) return parseFloat(ra) * 15 || 0; // hours → degrees
   const parts = ra.split(':').map(Number);
-  return (parts[0] || 0) * 15 + (parts[1] || 0) * 0.25 + (parts[2] || 0) / 240;
+  return (parts[0] || 0) * 15 + (parts[1] || 0) * 15 / 60 + (parts[2] || 0) * 15 / 3600;
 }
 
 function parseDecToDeg(dec: string | number): number {
+  // Telescopius API returns Dec in degrees (negative for south)
   if (typeof dec === 'number') return dec;
-  if (!dec || !dec.includes(':')) return parseFloat(dec) || 0;
+  if (!dec) return 0;
+  if (!dec.includes(':')) return parseFloat(dec) || 0;
   const sign = dec.startsWith('-') ? -1 : 1;
   const parts = dec.replace(/[+-]/, '').split(':').map(Number);
   return sign * ((parts[0] || 0) + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600);

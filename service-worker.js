@@ -1,55 +1,84 @@
+// AstroCapture Service Worker v4
+// Caching strategies based on Modern Web Guidance best practices
 
-// A name for our cache, including a version number for easy updates.
-const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v3';
-const ALADIN_CACHE_NAME = 'aladin-tile-cache-v1';
+const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v5';
+const ALADIN_CACHE_NAME = 'aladin-tile-cache-v2';
+const STATIC_CACHE_NAME = 'astrocapture-static-cache-v3';
+const HTML_CACHE_NAME = 'astrocapture-html-cache-v3';
 
-// A list of all caches that are currently in use.
-// When updating a cache version, change the name above and the old one will be
-// automatically cleaned up during the 'activate' event.
-const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME];
+const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME, STATIC_CACHE_NAME, HTML_CACHE_NAME];
 
-// The origin of the images we want to cache (self-hosted uploads).
 const IMAGE_ORIGIN = self.location.origin;
 
+// Static assets with content-hash filenames — Cache-First (immutable)
+const STATIC_EXTENSIONS = ['.js', '.css', '.woff2', '.woff', '.ttf', '.ico'];
+
 /**
- * Implements the "Stale-While-Revalidate" caching strategy.
- * This strategy serves content from the cache immediately if available,
- * providing a fast user experience, while simultaneously fetching an updated
- * version from the network to keep the cache fresh for the next visit.
- *
- * @param {Request} request The request to handle.
- * @returns {Promise<Response>} A promise that resolves to a response.
+ * Stale-While-Revalidate for self-hosted images.
+ * Serves cached immediately, updates in background.
  */
 const staleWhileRevalidate = async (request) => {
   const cache = await caches.open(IMAGE_CACHE_NAME);
-  const cachedResponsePromise = await cache.match(request);
+  const cachedResponse = await cache.match(request);
 
   const fetchPromise = fetch(request).then(networkResponse => {
-    // If we get a valid response, update the cache with the new version.
     if (networkResponse && networkResponse.status === 200) {
       cache.put(request, networkResponse.clone());
     }
     return networkResponse;
-  }).catch(err => {
-    // The network failed, but we can still rely on the cache if it exists.
-    console.warn('Service Worker: Network request failed for', request.url, err);
-    // If the network fails and we have a cached response, this error is gracefully handled.
-    // If not, the promise will reject, and the browser will show its default network error page.
+  }).catch(() => {
+    // Network failed, cache will be used if available
   });
 
-  // Return the cached response immediately if it exists, otherwise wait for the network.
-  return cachedResponsePromise || fetchPromise;
+  return cachedResponse || fetchPromise;
 };
 
+/**
+ * Cache-First for static assets with hashed filenames (JS, CSS, fonts).
+ * These are immutable — once cached, never need revalidation until the hash changes.
+ */
+const cacheFirst = async (request) => {
+  const cache = await caches.open(STATIC_CACHE_NAME);
+  const cachedResponse = await cache.match(request);
+
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse && networkResponse.status === 200) {
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch {
+    return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+  }
+};
 
 /**
- * Implements a "Cache-First" then "Network" strategy for Aladin Lite tiles.
- * This is necessary because Aladin requests resources from servers that may not
- * provide CORS headers. Fetching with 'no-cors' mode is required, which results
- * in an "opaque" response. We can cache these, but we can't inspect their status.
- *
- * @param {Request} request The request to handle.
- * @returns {Promise<Response>} A promise that resolves to a response.
+ * Network-First for HTML documents — always serve latest, fall back to cache.
+ */
+const networkFirst = async (request) => {
+  const cache = await caches.open(HTML_CACHE_NAME);
+  
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse && networkResponse.status === 200) {
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch {
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+  }
+};
+
+/**
+ * Cache-First for Aladin Lite tiles (opaque responses, no CORS).
  */
 const aladinCacheFirst = async (request) => {
   const cache = await caches.open(ALADIN_CACHE_NAME);
@@ -60,62 +89,65 @@ const aladinCacheFirst = async (request) => {
   }
 
   try {
-    // FIX: Reconstruct the request to ensure it's a simple request compatible
-    // with 'no-cors' mode. This prevents TypeErrors when fetching resources
-    // from servers that don't provide CORS headers, like some map tile servers.
     const newRequest = new Request(request.url, {
       mode: 'no-cors',
-      credentials: 'omit', // Explicitly omit credentials to improve CORS compatibility
+      credentials: 'omit',
     });
 
     const networkResponse = await fetch(newRequest);
-    
-    // We put a clone of the response into the cache.
-    // This will be an 'opaque' response, which is acceptable for caching these assets.
     await cache.put(request, networkResponse.clone());
-    
     return networkResponse;
   } catch (error) {
-    console.error('Service Worker: Fetch failed for Aladin resource:', request.url, error);
-    // Rethrow the error to let the browser handle the network failure.
+    console.error('SW: Aladin fetch failed:', request.url, error);
     throw error;
   }
 };
 
-
-// Intercept fetch events.
+// Intercept fetch events
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // Ignore non-GET requests
-  if (event.request.method !== 'GET') {
+  if (event.request.method !== 'GET') return;
+
+  // HTML documents: Network-First (always fresh, offline fallback)
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
-  // Strategy for AstroCapture images (self-hosted)
-  // Only cache /uploads/ paths — never cache /api/ requests
-  if (requestUrl.origin === IMAGE_ORIGIN && requestUrl.pathname.startsWith('/uploads/')) {
-    event.respondWith(staleWhileRevalidate(event.request));
+  // Same-origin routing
+  if (requestUrl.origin === IMAGE_ORIGIN) {
+    // Static assets with hash: Cache-First
+    if (STATIC_EXTENSIONS.some(ext => requestUrl.pathname.endsWith(ext))) {
+      event.respondWith(cacheFirst(event.request));
+      return;
+    }
+    // Uploads: Stale-While-Revalidate
+    if (requestUrl.pathname.startsWith('/uploads/')) {
+      event.respondWith(staleWhileRevalidate(event.request));
+      return;
+    }
+    // API calls: Network only (no cache)
     return;
   }
 
-  // Strategy for Aladin Lite map tiles and properties. These requests often
-  // lack CORS headers, and the service worker context requires us to handle this.
-  // We identify them by the '/hips/' path segment, a common convention.
-  if (requestUrl.pathname.includes('/hips/')) {
+  // Aladin tiles: Cache-First (handles CORS issues)
+  if (requestUrl.pathname.includes('/hips/') || 
+      requestUrl.hostname.includes('aladin') || 
+      requestUrl.hostname.includes('esa.int')) {
     event.respondWith(aladinCacheFirst(event.request));
     return;
   }
 });
 
-// Clean up old caches when a new service worker activates.
+// Clean up old caches on activation
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames
-          .filter(name => !ACTIVE_CACHES.includes(name)) // Find all caches not in our active list
-          .map(name => caches.delete(name)) // and delete them
+          .filter(name => !ACTIVE_CACHES.includes(name))
+          .map(name => caches.delete(name))
       );
     })
   );

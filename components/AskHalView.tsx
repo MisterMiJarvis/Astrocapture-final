@@ -84,8 +84,8 @@ const AskHalView: React.FC = () => {
     try {
       // Fetch real data
       const [weatherRes, astroRes] = await Promise.all([
-        fetch(`/api/weather?lat=${lat}&lon=${lon}`).catch(() => null),
-        fetch(`/api/astronomy?lat=${lat}&lon=${lon}`).catch(() => null),
+        fetch(`/api/apls/weather/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,cloud_cover&daily=temperature_2m_max,temperature_2m_min,cloud_cover_max,precipitation_sum&timezone=Europe/Paris&forecast_days=3`).catch(() => null),
+        fetch(`/api/apls/weather/astronomy?latitude=${lat}&longitude=${lon}&timezone=Europe/Paris`).catch(() => null),
       ]);
 
       const weather = weatherRes ? await weatherRes.json().catch(() => null) : null;

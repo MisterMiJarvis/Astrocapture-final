@@ -27,6 +27,11 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: res.statusText }));
+    if (res.status === 401) {
+      // Auth expired — clear stale token and signal to UI
+      localStorage.removeItem('astrosuite_token');
+      throw new Error('Unauthorized');
+    }
     throw new Error(error.error || `API error: ${res.status}`);
   }
   return res.json();
@@ -67,6 +72,7 @@ function mapApiToProfile(data: any): RigProfile {
       isColor: data.imagingCamera?.isColor ?? data.camera?.isColor ?? true,
       hasCooling: data.imagingCamera?.hasCooling ?? data.camera?.hasCooling ?? false,
       binningAcquisition: data.imagingCamera?.binningAcquisition || data.camera?.binningAcquisition || 1,
+      fullWellDepth: data.imagingCamera?.fullWellDepth ?? data.camera?.fullWellDepth ?? 50000,
     },
     guiding: {
       cameraName: data.guidingCamera?.name || data.guiding?.cameraName || '',
@@ -111,6 +117,7 @@ function mapDtoToApiBody(dto: CreateRigProfileDTO): any {
       isColor: dto.camera.isColor,
       hasCooling: dto.camera.hasCooling,
       binningAcquisition: dto.camera.binningAcquisition,
+      fullWellDepth: dto.camera.fullWellDepth,
     },
     guidingCamera: {
       name: dto.guiding.cameraName,
@@ -131,13 +138,27 @@ function mapDtoToApiBody(dto: CreateRigProfileDTO): any {
 // CRUD Profils (async — API calls)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Track if default has been seeded this session to prevent re-seeding after delete
+let hasSeededDefault = false;
+
+// Clean up old localStorage keys that cause re-seeding (same pattern as filterService)
+const OLD_RIG_KEYS = ['astrosuite_rig_profiles', 'astrosuite_rig_profiles_v2', 'apls_rig_profiles_v1', 'astros…s_rigs'];
+for (const oldKey of OLD_RIG_KEYS) {
+  try { localStorage.removeItem(oldKey); } catch {}
+}
+
 export async function getAllProfiles(): Promise<RigProfile[]> {
   try {
     const data = await apiFetch<any[]>('');
     if (data.length > 0) {
+      hasSeededDefault = true; // DB has data, no need to seed
       return data.map(mapApiToProfile);
     }
-    // No profiles in DB yet — create the default one
+    // No profiles in DB yet — only seed default ONCE per session, not after every delete
+    if (hasSeededDefault) {
+      return [];
+    }
+    hasSeededDefault = true;
     const created = await createProfile({
       name: 'Default Rig',
       isDefault: true,
@@ -215,7 +236,7 @@ export async function updateProfile(id: string, dto: Partial<CreateRigProfileDTO
   if (dto.isDefault !== undefined) body.isDefault = dto.isDefault;
   if (dto.telescope !== undefined) body.telescope = { name: dto.telescope.name, focalLength: dto.telescope.focalLength, aperture: dto.telescope.aperture, fRatio: dto.telescope.fRatio, type: dto.telescope.type };
   if (dto.modifier !== undefined) body.opticModifier = { type: dto.modifier.type, factor: dto.modifier.factor };
-  if (dto.camera !== undefined) body.imagingCamera = { name: dto.camera.name, sensorWidth: dto.camera.sensorWidth, sensorHeight: dto.camera.sensorHeight, pixelSize: dto.camera.pixelSize, resolutionX: dto.camera.resolutionX, resolutionY: dto.camera.resolutionY, readNoise: dto.camera.readNoise, quantumEfficiency: dto.camera.quantumEfficiency, isColor: dto.camera.isColor, hasCooling: dto.camera.hasCooling, binningAcquisition: dto.camera.binningAcquisition };
+  if (dto.camera !== undefined) body.imagingCamera = { name: dto.camera.name, sensorWidth: dto.camera.sensorWidth, sensorHeight: dto.camera.sensorHeight, pixelSize: dto.camera.pixelSize, resolutionX: dto.camera.resolutionX, resolutionY: dto.camera.resolutionY, readNoise: dto.camera.readNoise, quantumEfficiency: dto.camera.quantumEfficiency, isColor: dto.camera.isColor, hasCooling: dto.camera.hasCooling, binningAcquisition: dto.camera.binningAcquisition, fullWellDepth: dto.camera.fullWellDepth };
   if (dto.guiding !== undefined) body.guidingCamera = { name: dto.guiding.cameraName, pixelSize: dto.guiding.pixelSize, binning: dto.guiding.binning, mode: dto.guiding.mode, focalLength: dto.guiding.focalLength };
   if (dto.mount !== undefined) body.mount = { name: dto.mount.name, type: dto.mount.type, maxPayload: dto.mount.maxPayload };
 
@@ -241,8 +262,12 @@ export async function deleteProfile(id: string): Promise<boolean> {
       localStorage.removeItem(ACTIVE_PROFILE_KEY);
     }
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // Re-throw auth errors so the UI can show feedback
+    if (err instanceof Error && err.message.includes('Unauthorized')) {
+      throw new Error('Session expirée. Reconnectez-vous pour supprimer un rig.');
+    }
+    throw err;
   }
 }
 

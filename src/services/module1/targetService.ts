@@ -220,8 +220,8 @@ export async function fetchTelescopiusSuggestions(
       raDeg: t.ra_deg || 0,
       decDeg: t.dec_deg || 0,
       type: t.type || 'Nebula',
-      magnitude: t.magnitude || 0,
-      sizeArcmin: t.size_arcmin || 0,
+      magnitude: t.magnitude ?? null,
+      sizeArcmin: t.size_arcmin ?? null,
       altitudeMax: t.altitude_max || 0,
       imageUrl: t.image_url,
       badges: [t.type, `Mag ${t.magnitude || '?'}`, t.size_arcmin ? `${Math.round(t.size_arcmin)}'` : ''].filter(Boolean),
@@ -257,9 +257,9 @@ export async function fetchBestTargetsTonight(
           decDeg: t.decDeg,
           type: mapObjectType(t.type),
           subtype: t.type,
-          magnitude: t.magnitude ?? 0,
+          magnitude: t.magnitude ?? null,
           surfaceBrightness: t.surfaceBrightness,
-          sizeArcmin: t.sizeArcmin ?? 0,
+          sizeArcmin: t.sizeArcmin ?? null,
           difficulty: 'Intermediate',
           recommendedFilters: recommendFiltersForTypes(t.type ? [t.type] : []),
           telescopiusTypes: t.type ? t.type.split(',') : [],
@@ -367,9 +367,9 @@ function mapApiTarget(t: any): AstroTarget {
     decDeg,
     type: mapObjectType(t.objectType || ''),
     subtype: t.objectType || '',
-    magnitude: t.magnitude ?? 0,
+    magnitude: t.magnitude ?? null,
     surfaceBrightness: t.surfaceBrightness ?? null,
-    sizeArcmin: (t.angularSizeArcmin?.width || t.size_width || 0),
+    sizeArcmin: (t.angularSizeArcmin?.width || t.size_width || null),
     difficulty: 'Intermediate',
     recommendedFilters: recommendFiltersForTypes(types),
     telescopiusTypes: types,
@@ -418,12 +418,14 @@ function mapSuggestionToTarget(s: TelescopiusSuggestion): AstroTarget {
   };
 }
 
-function parseRaToDeg(ra: string): number {
+function parseRaToDeg(ra: string | number): number {
+  // Telescopius API returns RA in hours (J2000), not degrees!
+  if (typeof ra === 'number') return ra * 15;
   if (!ra || !ra.includes(':')) {
-    return parseFloat(ra) || 0;
+    return (parseFloat(ra) || 0) * 15; // hours → degrees
   }
   const parts = ra.split(':').map(Number);
-  return (parts[0] || 0) * 15 + (parts[1] || 0) * 0.25 + (parts[2] || 0) / 240;
+  return (parts[0] || 0) * 15 + (parts[1] || 0) * 15 / 60 + (parts[2] || 0) * 15 / 3600;
 }
 
 function parseDecToDeg(dec: string): number {

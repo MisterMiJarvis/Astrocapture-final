@@ -1,0 +1,20 @@
+{
+  "name": "AstroCapture",
+  "short_name": "AstroCapture",
+  "description": "Astrophotography Portfolio & Blog — Explore the cosmos one frame at a time",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1a",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/uploads/0760ac98-970b-4f95-92a4-e043634b2d7b.ico",
+      "sizes": "any",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["photography", "education"],
+  "lang": "en"
+}

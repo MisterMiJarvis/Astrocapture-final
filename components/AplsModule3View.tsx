@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import AladinFramer from '../src/components/Module3';
+import { Module3Dashboard } from '../src/components/Module3/Module3Dashboard';
+import { Search } from 'lucide-react';
 
 const AplsModule3View: React.FC = () => {
   const [rig, setRig] = useState({
@@ -40,20 +41,17 @@ const AplsModule3View: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        <span className="ml-3 text-gray-400">Loading equipment data...</span>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <span className="ml-3 text-text-secondary">Loading equipment data...</span>
       </div>
     );
   }
 
   return (
-    <AladinFramer
-      target={null}
+    <Module3Dashboard
       focalLength={rig.focalLength}
       sensorWidth={rig.sensorWidth}
       sensorHeight={rig.sensorHeight}
-      rotationAngle={0}
-      onRotationChange={() => {}}
     />
   );
 };

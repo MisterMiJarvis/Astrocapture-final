@@ -869,6 +869,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   const cancelEditing = () => {
     setIsEditing(false);
     setEditExposurePreview(null);
+    setEditManualOverrides({});
   };
 
   const saveEdits = async () => {
@@ -886,10 +887,23 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       sensorWidth: rig?.imagingCamera?.sensorWidth ?? null,
       sensorHeight: rig?.imagingCamera?.sensorHeight ?? null,
     };
-    // Recalculate exposure plan
+    // Recalculate exposure plan (apply manual overrides if any)
     if (editExposurePreview && editExposurePreview.length > 0) {
-      updates.exposurePlan = editExposurePreview;
-      updates.totalPlannedHours = editExposurePreview.reduce((sum: number, p: any) => sum + p.totalExposureTime, 0) / 3600;
+      const overriddenPlan = editExposurePreview.map((plan: any, i: number) => {
+        const ov = editManualOverrides[i];
+        if (!ov) return plan;
+        const subExposure = ov.subExposure ?? plan.subExposure;
+        const subCount = ov.subCount ?? plan.subCount;
+        return {
+          ...plan,
+          subExposure,
+          subCount,
+          totalExposureTime: subExposure * subCount,
+          totalWithOverhead: Math.round(subExposure * subCount * 1.15),
+        };
+      });
+      updates.exposurePlan = overriddenPlan;
+      updates.totalPlannedHours = overriddenPlan.reduce((sum: number, p: any) => sum + p.totalExposureTime, 0) / 3600;
     }
     try {
       const updated = await updateProject(project.id, updates);
@@ -897,6 +911,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       onUpdate(updated);
       setIsEditing(false);
       setEditExposurePreview(null);
+      setEditManualOverrides({});
     } catch (err) {
       console.error('Failed to update project:', err);
       alert('Erreur lors de la sauvegarde');
@@ -1021,7 +1036,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-text">{project.targetName}</div>
               <div className="text-sm text-text-secondary flex items-center gap-3 mt-1">
-                {project.targetMagnitude != null && <span className="font-mono">mag {(project.targetMagnitude ?? 0).toFixed(1)}</span>}
+                {project.targetMagnitude != null && project.targetMagnitude > 0 && <span className="font-mono">mag {(project.targetMagnitude ?? 0).toFixed(1)}</span>}
                 {project.targetSizeArcmin != null && (project.targetSizeArcmin ?? 0) > 0 && <span className="font-mono">{(project.targetSizeArcmin ?? 0).toFixed(0)}'</span>}
                 <span className="font-mono text-xs text-text-secondary">{project.targetRa} / {project.targetDec}</span>
               </div>
@@ -1181,21 +1196,70 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
               <span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm">📸</span> Plan d'exposition recalculé
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {editExposurePreview.map((plan: any, i: number) => (
-                <div key={i} className="bg-background p-3 rounded-lg border border-border">
-                  <div className="text-[10px] text-text-secondary block mb-1">{plan.filter.replace(/_/g, ' ')}</div>
-                  <div className="font-mono font-bold text-text">{plan.subExposure}s × {plan.subCount}</div>
-                  <div className="text-xs text-text-secondary mt-1">{(plan.totalWithOverhead / 3600).toFixed(1)}h total</div>
-                  <div className="text-[10px] text-amber-300 mt-0.5">Range: {plan.subExposureMin}s–{plan.subExposureMax}s</div>
-                  <div className="text-xs text-emerald-300 mt-0.5">{plan.snrEstimate}</div>
-                  <div className="text-[9px] text-text-secondary/60 mt-0.5">
-                    {plan.sampling ? plan.sampling + '"/px' : ''} · τ<sub>s</sub>={plan.tauSignal ? (plan.tauSignal * 100).toFixed(0) + '%' : '?'} · τ<sub>sky</sub>={plan.tauSky ? (plan.tauSky * 100).toFixed(0) + '%' : '?'}
+              {editExposurePreview.map((plan: any, i: number) => {
+                const ov = editManualOverrides[i] || {};
+                const currentSubExposure = ov.subExposure ?? plan.subExposure;
+                const currentSubCount = ov.subCount ?? plan.subCount;
+                const currentWithOverhead = Math.round(currentSubExposure * currentSubCount * 1.15);
+                const isOverridden = !!editManualOverrides[i];
+                return (
+                  <div key={i} className={`bg-background p-3 rounded-lg border ${isOverridden ? 'border-amber-500/50' : 'border-border'}`}>
+                    <div className="text-[10px] text-text-secondary block mb-1">{plan.filter.replace(/_/g, ' ')}</div>
+                    <div className="flex items-end gap-1 mb-1">
+                      <div className="flex-1">
+                        <label className="text-[9px] text-text-secondary block">Sub(s)</label>
+                        <input
+                          type="number"
+                          step={10}
+                          min={10}
+                          max={600}
+                          value={currentSubExposure}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || plan.subExposure;
+                            setEditManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subExposure: val } }));
+                          }}
+                          className="w-full bg-surface border border-border rounded px-1.5 py-1 text-xs text-text font-mono focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[9px] text-text-secondary block">#Subs</label>
+                        <input
+                          type="number"
+                          step={1}
+                          min={1}
+                          value={currentSubCount}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || plan.subCount;
+                            setEditManualOverrides(prev => ({ ...prev, [i]: { ...prev[i], subCount: val } }));
+                          }}
+                          className="w-full bg-surface border border-border rounded px-1.5 py-1 text-xs text-text font-mono focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-xs text-text-secondary mt-1">{(currentWithOverhead / 3600).toFixed(1)}h total</div>
+                    <div className="text-[10px] text-amber-300 mt-0.5">Range: {plan.subExposureMin}s–{plan.subExposureMax}s</div>
+                    <div className="text-xs text-emerald-300 mt-0.5">{plan.snrEstimate}</div>
+                    <div className="text-[9px] text-text-secondary/60 mt-0.5">
+                      {plan.sampling ? plan.sampling + '"/px' : ''} · τ<sub>s</sub>={plan.tauSignal ? (plan.tauSignal * 100).toFixed(0) + '%' : '?'} · τ<sub>sky</sub>={plan.tauSky ? (plan.tauSky * 100).toFixed(0) + '%' : '?'}
+                    </div>
+                    {isOverridden && (
+                      <button
+                        onClick={() => setEditManualOverrides(prev => { const next = { ...prev }; delete next[i]; return next; })}
+                        className="mt-1 text-[9px] text-amber-400 hover:text-amber-300 flex items-center gap-0.5"
+                      >
+                        <RotateCw size={9} /> Auto
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="text-xs text-text-secondary">
-              Total: {editExposurePreview.reduce((sum: number, p: any) => sum + p.totalExposureTime, 0) / 3600}h
+              Total: {editExposurePreview.reduce((sum: number, p: any, i: number) => {
+                const ov = editManualOverrides[i];
+                if (!ov) return sum + p.totalExposureTime;
+                return sum + (ov.subExposure ?? p.subExposure) * (ov.subCount ?? p.subCount);
+              }, 0) / 3600}h
             </div>
           </div>
         )}
@@ -1235,7 +1299,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
             </h1>
             <div className="text-sm text-text-secondary flex items-center gap-3 mt-1">
               <span className="flex items-center gap-1"><Target size={12} /> {project.targetName}</span>
-              {project.targetMagnitude != null && <span className="font-mono">mag {(project.targetMagnitude ?? 0).toFixed(1)}</span>}
+              {project.targetMagnitude != null && project.targetMagnitude > 0 && <span className="font-mono">mag {(project.targetMagnitude ?? 0).toFixed(1)}</span>}
               <span className="flex items-center gap-1"><Telescope size={12} /> {project.rigName || 'No rig'}</span>
             </div>
           </div>

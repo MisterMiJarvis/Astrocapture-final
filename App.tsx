@@ -7,6 +7,7 @@ import { INITIAL_DATA } from './initialData';
 import { login, logout, getAuthInstance, subscribeToSettings, subscribeToCollection, saveSettings, saveCollectionItem, deleteCollectionItem, uploadFile, getDocument, invalidateTokenCache } from './services/api';
 import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUploader, Lightbox, DraggableListItem, FileUploader, Select, ToggleSwitch, ScrollToTopButton, SocialShare, CookieBanner } from './components/Shared';
 import { DEFAULT_EQUIPMENT } from './services/equipmentService';
+import { getImageUrl, getSrcSet } from './services/imageProxy';
 import {
   Camera, Wind, User, Lock, Plus, Trash2, Edit2, LogOut, Menu, X, Info,
   LayoutDashboard, Newspaper, Sliders, Settings2,
@@ -17,7 +18,7 @@ import {
   Search, GripVertical, Copy, Globe, Database, Key, Moon, Sun,
   RotateCw, MoveUp, SlidersHorizontal, Star, ThumbsUp,
   Smile, Frown, Milestone, AlertCircle, Target, ArrowDown, ArrowUp, Tag, RotateCcw, Maximize2, Minimize2, Zap, File as FileIcon, AudioWaveform, Layers,
-  Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon, Radio, Mountain, Monitor, EyeOff, Users
+  Droplets, Eye, Wind as WindIcon, Cloud, Thermometer, Cloudy, Cookie, FileText, Wrench, CloudMoon, Radio, Mountain, Monitor, EyeOff, Users, BarChart3
 } from 'lucide-react';
 import { fetchImageOfTheDay } from './services/nasaApiService';
 import { fetchAstrobinImageOfTheDay } from './services/astrobinApiService';
@@ -39,6 +40,9 @@ const AplsModule1View = React.lazy(() => import('./components/AplsModule1View'))
 const AplsModule3View = React.lazy(() => import('./components/AplsModule3View'));
 const AplsModule4View = React.lazy(() => import('./components/AplsModule4View'));
 const UserManager = React.lazy(() => import('./src/components/admin/UserManager'));
+const PHD2Analysis = React.lazy(() => import('./src/components/PHD2Analysis'));
+const VisitorStats = React.lazy(() => import('./src/components/admin/VisitorStats'));
+const VisitorTracker = React.lazy(() => import('./src/components/admin/VisitorTracker'));
 const AplsModule5View = React.lazy(() => import('./components/AplsModule5View'));
 const AplsModule6View = React.lazy(() => import('./components/AplsModule6View'));
 
@@ -444,7 +448,7 @@ const App = () => {
   };
 
   const handleNav = (target: ViewState) => {
-    if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES, ViewState.ASTRO_SUITE, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6].includes(target)) {
+    if ([ViewState.GALLERY, ViewState.POST_PROCESSING, ViewState.IMAGE_OF_THE_DAY, ViewState.ASTRO_INDEX, ViewState.WALL_OF_IMAGES, ViewState.ASTRO_SUITE, ViewState.APLS_MODULE1, ViewState.APLS_MODULE2, ViewState.APLS_MODULE3, ViewState.APLS_MODULE4, ViewState.APLS_MODULE5, ViewState.APLS_MODULE6, ViewState.NOVA_LOG_ANALYZER].includes(target)) {
       setSelectedTag(null);
       setSelectedPostId(null);
       setSelectedProcessingPostId(null);
@@ -488,6 +492,8 @@ const App = () => {
         'image-of-the-day': ViewState.IMAGE_OF_THE_DAY,
         'image-wall': ViewState.WALL_OF_IMAGES,
         'astro-index': ViewState.ASTRO_INDEX,
+        'phd2-log': ViewState.NOVA_LOG_ANALYZER,
+        'phd2': ViewState.NOVA_LOG_ANALYZER,
         'about': ViewState.ABOUT,
         'astrosuite': ViewState.ASTRO_SUITE,
         'apls-module1': ViewState.APLS_MODULE1,
@@ -534,6 +540,7 @@ const App = () => {
   return (
     <div className="min-h-screen bg-background text-text font-sans flex flex-col">
       <StarBackground />
+      <VisitorTracker currentPath={view.toString()} />
       <nav className="fixed top-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
@@ -570,7 +577,7 @@ const App = () => {
           </div>
         )}
       </nav>
-      <main className="flex-grow animate-fade-in pt-20">
+      <main id="main-content" className="flex-grow animate-fade-in pt-20">
         {view === ViewState.GALLERY && <GalleryView posts={posts} heroSlides={heroSlides} onNavigate={handleHeroLink} onViewPost={handleViewPost} selectedTag={selectedTag} setSelectedTag={setSelectedTag} />}
         {view === ViewState.POST_DETAIL && <PostDetailView post={selectedPost} log={selectedProcessingLog} posts={posts} onBack={handleBackToGallery} onSelectTag={(tag) => { setSelectedTag(tag); setView(ViewState.GALLERY); }} onOpenLightbox={openLightbox} onNavigateToPost={(postId) => { setSelectedPostId(postId); window.scrollTo(0, 0); }} />}
         {view === ViewState.POST_PROCESSING && <ProcessingView posts={allProcessingPosts} config={processingConfig} onViewPost={handleViewProcessingPost} selectedTag={selectedTag} setSelectedTag={setSelectedTag} />}
@@ -580,6 +587,7 @@ const App = () => {
         {view === ViewState.GEAR_REVIEWS && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><GearReviewsView items={gearItems} /></React.Suspense>}
         {view === ViewState.ABOUT && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AboutView config={aboutConfig} /></div>}
         {view === ViewState.ASTRO_INDEX && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><AstroIndexView /></div>}
+        {view === ViewState.NOVA_LOG_ANALYZER && <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><PHD2Analysis /></React.Suspense></div>}
         {view === ViewState.LOGIN && <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}><LazyLoginView onLogin={(token) => { setIsAuthenticated(true); setView(ViewState.GALLERY); }} /></React.Suspense>}
         {view === ViewState.LICENSE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LicenseView config={licenseConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
         {view === ViewState.LEGAL_NOTICE && <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-8"><LegalNoticeView config={legalNoticeConfig} onBack={() => handleNav(ViewState.GALLERY)} /></div>}
@@ -661,7 +669,9 @@ const HeroSlider: React.FC<{ slides: HeroSlide[], onNavigate: (url: string) => v
             aria-hidden={index !== currentIndex}
           >
             <img
-              src={slide.imageUrl}
+              src={getImageUrl(slide.imageUrl, { width: 1920, format: 'webp' })}
+              srcSet={getSrcSet(slide.imageUrl, [800, 1200, 1920])}
+              sizes="100vw"
               alt={slide.title}
               className="w-full h-full object-cover animate-ken-burns"
               loading="eager"
@@ -827,7 +837,7 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
         </div>
         <div className="flex flex-col items-start md:items-end gap-2">
           <span className="text-xs font-mono text-text-secondary uppercase">Share</span>
-          <SocialShare url={window.location.href} title={post.title} image={post.imageUrl} />
+          <SocialShare url={post.imageUrl.startsWith('http') ? post.imageUrl : `${window.location.origin}${post.imageUrl}`} title={post.title} image={post.imageUrl} />
         </div>
       </div>
 
@@ -835,7 +845,9 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
         <div className="lg:col-span-3">
           <div className="overflow-hidden relative group cursor-pointer rounded-lg shadow-2xl" onClick={() => onOpenLightbox([{ url: post.imageUrl, alt: post.title }])}>
             <img
-              src={post.imageUrl}
+              src={getImageUrl(post.imageUrl, { width: 1200, format: 'webp' })}
+              srcSet={getSrcSet(post.imageUrl, [400, 800, 1200])}
+              sizes="(max-width: 1024px) 100vw, 60vw"
               alt={post.title}
               className="w-full object-cover rounded-lg"
               fetchPriority="high"
@@ -1375,11 +1387,13 @@ const ImageWallView: React.FC<{
         {shuffledImages.map((image, index) => (
           <div
             key={image.id}
-            className="group aspect-square bg-surface border border-border rounded-lg overflow-hidden cursor-pointer relative"
+            className="group aspect-square bg-surface border border-border rounded-lg overflow-hidden cursor-pointer relative" style={{ contentVisibility: 'auto', containIntrinsicSize: '1px 1px' }}
             onClick={() => onOpenLightbox(shuffledImages.map(i => ({url: i.url, alt: i.alt})), index)}
           >
             <img
-              src={image.url}
+              src={getImageUrl(image.url, { width: 400, format: 'webp' })}
+              srcSet={getSrcSet(image.url, [200, 400, 600])}
+              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
               alt={image.alt}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               loading={index < 8 ? 'eager' : 'lazy'}
@@ -1475,7 +1489,7 @@ const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   );
 };
 
-type AdminPanel = 'gallery' | 'articles' | 'global' | 'hero' | 'about' | 'articlesPage' | 'footer' | 'license' | 'imageWall' | 'cookieBanner' | 'legalNotice' | 'gear' | 'equipment' | 'users';
+type AdminPanel = 'gallery' | 'articles' | 'global' | 'hero' | 'about' | 'articlesPage' | 'footer' | 'license' | 'imageWall' | 'cookieBanner' | 'legalNotice' | 'gear' | 'equipment' | 'users' | 'analytics';
 
 const AdminDashboard: React.FC<{
   posts: Post[];
@@ -1598,12 +1612,12 @@ const PanelButton: React.FC<{ panel: AdminPanel, icon: React.ReactNode, children
             <PanelButton panel="footer" icon={<Milestone size={18} />}>Footer</PanelButton>
             <PanelButton panel="license" icon={<ShieldCheck size={18} />}>License Page</PanelButton>
             <PanelButton panel="legalNotice" icon={<FileText size={18} />}>Legal Notice</PanelButton>
+            <PanelButton panel="analytics" icon={<BarChart3 size={18} />}>Statistiques</PanelButton>
             <PanelButton panel="cookieBanner" icon={<Cookie size={18} />}>Cookie Banner</PanelButton>
           </div>
         </div>
 
         <div className="mt-6 pt-6 border-t border-border space-y-2">
-            <Button variant="secondary" onClick={props.onReset} className="w-full"><RotateCw size={14}/> Factory Reset</Button>
             <Button variant="danger" onClick={props.onLogout} className="w-full"><LogOut size={14}/> Logout</Button>
         </div>
       </aside>
@@ -1634,7 +1648,12 @@ const PanelButton: React.FC<{ panel: AdminPanel, icon: React.ReactNode, children
             <UserManager />
             </React.Suspense>
         )}
-        {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && activePanel !== 'equipment' && activePanel !== 'users' && (
+        {activePanel === 'analytics' && (
+            <React.Suspense fallback={<div className="text-center py-20 text-text-secondary">Loading...</div>}>
+            <VisitorStats />
+            </React.Suspense>
+        )}
+        {activePanel !== 'gallery' && activePanel !== 'articles' && activePanel !== 'imageWall' && activePanel !== 'gear' && activePanel !== 'equipment' && activePanel !== 'users' && activePanel !== 'analytics' && (
           <AdminSettingsPanel
             key={activePanel}
             activeSection={activePanel}
@@ -2980,7 +2999,7 @@ const AladinLiteViewer: React.FC<{ ra: string; dec: string; fov?: number; name?:
           aladinRef.current = A.aladin(`#${containerId}`, {
             target: `${raDeg} ${decDeg}`,
             fov: fov,
-            survey: 'P/DSS2/color',
+            survey: 'https://skies.esac.esa.int/DSSColor',
             showFullscreenControl: false,
           });
           

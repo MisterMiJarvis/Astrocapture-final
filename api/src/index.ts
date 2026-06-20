@@ -442,7 +442,9 @@ app.get('/api/telescopius/highlights', async (c) => {
         con_name: obj.con_name || '',
         ra: obj.ra || '',
         dec: obj.dec || '',
-        magnitude: obj.visual_mag ?? null,
+        magnitude: obj.visual_mag ?? obj.magnitude ?? null,
+        surface_brightness: obj.surface_brightness ?? obj.subr ?? null,
+        size_arcmin: obj.size_arcmin ?? obj.size?.width ?? null,
         image_url: obj.main_image_url || obj.thumbnail_url || null,
         common_names: obj.names || [],
         // Tonight-specific data (flattened for front-end)

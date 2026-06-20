@@ -350,6 +350,14 @@ export const RigProfileForm: React.FC<RigProfileFormProps> = ({
             unit="%"
             isEditing={isEditing}
           />
+          <Field
+            label="Full Well Depth"
+            value={formData.camera.fullWellDepth || ''}
+            onChange={val => handleChange('camera', 'fullWellDepth', val)}
+            type="number"
+            unit="e⁻"
+            isEditing={isEditing}
+          />
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
               <input

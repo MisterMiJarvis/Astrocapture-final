@@ -1,11 +1,11 @@
 
 // FIX: Imported `useState` from React to resolve usage error.
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
-import { 
-  Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, Heading2, Pilcrow, 
-  ImageIcon, Upload, Trash2, X, GripVertical, File, AudioWaveform, 
-  Sparkles, ChevronLeft, ChevronRight, ArrowUp, Twitter, Facebook, 
-  Instagram, Copy, Cookie, FileText 
+import {
+  Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, Heading2, Pilcrow,
+  ImageIcon, Upload, Trash2, X, GripVertical, File, AudioWaveform,
+  Sparkles, ChevronLeft, ChevronRight, ArrowUp, Twitter, Facebook,
+  Instagram, Copy, Cookie, FileText, Download, Share2
 } from 'lucide-react';
 
 // --- Shared UI Primitives ---
@@ -63,17 +63,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'sm' | 'md'
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
-  className = '', 
+export const Button: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
+  className = '',
   isLoading,
   disabled,
   size = 'md',
-  ...props 
+  ...props
 }) => {
   const baseStyle = "font-sans font-semibold rounded-md transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background";
-  
+
   const sizeStyles = {
       md: "px-4 py-2",
       sm: "px-2 py-1 text-sm"
@@ -89,7 +89,7 @@ export const Button: React.FC<ButtonProps> = ({
   const finalVariant = variants[variant] || variants.primary;
 
   return (
-    <button 
+    <button
       className={`${baseStyle} ${sizeStyles[size]} ${finalVariant} ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
       disabled={disabled || isLoading}
       {...props}
@@ -113,9 +113,12 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export const Input: React.FC<InputProps> = ({ label, className = '', ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
-    <input 
+    {label ? (
+      <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
+    ) : null}
+    <input
       className={`w-full bg-background border border-border p-2.5 text-text rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${className}`}
+      aria-label={label || undefined}
       {...props}
     />
   </div>
@@ -127,9 +130,12 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select: React.FC<SelectProps> = ({ label, className = '', children, ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
+    {label ? (
+      <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
+    ) : null}
     <select
       className={`w-full bg-background border border-border p-2.5 text-text rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${className}`}
+      aria-label={label || undefined}
       {...props}
     >
       {children}
@@ -143,9 +149,12 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export const TextArea: React.FC<TextAreaProps> = ({ label, className = '', ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>}
-    <textarea 
+    {label ? (
+      <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
+    ) : null}
+    <textarea
       className={`w-full bg-background border border-border p-2.5 text-text rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors min-h-[120px] ${className}`}
+      aria-label={label || undefined}
       {...props}
     />
   </div>
@@ -186,7 +195,7 @@ export const RichTextEditor: React.FC<{
     editorRef.current?.focus();
     handleInput();
   };
-  
+
   const handleLink = () => {
     const url = prompt('Enter the URL:');
     if (url) {
@@ -230,7 +239,7 @@ export const ImageUploader: React.FC<{
 }> = ({ label, currentImageUrl, imageFile, onUrlChange, onFileChange, id }) => {
     const [preview, setPreview] = useState<string | null>(currentImageUrl);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-    
+
     useEffect(() => {
         if (imageFile) {
             const reader = new FileReader();
@@ -242,7 +251,7 @@ export const ImageUploader: React.FC<{
             setPreview(currentImageUrl);
         }
     }, [currentImageUrl, imageFile]);
-    
+
     const handleFileChangeInternal = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
         onFileChange(file);
@@ -250,7 +259,7 @@ export const ImageUploader: React.FC<{
             onUrlChange('');
         }
     };
-    
+
     const handleUrlChangeInternal = (e: React.ChangeEvent<HTMLInputElement>) => {
         onUrlChange(e.target.value);
         if (e.target.value) {
@@ -268,7 +277,7 @@ export const ImageUploader: React.FC<{
             fileInputRef.current.value = "";
         }
     };
-    
+
     return (
         <div className="space-y-2">
             <label className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
@@ -281,10 +290,10 @@ export const ImageUploader: React.FC<{
                     </div>
                 )}
                 <div className="flex-grow space-y-2 w-full">
-                    <Input 
+                    <Input
                         value={currentImageUrl}
-                        onChange={handleUrlChangeInternal} 
-                        placeholder="Paste image URL here..." 
+                        onChange={handleUrlChangeInternal}
+                        placeholder="Paste image URL here..."
                     />
                     <div className="flex items-center gap-2">
                         <div className="flex-grow h-px bg-border"></div>
@@ -294,13 +303,13 @@ export const ImageUploader: React.FC<{
                     <div className="flex items-start gap-2">
                         <label htmlFor={id} className="w-full cursor-pointer block">
                             <div className="w-full text-center px-4 py-2 bg-secondary text-text hover:bg-secondary-hover rounded-md transition-all flex justify-center items-center gap-2">
-                                <Upload size={16} /> 
+                                <Upload size={16} />
                                 <span className="truncate max-w-xs text-sm">{imageFile ? imageFile.name : 'Upload a file'}</span>
                             </div>
                             <input id={id} ref={fileInputRef} type="file" className="hidden" onChange={handleFileChangeInternal} accept="image/*" />
                         </label>
                         {preview && (
-                            <button 
+                            <button
                                 type="button"
                                 onClick={handleRemoveImage}
                                 className="p-2 bg-red-600 text-white hover:bg-red-700 border border-transparent rounded-md transition-all flex justify-center items-center flex-shrink-0"
@@ -425,7 +434,7 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; children: R
           scrollableContentRef.current.scrollTop = 0;
         }
       }, 0);
-      
+
       return () => clearTimeout(timer);
     } else {
       document.body.style.overflow = 'auto';
@@ -434,16 +443,16 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; children: R
       document.body.style.overflow = 'auto';
     };
   }, [isOpen]);
-  
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div 
-        ref={scrollableContentRef} 
+      <div
+        ref={scrollableContentRef}
         className="absolute left-1/2 -translate-x-1/2 top-[5vh] max-h-[90vh] bg-surface border border-border rounded-lg shadow-2xl w-full max-w-3xl overflow-y-auto"
-      > 
+      >
         <div className="bg-background/80 backdrop-blur-md text-text p-4 flex justify-between items-center border-b border-border sticky top-0 z-10">
            <h2 className="text-lg font-bold font-display">{title || 'System Window'}</h2>
            <button onClick={onClose} className="text-text-secondary hover:text-text rounded-full p-1 transition-colors">
@@ -613,7 +622,7 @@ export const Lightbox: React.FC<{
           </button>
         </>
       )}
-      
+
       <div className="relative w-full h-full flex items-center justify-center p-4 md:p-12 pb-24">
          <img
             key={currentItem.url}
@@ -627,7 +636,7 @@ export const Lightbox: React.FC<{
           />
       </div>
 
-      <div 
+      <div
         className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-white bg-black/60 backdrop-blur-md p-4 rounded-xl w-[90%] max-w-2xl flex flex-col md:flex-row items-center justify-between gap-4 z-40 border border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
@@ -639,7 +648,7 @@ export const Lightbox: React.FC<{
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <span className="text-xs font-mono text-white/60 uppercase tracking-wider">Share</span>
-            <SocialShare url={currentItem.url} title={currentItem.alt} image={currentItem.url} className="text-white" />
+            <SocialShare url={currentItem.url.startsWith('http') ? currentItem.url : `${window.location.origin}${currentItem.url}`} title={currentItem.alt} image={currentItem.url.startsWith('http') ? currentItem.url : `${window.location.origin}${currentItem.url}`} className="text-white" />
           </div>
       </div>
     </div>
@@ -676,16 +685,16 @@ export const ScrollToTopButton: React.FC<{
   </button>
 );
 
-export const SocialShare: React.FC<{ 
-  url: string; 
-  title: string; 
+export const SocialShare: React.FC<{
+  url: string;
+  title: string;
   image?: string;
   layout?: 'horizontal' | 'vertical';
   className?: string;
 }> = ({ url, title, image, layout = 'horizontal', className = '' }) => {
+  const [copyFeedback, setCopyFeedback] = React.useState('');
   const encodedUrl = encodeURIComponent(url);
   const encodedTitle = encodeURIComponent(title);
-  const encodedImage = image ? encodeURIComponent(image) : '';
 
   const shareLinks = [
     {
@@ -700,17 +709,41 @@ export const SocialShare: React.FC<{
       url: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
       color: 'hover:bg-[#4267B2] hover:text-white'
     },
-    {
-      name: 'Instagram',
-      icon: <Instagram size={18} />,
-      url: `https://www.instagram.com/`, // Instagram doesn't support direct URL sharing via web
-      color: 'hover:bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] hover:text-white'
-    }
   ];
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(url);
-    alert('Link copied to clipboard!');
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyFeedback('Copied!');
+      setTimeout(() => setCopyFeedback(''), 2000);
+    } catch {
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopyFeedback('Copied!');
+      setTimeout(() => setCopyFeedback(''), 2000);
+    }
+  };
+
+  const downloadImage = () => {
+    const link = document.createElement('a');
+    link.href = image || url;
+    link.download = title ? `${title.replace(/[^a-zA-Z0-9]/g, '_')}.webp` : 'astrocapture_image.webp';
+    link.target = '_blank';
+    link.click();
+  };
+
+  const nativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+      } catch { /* cancelled */ }
+    } else {
+      copyToClipboard();
+    }
   };
 
   return (
@@ -728,12 +761,28 @@ export const SocialShare: React.FC<{
           {link.icon}
         </a>
       ))}
+      {image && (
+        <button
+          onClick={(e) => { e.stopPropagation(); downloadImage(); }}
+          className="p-2 rounded-full bg-surface border border-border text-text-secondary hover:bg-primary hover:text-white transition-all duration-200"
+          title="Download image"
+        >
+          <Download size={18} />
+        </button>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); nativeShare(); }}
+        className="p-2 rounded-full bg-surface border border-border text-text-secondary hover:bg-primary hover:text-white transition-all duration-200"
+        title="Share"
+      >
+        <Share2 size={18} />
+      </button>
       <button
         onClick={(e) => { e.stopPropagation(); copyToClipboard(); }}
-        className="p-2 rounded-full bg-surface border border-border text-text-secondary hover:bg-primary hover:text-white transition-all duration-200"
-        title="Copy Link"
+        className="p-2 rounded-full bg-surface border border-border text-text-secondary hover:bg-primary hover:text-white transition-all duration-200 relative"
+        title="Copy link"
       >
-        <Copy size={18} />
+        {copyFeedback ? <span className="text-xs font-bold text-primary">✓</span> : <LinkIcon size={18} />}
       </button>
     </div>
   );

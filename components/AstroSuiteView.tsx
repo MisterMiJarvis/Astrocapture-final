@@ -5,12 +5,14 @@ import AplsModule2View from './AplsModule2View';
 import FiltersView from './FiltersView';
 import ProjectsView from './ProjectsView';
 import AplsModule6View from './AplsModule6View';
+import PHD2Analysis from '@/src/components/PHD2Analysis';
+import RAGChatView from './RAGChatView';
 import AstroSuiteLoginView from './AstroSuiteLoginView';
 import AstroSuiteWeatherView from './AstroSuiteWeatherView';
 import { getCurrentAstroSuiteUser, logoutAstroSuite } from '../src/services/userService';
 import TargetExplorerView from './TargetExplorerView';
 import { TelescopiusTarget } from '../src/services/targetExplorerService';
-import { MapPin } from 'lucide-react';
+import { MapPin, LogOut } from 'lucide-react';
 
 type AplsTab = 'dashboard' | 'projects' | 'filters' | 'equipment' | 'weather' | 'analysis' | 'help';
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
@@ -27,7 +29,7 @@ const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'equipment', label: 'Equipment', icon: '🔭' },
   { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
-  { id: 'help', label: 'Help', icon: '❓' },
+  { id: 'help', label: 'Knowledge', icon: '📚' },
 ];
 
 const LOCATION_NAMES: Record<string, string> = {
@@ -42,13 +44,11 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
   const [locationSource, setLocationSource] = useState<LocationSource>('saintEtienne');
   const [projectFromTarget, setProjectFromTarget] = useState<TelescopiusTarget | null>(null);
 
-  // Start a project from the Targets tab
   const handleStartProject = (target: TelescopiusTarget) => {
     setProjectFromTarget(target);
     setActiveTab('projects');
   };
 
-  // Persist location in localStorage
   useEffect(() => {
     const saved = localStorage.getItem('astrosuite_location') as LocationSource;
     if (saved && LOCATION_NAMES[saved]) setLocationSource(saved);
@@ -90,20 +90,9 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
       case 'projects':
         return <ProjectsView locationSource={locationSource} onLocationChange={handleLocationChange} preselectedTarget={projectFromTarget} onClearTarget={() => setProjectFromTarget(null)} />;
       case 'analysis':
-        return <AplsModule6View />;
+        return <PHD2Analysis />;
       case 'help':
-        return (
-          <div className="space-y-6">
-            <div className="py-4 text-center border-b border-border">
-              <h1 className="text-3xl font-display font-bold">❓ Help</h1>
-              <p className="mt-2 text-text-secondary">Astro Suite documentation and guides</p>
-            </div>
-            <div className="bg-surface border border-border rounded-xl p-8 text-center text-text-secondary">
-              <p className="text-lg">Documentation coming soon...</p>
-              <p className="text-sm mt-2">Guides for each module will be available here.</p>
-            </div>
-          </div>
-        );
+        return <RAGChatView />;
       default:
         return <AplsModule1View locationSource={locationSource} onLocationChange={handleLocationChange} />;
     }
@@ -111,85 +100,71 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-surface border-b border-border sticky top-0 z-40">
+      {/* Sub-header: location + user + tabs */}
+      <div className="bg-surface border-b border-border sticky top-20 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-4">
-            <div className="flex items-center justify-between mb-4">
-              {/* Location selector - left */}
-              <div className="flex-1 flex items-center gap-2">
-                <MapPin size={16} className="text-text-secondary" />
-                <select
-                  value={locationSource}
-                  onChange={(e) => handleLocationChange(e.target.value as LocationSource)}
-                  className="text-sm bg-blue-900/40 border border-blue-700/50 rounded-lg px-3 py-1.5 text-blue-100 font-medium focus:ring-2 focus:ring-primary focus:outline-none"
-                >
-                  <option value="" disabled>Location</option>
-                  <option value="current">📍 Current</option>
-                  <option value="saintEtienne">🏠 St-Étienne-du-Grès</option>
-                  <option value="pradelles">🏡 Pradelles</option>
-                </select>
-              </div>
-
-              {/* Welcome - center */}
-              <div className="flex flex-col items-center">
-                <h2 className="text-lg font-semibold text-text">Welcome, {user.firstName} {user.lastName}</h2>
-                {user.lastLogin && (
-                  <span className="text-xs text-text-secondary">
-                    Last login: {new Date(user.lastLogin).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-
-              {/* Logout - right */}
-              <div className="flex-1 flex justify-end">
-                <button
-                  onClick={handleLogout}
-                  className="text-sm font-semibold text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 border border-red-700/40 transition-colors"
-                >
-                  Log out
-                </button>
-              </div>
-            </div>
-
-            {/* Desktop tabs */}
-            <div className="hidden sm:flex space-x-1 bg-surface-secondary rounded-lg p-1">
-              {TAB_CONFIG.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'bg-surface text-text shadow-sm'
-                      : 'text-text-secondary hover:text-text hover:bg-surface-tertiary'
-                  }`}
-                >
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Mobile tabs */}
-            <div className="sm:hidden">
+          {/* Row 1: location + user + logout */}
+          <div className="flex items-center justify-between py-2 sm:py-3">
+            {/* Location selector */}
+            <div className="flex items-center gap-2">
+              <MapPin size={16} className="text-text-secondary hidden sm:block" />
               <select
-                value={activeTab}
-                onChange={(e) => setActiveTab(e.target.value as AplsTab)}
-                className="w-full px-4 py-2.5 rounded-lg bg-surface-secondary border border-border text-text focus:ring-2 focus:ring-primary focus:outline-none"
+                value={locationSource}
+                onChange={(e) => handleLocationChange(e.target.value as LocationSource)}
+                className="text-xs sm:text-sm bg-blue-900/40 border border-blue-700/50 rounded-lg px-2 sm:px-3 py-1.5 text-blue-100 font-medium focus:ring-2 focus:ring-primary focus:outline-none"
               >
-                {TAB_CONFIG.map((tab) => (
-                  <option key={tab.id} value={tab.id}>
-                    {tab.icon} {tab.label}
-                  </option>
-                ))}
+                <option value="" disabled>Location</option>
+                <option value="current">📍 Current</option>
+                <option value="saintEtienne">🏠 St-Étienne-du-Grès</option>
+                <option value="pradelles">🏡 Pradelles</option>
               </select>
             </div>
+
+            {/* User info — desktop only */}
+            <div className="hidden sm:flex flex-col items-center">
+              <span className="text-sm font-semibold text-text">Welcome, {user.firstName} {user.lastName}</span>
+              {user.lastLogin && (
+                <span className="text-xs text-text-secondary">
+                  Last login: {new Date(user.lastLogin).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+
+            {/* Logout */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-secondary font-medium sm:hidden">{user.firstName}</span>
+              <button
+                onClick={handleLogout}
+                className="text-sm font-semibold text-red-400 hover:text-red-300 px-2 sm:px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 border border-red-700/40 transition-colors flex items-center gap-1"
+              >
+                <LogOut size={14} className="sm:hidden" />
+                <span className="hidden sm:inline">Log out</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Row 2: tabs — horizontal scroll on mobile, full width on desktop */}
+          <div className="flex sm:flex space-x-1 bg-surface-secondary rounded-lg p-1 overflow-x-auto sm:overflow-visible mb-2 sm:mb-3">
+            {TAB_CONFIG.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 sm:flex-1 flex items-center justify-center gap-1 px-3 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-surface text-text shadow-sm'
+                    : 'text-text-secondary hover:text-text hover:bg-surface-tertiary'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Module content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {renderModule()}
       </div>
     </div>

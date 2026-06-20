@@ -224,6 +224,7 @@ export const Module2Dashboard: React.FC = () => {
   const [samplingRec, setSamplingRec] = useState<ReturnType<typeof getSamplingRecommendation> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<'idle' | 'first' | 'second'>('idle');
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const reloadProfiles = useCallback(async () => {
     const loadedProfiles = await getAllProfiles();
@@ -344,25 +345,36 @@ export const Module2Dashboard: React.FC = () => {
 
   const performDelete = async () => {
     if (!activeProfile) return;
-    await deleteProfile(activeProfile.id);
-    const remaining = await reloadProfiles();
-    const newActive = remaining.find(p => p.isDefault) || remaining[0];
-    if (newActive) {
-      setActiveProfileIdState(newActive.id);
-      setActiveProfile(newActive);
-      setActiveProfileId(newActive.id);
+    setActionError(null);
+    try {
+      await deleteProfile(activeProfile.id);
+      const remaining = await reloadProfiles();
+      const newActive = remaining.find(p => p.isDefault) || remaining[0];
+      if (newActive) {
+        setActiveProfileIdState(newActive.id);
+        setActiveProfile(newActive);
+        setActiveProfileId(newActive.id);
+      }
+      setDeleteConfirm('idle');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+      setDeleteConfirm('idle');
     }
-    setDeleteConfirm('idle');
   };
 
   const handleDuplicateProfile = async (id: string) => {
-    const duplicated = await duplicateProfile(id);
-    if (duplicated) {
-      await reloadProfiles();
-      setActiveProfileIdState(duplicated.id);
-      setActiveProfile(duplicated);
-      setActiveProfileId(duplicated.id);
-      setViewMode('edit');
+    setActionError(null);
+    try {
+      const duplicated = await duplicateProfile(id);
+      if (duplicated) {
+        await reloadProfiles();
+        setActiveProfileIdState(duplicated.id);
+        setActiveProfile(duplicated);
+        setActiveProfileId(duplicated.id);
+        setViewMode('edit');
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erreur lors de la duplication');
     }
   };
 
@@ -415,6 +427,12 @@ export const Module2Dashboard: React.FC = () => {
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
           🔭 Equipment, Sampling & Dithering
         </h2>
+        {actionError && (
+          <div className="w-full p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+            ⚠️ {actionError}
+            <button onClick={() => setActionError(null)} className="ml-2 underline hover:text-red-200">Fermer</button>
+          </div>
+        )}
         <p className="text-slate-500 mt-1">
           Manage your rigs, calculate sampling and configure guiding
         </p>

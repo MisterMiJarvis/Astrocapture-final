@@ -72,7 +72,7 @@ export const AladinFramer: React.FC<AladinFramerProps> = ({
         showGotoControl: true,
         showCoordinates: true,
         showFrame: true,
-        survey: 'P/DSS2/color',
+        survey: 'https://skies.esac.esa.int/DSSColor',
       });
 
       // Overlay FOV

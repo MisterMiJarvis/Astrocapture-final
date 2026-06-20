@@ -365,6 +365,23 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_apls_filters_user ON apls_filters(user_id);
   CREATE INDEX IF NOT EXISTS idx_apls_projects_user ON apls_projects(user_id);
   CREATE INDEX IF NOT EXISTS idx_apls_observations_project ON apls_project_observations(project_id);
+
+  -- ===========================================
+  -- Page Views / Analytics
+  -- ===========================================
+  CREATE TABLE IF NOT EXISTS page_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT NOT NULL,
+    referrer TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    country TEXT NOT NULL DEFAULT '',
+    session_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pageviews_path ON page_views(path);
+  CREATE INDEX IF NOT EXISTS idx_pageviews_created ON page_views(created_at);
+  CREATE INDEX IF NOT EXISTS idx_pageviews_session ON page_views(session_id);
 `);
 
 export default db;

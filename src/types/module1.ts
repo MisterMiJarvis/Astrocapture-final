@@ -111,9 +111,9 @@ export interface AstroTarget {
   decDeg: number;
   type: 'Galaxy' | 'Nebula' | 'Cluster' | 'Supernova' | 'Quasar';
   subtype: string;
-  magnitude: number;
+  magnitude: number | null;
   surfaceBrightness?: number | null;
-  sizeArcmin: number;
+  sizeArcmin: number | null;
   sizeArcminX?: number;
   sizeArcminY?: number;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
@@ -232,8 +232,8 @@ export interface TelescopiusSuggestion {
   raDeg: number;
   decDeg: number;
   type: string;
-  magnitude: number;
-  sizeArcmin: number;
+  magnitude: number | null;
+  sizeArcmin: number | null;
   altitudeMax: number;
   imageUrl?: string;
   badges: string[];
