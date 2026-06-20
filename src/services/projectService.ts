@@ -3,7 +3,7 @@
 // API-first with localStorage fallback
 // ============================================================================
 
-import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan } from '../types/project';
+import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan, SNRTarget } from '../types/project';
 import { AstroFilter } from './filterService';
 import { fetchFilters, getFilterExposureFactor, getMoonBenefitFactor } from './filterService';
 
@@ -41,99 +41,260 @@ function generateObsId(): string {
   return `obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ─── SNR / Exposure Calculator ───────────────────────────────────────────
+// ─── SNR / Exposure Calculator — Physical Pipeline (v2 — corrected) ──────────
+//
+// Based on the APLS v3 specification, corrected for object SNR:
+//   Step 1: Sky flux          Φ_sky = 10^(0.4 × (M_zero - m_sky))
+//   Step 2: Object flux        Φ_obj = 10^(0.4 × (M_zero - m_obj))
+//   Step 3: Aperture          A = π × (D/2000)²  [m²]
+//   Step 4: Sampling          sampling = (206.265 × pixelSize_μm) / focalLength_mm  [arcsec/px]
+//   Step 5: Sky e- rate       B_sky = Φ_sky × A × sampling² × QE × τ_sky
+//   Step 6: Object e- rate     S_obj = Φ_obj × A × sampling² × QE × τ_signal
+//   Step 7: Optimal sub-exp   t_opt = k × RN² / B_sky   (k=5 conservative, Swainson)
+//   Step 8: SNR per sub       snrPerSub = (S_obj × t_sub) / sqrt((S_obj + B_sky) × t_sub + RN²)
+//   Step 9: Num subs          N = (SNR_target / snrPerSub)²
+//
+// M_zero = 26.59 (V-band zero-point flux in mag/arcsec²)
+// ──────────────────────────────────────────────────────────────────────────────
+
+const M_ZERO = 26.59; // V-band zero-point (mag/arcsec²)
+const K_CONSERVATIVE = 5; // Swainson k-factor (conservative)
 
 interface ExposureCalcParams {
   targetMagnitude: number | null;
   targetSizeArcmin: number | null;
+  surfaceBrightness: number | null;  // mag/arcsec² — used when sizeArcmin is null
   filter: string;
   focalLength: number;
   aperture: number;
-  pixelSize: number;
-  moonIllumination: number;
-  avgSeeing: number;
+  pixelSize: number;      // μm
+  readNoise: number;      // e-
+  quantumEfficiency: number; // 0-1
+  moonIllumination: number;  // 0-1
+  avgSeeing: number;       // arcsec
+  bortle: number;         // 1-9
+  snrTarget: SNRTarget;
+  fullWellDepth?: number;  // e- (camera full well capacity)
   filterData?: AstroFilter;
 }
 
-// Fallback hardcoded factors
-const FILTER_EXPOSURE_FACTOR: Record<string, number> = {
-  L_Ultimate: 1.0,
-  Luminance: 1.2,
-  UV_IR_Cut: 1.3,
-  Ha: 3.0,
-  OIII: 4.0,
-  SII: 4.5,
-  RGB: 1.5,
-  LPS_D2: 1.1,
-};
-
-const FILTER_SNR_FACTOR: Record<string, number> = {
-  L_Ultimate: 1.0,
-  Luminance: 0.95,
-  UV_IR_Cut: 0.85,
-  Ha: 0.7,
-  OIII: 0.6,
-  SII: 0.55,
-  RGB: 0.8,
-  LPS_D2: 0.9,
-};
+/**
+ * Convert Bortle scale to approximate SQM (sky magnitude per arcsec²)
+ */
+function bortleToSQM(bortle: number): number {
+  const table: Record<number, number> = {
+    1: 22.0, 2: 21.5, 3: 21.0, 4: 20.5, 5: 19.5,
+    6: 18.5, 7: 18.0, 8: 17.0, 9: 16.0,
+  };
+  return table[Math.min(9, Math.max(1, Math.round(bortle)))] ?? 20.5;
+}
 
 /**
- * Calculate optimal sub-exposure and total exposure plan for a target
+ * Physical pipeline: Calculate optimal sub-exposure and total integration time
+ * for a given SNR target.
  */
 export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposurePlan[] {
   const {
     targetMagnitude,
     targetSizeArcmin,
+    surfaceBrightness,
     filter,
     focalLength,
     aperture,
     pixelSize,
+    readNoise,
+    quantumEfficiency,
     moonIllumination,
     avgSeeing = 2.5,
+    bortle = 4,
+    snrTarget = 30,
     filterData,
   } = params;
 
-  const mag = targetMagnitude ?? 10;
-  const size = targetSizeArcmin ?? 10;
+  const rawMag = targetMagnitude ?? 10;
 
-  const lightGrasp = (aperture * aperture) / (200 * 200) * (800 / focalLength);
-
-  let filterFactor: number;
-  let snrFactor: number;
-  let moonFactor: number;
-
-  if (filterData) {
-    filterFactor = getFilterExposureFactor(filterData);
-    snrFactor = filterData.peakTransmission * (1 - filterData.skySuppression * 0.3);
-    moonFactor = getMoonBenefitFactor(filterData, moonIllumination);
+  // Convert integrated magnitude to surface brightness (mag/arcsec²)
+  // Extended objects have integrated magnitudes that must be converted.
+  // Priority: surfaceBrightness > sizeArcmin conversion > fallback assumption
+  let mag: number;
+  if (surfaceBrightness != null && surfaceBrightness > 0) {
+    mag = surfaceBrightness;
+  } else if (targetSizeArcmin && targetSizeArcmin > 0) {
+    // Convert integrated magnitude to surface brightness using object size
+    const surfaceArcsec2 = Math.PI * Math.pow((targetSizeArcmin * 60) / 2, 2);
+    mag = rawMag + 2.5 * Math.log10(surfaceArcsec2);
   } else {
-    filterFactor = FILTER_EXPOSURE_FACTOR[filter] || 1.0;
-    snrFactor = FILTER_SNR_FACTOR[filter] || 0.85;
-    moonFactor = 1 + moonIllumination * 1.5;
+    // No size info and no surface brightness — assume moderate surface brightness
+    mag = Math.max(rawMag + 5, 18);
   }
 
-  const magFactor = Math.pow(10, 0.4 * (mag - 10));
-  const baseSubExposure = Math.max(30, Math.min(600, 120 * magFactor / lightGrasp));
-  const subExposure = Math.round(baseSubExposure * filterFactor * moonFactor / 10) * 10;
+  // ─── Filter-aware surface brightness correction ───────────────────────────
+  // V-band surface brightness is NOT the right metric for narrowband/dual-band.
+  // Emission nebulae have concentrated line emission that is MUCH brighter than
+  // their V-band surface brightness. But we must target the faint outer structures.
+  //
+  // Strategy: For narrowband/dual-band, we keep the V-band SB as the reference
+  // for the FAINT structures (they're roughly at the V-band SB level even in narrowband),
+  // and let the filter model (tauSignal vs tauSky) handle the brightness advantage.
+  // The key insight: narrowband filters have tauSignal ≈ 0.9 but tauSky ≈ 0.02-0.08,
+  // giving a huge SNR advantage per pixel that naturally produces shorter exposures.
+  //
+  // We only apply a small correction for broadband LP filters:
+  const isNarrowHa = filter === 'Ha';
+  const isNarrowOIII = filter === 'OIII';
+  const isNarrowSII = filter === 'SII';
+  const isNarrowband = isNarrowHa || isNarrowOIII || isNarrowSII;
+  const isDualBand = ['L_Ultimate', 'L_Extreme'].includes(filter);
+  const isAntiPollution = ['LPS_D2', 'IDAS_LPS'].includes(filter);
 
-  const moonSnrPenalty = 1 / (1 + moonIllumination * 0.8);
+  // No correction for narrowband/dual-band — the tauSignal/tauSky model handles it
+  // Small correction for LP filters (they slightly improve contrast)
+  if (isAntiPollution) {
+    mag -= 0.5;
+  }
 
-  const baseHours = 2 * magFactor / lightGrasp;
-  const totalHours = Math.max(0.5, baseHours * filterFactor / snrFactor * moonSnrPenalty);
+  // Step 1: Sky flux and object flux
+  let mSky = bortleToSQM(bortle);
 
-  const subCount = Math.max(10, Math.ceil(totalHours * 3600 / subExposure));
-  const totalExposureTime = subCount * subExposure;
+  // Moon impact: LP filters partially reject moonlight, narrowband nearly immune
+  if (isNarrowband) {
+    mSky -= moonIllumination * 0.2;
+  } else if (isDualBand) {
+    mSky -= moonIllumination * 0.8;
+  } else {
+    mSky -= moonIllumination * 1.5;
+  }
 
-  const snrScore = Math.sqrt(totalExposureTime / subExposure) * snrFactor * lightGrasp * moonSnrPenalty;
-  const snrLabel = snrScore > 15 ? 'Excellent' : snrScore > 8 ? 'Good' : snrScore > 4 ? 'Fair' : 'Low';
+  // Filter model: separate signal transmission (tauSignal) from sky transmission (tauSky)
+  // For narrowband/dual-band filters, the object signal passes at peak transmission
+  // but the sky background is suppressed — these are DIFFERENT effective transmissions
+  let tauSignal: number; // transmission for object signal
+  let tauSky: number;    // transmission for sky background
+  
+  if (filterData) {
+    // Use real filter specs from user's collection
+    const cat = filterData.category || 'broadband';
+    const pt = filterData.peakTransmission;
+    const ss = filterData.skySuppression;
+    
+    if (cat === 'narrowband') {
+      // Ha/OIII/SII: object signal at peak transmission, sky heavily suppressed
+      tauSignal = pt;
+      tauSky = pt * (1 - ss); // sky only passes through the narrow band
+    } else if (cat === 'dualband') {
+      // L-Ultimate type: object signal passes at peak on the full covered bandwidth
+      // (Ha line, OIII line, AND continuous emission between them)
+      tauSignal = pt;
+      // Sky: only passes through the narrow Ha/OIII windows, rest is blocked
+      // Effective sky bandwidth is ~2 × 3nm = 6nm out of ~300nm total → ~2% passthrough
+      // Plus slight continuous leak between the lines
+      tauSky = pt * (1 - ss) * 0.08; // dual-band lets ~8% of broadband sky through
+    } else if (cat === 'anti_pollution') {
+      // LPS-D2 type: selective filter — passes object signal well on target lines
+      // but blocks specific emission lines (Na, Hg) from light pollution
+      tauSignal = pt; // object signal barely attenuated on astrophysically relevant bands
+      tauSky = pt * (1 - ss * 0.6); // sky suppression is selective, not uniform
+    } else {
+      // Broadband (UV/IR Cut, Luminance): minimal sky suppression
+      tauSignal = pt;
+      tauSky = pt; // no sky suppression effect
+    }
+  } else {
+    // Fallbacks without filterData
+    const FILTER_TAUS: Record<string, { signal: number; sky: number }> = {
+      L_Ultimate: { signal: 0.90, sky: 0.08 },
+      LPS_D2:     { signal: 0.90, sky: 0.45 },
+      UV_IR_Cut:  { signal: 0.97, sky: 0.97 },
+      Ha:         { signal: 0.90, sky: 0.02 },
+      OIII:       { signal: 0.85, sky: 0.02 },
+      SII:        { signal: 0.80, sky: 0.02 },
+      RGB:        { signal: 0.85, sky: 0.85 },
+      Luminance:  { signal: 0.95, sky: 0.95 },
+    };
+    const ft = FILTER_TAUS[filter] ?? { signal: 0.85, sky: 0.85 };
+    tauSignal = ft.signal;
+    tauSky = ft.sky;
+  }
+
+  // Object flux (using the mean surface brightness directly — "Main Extent" model)
+  const structureOffset = 0; // No artificial offset — use mean SB directly (Main Extent)
+  const magForSignal = mag; // Mean SB = Main Extent
+  const phiSky = Math.pow(10, 0.4 * (M_ZERO - mSky));
+  const phiObj = Math.pow(10, 0.4 * (M_ZERO - magForSignal));
+
+  // Step 2: Aperture effective area
+  const A = Math.PI * Math.pow(aperture / 2000, 2); // m²
+
+  // Step 3: Sampling (arcsec/pixel) — replaces p² (meters) with sampling² (arcsec²)
+  const sampling = (206.265 * pixelSize) / focalLength; // arcsec/pixel
+  const samplingSq = sampling * sampling; // arcsec²/pixel
+
+  // Step 4: Dark current
+  const darkCurrent = 0.001; // e-/px/s (cooled sensors)
+
+  // Step 5: Sky electron rate (e-/px/s) — uses sampling² and tauSky
+  const Bsky = phiSky * A * samplingSq * quantumEfficiency * tauSky + darkCurrent;
+
+  // Step 6: Object signal electron rate (e-/px/s) — uses sampling² and tauSignal
+  const Sobj = phiObj * A * samplingSq * quantumEfficiency * tauSignal;
+
+  // Step 7: Optimal sub-exposure (Swainson equation)
+  const RN = readNoise;
+  const tOpt = K_CONSERVATIVE * RN * RN / Bsky;
+  const tSub = Math.max(30, Math.min(600, Math.round(tOpt / 10) * 10));
+
+  // Step 8: SNR per sub on the OBJECT (not sky)
+  // signalPerSub = S_obj × t_sub
+  // noisePerSub = sqrt((S_obj + B_sky) × t_sub + RN²)
+  // snrPerSub = signalPerSub / noisePerSub
+  const signalPerSub = Sobj * tSub;
+  const noisePerSub = Math.sqrt((Sobj + Bsky) * tSub + RN * RN);
+  const snrPerSub = noisePerSub > 0 ? signalPerSub / noisePerSub : 0;
+
+  // Step 9: Number of subs to reach target SNR
+  // N = (SNR_target / snrPerSub)²
+  const N = Math.max(1, Math.ceil(snrPerSub > 0 ? Math.pow(snrTarget / snrPerSub, 2) : 1));
+  const totalExposureTime = N * tSub;
+
+  // Actual SNR achieved (cumulative on object)
+  // SNR_total = sqrt(N) × snrPerSub
+  const actualSNR = snrPerSub * Math.sqrt(N);
+  const snrLabel = actualSNR >= 80 ? 'Exceptional' : actualSNR >= 50 ? 'Excellent' : actualSNR >= 25 ? 'Good' : actualSNR >= 12 ? 'Fair' : 'Low';
+
+  // ─── Operating Band (Cosgrove's method) ──────────────────────────────
+  // Lower bound: read noise < 10% of total noise → tSub where RN² < 0.1 × (Bsky × tSub + RN²)
+  // → tSub > 9 × RN² / Bsky
+  const tSubMin = Bsky > 0 ? Math.max(10, Math.ceil(9 * RN * RN / Bsky / 5) * 5) : 10; // round to 5s
+  // Upper bound: sky + bright stars should not exceed 50% of full well
+  // Assume well depth from QE (typical CMOS: 50-100ke-), brightest star mag 4
+  const wellDepth = params.fullWellDepth || (quantumEfficiency > 0.7 ? 50000 : 100000); // e-
+  const brightStarMag = 4; // typical bright star in field
+  const brightStarFlux = Math.pow(10, 0.4 * (M_ZERO - brightStarMag + (isNarrowband ? 2 : 0)));
+  const Sbright = brightStarFlux * A * Math.pow((206.265 * pixelSize) / focalLength, 2) * quantumEfficiency * tauSignal;
+  const skyPerPixel = Bsky * 600; // worst case: 600s sub
+  const tSubMaxFromSaturation = Sbright > 0 ? Math.floor((wellDepth * 0.5 - skyPerPixel) / Sbright) : 600;
+  const tSubMax = Math.max(tSubMin + 10, Math.min(600, tSubMaxFromSaturation)); // clamp 600s
+
+  // Workflow overhead: dither + download + filter change ≈ 10-15s per sub
+  const overheadPerSub = 12; // seconds
+  const totalWithOverhead = totalExposureTime + N * overheadPerSub;
 
   return [{
     filter,
-    subExposure,
-    subCount,
+    subExposure: tSub,
+    subCount: N,
     totalExposureTime,
-    snrEstimate: `${snrLabel} (SNR ~${snrScore.toFixed(1)})`,
+    totalWithOverhead,
+    subExposureMin: tSubMin,
+    subExposureMax: tSubMax,
+    snrEstimate: `${snrLabel} (SNR ~${actualSNR.toFixed(1)})`,
+    snrValue: actualSNR,
+    skyElectronRate: Bsky,
+    objectElectronRate: Sobj,
+    sampling: parseFloat(sampling.toFixed(2)),
+    darkCurrent,
+    tauSignal,
+    tauSky,
   }];
 }
 
@@ -160,7 +321,10 @@ export function calculateFullExposurePlan(
 export async function fetchProjects(): Promise<Project[]> {
   try {
     const data = await apiFetch<Project[]>('');
-    return Array.isArray(data) ? data : [];
+    const projects = Array.isArray(data) ? data : [];
+    // Sync localStorage with server — server is source of truth
+    saveLocalProjects(projects);
+    return projects;
   } catch {
     return getLocalProjects();
   }
@@ -176,17 +340,25 @@ export async function fetchProject(id: string): Promise<Project | null> {
 }
 
 export async function createProject(data: CreateProjectData): Promise<Project> {
-  const rigInfo = await getActiveRig();
+  const rigInfo = data.rigId ? await getRigById(data.rigId) : await getActiveRig();
+
+  // Determine Bortle from location
+  const bortle = data.locationSource === 'pradelles' ? 2 : 4;
 
   const exposurePlan = calculateExposurePlan({
     targetMagnitude: data.targetMagnitude,
     targetSizeArcmin: data.targetSizeArcmin,
+    surfaceBrightness: data.surfaceBrightness ?? null,
     filter: data.primaryFilter,
     focalLength: rigInfo?.focalLength ?? 800,
     aperture: rigInfo?.aperture ?? 200,
     pixelSize: rigInfo?.pixelSize ?? 3.76,
+    readNoise: rigInfo?.readNoise ?? 1.5,
+    quantumEfficiency: rigInfo?.quantumEfficiency ?? 0.8,
     moonIllumination: await getCurrentMoonIllumination(data.lat, data.lon),
     avgSeeing: 2.5,
+    bortle,
+    snrTarget: data.snrTarget ?? 30,
   });
 
   const totalPlannedHours = exposurePlan.reduce((sum, p) => sum + p.totalExposureTime, 0) / 3600;
@@ -202,6 +374,7 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
     targetDec: data.targetDec,
     targetMagnitude: data.targetMagnitude,
     targetSizeArcmin: data.targetSizeArcmin,
+    surfaceBrightness: data.surfaceBrightness ?? null,
     targetImageUrl: data.targetImageUrl,
     locationSource: data.locationSource,
     lat: data.lat,
@@ -214,6 +387,7 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
     sensorWidth: rigInfo?.sensorWidth ?? null,
     sensorHeight: rigInfo?.sensorHeight ?? null,
     primaryFilter: data.primaryFilter,
+    snrTarget: data.snrTarget ?? 30,
     exposurePlan,
     totalPlannedHours,
     observations: [],
@@ -256,6 +430,8 @@ export async function deleteProject(id: string): Promise<void> {
     if (!res.ok) {
       throw new Error(`Delete failed: ${res.status}`);
     }
+    // Also remove from localStorage to prevent ghost resurrection
+    deleteLocalProject(id);
   } catch {
     deleteLocalProject(id);
   }
@@ -335,6 +511,8 @@ interface RigInfoResponse {
   pixelSize: number;
   sensorWidth: number;
   sensorHeight: number;
+  readNoise: number;
+  quantumEfficiency: number;
 }
 
 async function getActiveRig(): Promise<RigInfoResponse | null> {
@@ -347,25 +525,47 @@ async function getActiveRig(): Promise<RigInfoResponse | null> {
     const rigs = await res.json();
     const def = Array.isArray(rigs) ? rigs.find((r: any) => r.isDefault) : null;
     if (!def) return null;
-    return {
-      id: def.id,
-      name: def.name,
-      focalLength: def.telescope?.focalLength ?? 800,
-      aperture: def.telescope?.aperture ?? 200,
-      pixelSize: def.imagingCamera?.pixelSize ?? 3.76,
-      sensorWidth: def.imagingCamera?.sensorWidth ?? 23.5,
-      sensorHeight: def.imagingCamera?.sensorHeight ?? 15.6,
-    };
+    return rigToInfo(def);
   } catch {
     return null;
   }
+}
+
+async function getRigById(rigId: string): Promise<RigInfoResponse | null> {
+  try {
+    const token = getAuthToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch('/api/apls/rigs', { headers });
+    if (!res.ok) return null;
+    const rigs = await res.json();
+    const rig = Array.isArray(rigs) ? rigs.find((r: any) => r.id === rigId) : null;
+    if (!rig) return null;
+    return rigToInfo(rig);
+  } catch {
+    return null;
+  }
+}
+
+function rigToInfo(rig: any): RigInfoResponse {
+  return {
+    id: rig.id,
+    name: rig.name,
+    focalLength: rig.telescope?.focalLength ?? 800,
+    aperture: rig.telescope?.aperture ?? 200,
+    pixelSize: rig.imagingCamera?.pixelSize ?? 3.76,
+    sensorWidth: rig.imagingCamera?.sensorWidth ?? 23.5,
+    sensorHeight: rig.imagingCamera?.sensorHeight ?? 15.6,
+    readNoise: rig.imagingCamera?.readNoise ?? 1.5,
+    quantumEfficiency: rig.imagingCamera?.quantumEfficiency ?? 0.8,
+  };
 }
 
 // ─── Helpers: Moon illumination ───────────────────────────────────────────
 
 async function getCurrentMoonIllumination(lat: number, lon: number): Promise<number> {
   try {
-    const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+    const res = await fetch(`/api/apls/weather/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,cloud_cover&daily=temperature_2m_max,temperature_2m_min,cloud_cover_max,precipitation_sum&timezone=Europe/Paris&forecast_days=3`);
     if (!res.ok) return 0.5;
     const data = await res.json();
     return data.daily?.data?.[0]?.moonPhase ?? 0.5;
