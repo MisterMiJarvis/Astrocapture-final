@@ -876,14 +876,24 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   }, []);
 
   // Recalculate exposure plan on edit changes
-  const isFirstEditRender = useRef(true);
+  // Track which settings the user explicitly changed (vs async data loading)
+  const prevEditSettings = useRef<{ filter: string; snr: number; loc: string; rig: string } | null>(null);
   useEffect(() => {
-    if (!isEditing) { isFirstEditRender.current = true; return; }
-    // Don't reset overrides on first render — they were pre-filled by startEditing()
-    if (!isFirstEditRender.current) {
-      setEditManualOverrides({});
+    if (!isEditing) { prevEditSettings.current = null; return; }
+    const currentSettings = { filter: editFilter, snr: editSnrTarget, loc: editLocation, rig: editRigId };
+    // Only reset overrides if the user explicitly changed a setting (not first render or async data load)
+    if (prevEditSettings.current !== null) {
+      const changed = (
+        prevEditSettings.current.filter !== currentSettings.filter ||
+        prevEditSettings.current.snr !== currentSettings.snr ||
+        prevEditSettings.current.loc !== currentSettings.loc ||
+        prevEditSettings.current.rig !== currentSettings.rig
+      );
+      if (changed) {
+        setEditManualOverrides({});
+      }
     }
-    isFirstEditRender.current = false;
+    prevEditSettings.current = currentSettings;
     const bortle = editLocation === 'pradelles' ? 2 : 4;
     const editEffectiveRig = activeRig || rigs.find((r: any) => r.id === editRigId);
     const filterData = userFilters.find((f: any) => getFilterType(f) === editFilter);
