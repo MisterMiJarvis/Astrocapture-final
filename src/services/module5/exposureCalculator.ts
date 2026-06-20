@@ -175,47 +175,113 @@ export function calculateOptimalExposureTime(
 }
 
 /**
- * Pipeline complet — calcule le résultat d'exposition
+ * Pipeline complet — calcule le résultat d'exposition (v4 — SB-based + améliorations)
+ *
+ * v3: SB-based, skySuppression, SNR target adaptatif
+ * v4 améliorations:
+ * - #1: is_emission_nebula → skySuppression s'applique aux galaxies (spectre continu)
+ * - #2: SNR target continu (fonction puissance, sans seuil brutal)
+ * - #3: Dark current ajouté au bruit total
+ * - #4: SNR pondéré par la taille angulaire (élément de résolution visuelle)
  */
 export function calculateExposure(params: ExposureParams): ExposureResult {
   const fluxSky = calculateSkyFlux(params.skyMagnitude);
   const apertureArea = calculateApertureArea(params.aperture);
-  const bSky = calculateSkyBrightness(
-    fluxSky,
-    apertureArea,
-    params.pixelSize,
-    params.quantumEfficiency,
-    params.filterTransmission
-  );
+
+  // Sampling: (206.265 × pixelSize_μm) / focalLength_mm  [arcsec/px]
+  let samplingSq: number;
+  let sampling: number;
+  if ((params as any).focalLength) {
+    sampling = (206.265 * params.pixelSize) / (params as any).focalLength;
+    samplingSq = sampling * sampling;
+  } else {
+    sampling = 0;
+    const pixelSizeM = params.pixelSize / 1_000_000;
+    samplingSq = pixelSizeM * pixelSizeM;
+  }
+
+  // --- Sky brightness WITH filter sky suppression ---
+  const skySuppression = (params as any).skySuppression ?? 0;
+  const effectiveSkyTransmission = params.filterTransmission * (1 - skySuppression);
+  const bSky = fluxSky * apertureArea * samplingSq * params.quantumEfficiency * effectiveSkyTransmission;
+
+  // --- Object signal per pixel (SB-based) ---
+  // #1: Emission nebulae (Hα/OIII) are NOT suppressed by narrowband filters
+  //     But galaxies (continuous spectrum) ARE suppressed just like the sky
+  const objectSB = (params as any).objectSurfaceBrightness ?? params.skyMagnitude + 5;
+  const isEmissionNebula = (params as any).isEmissionNebula ?? true;
+  const objectFlux = Math.pow(10, 0.4 * (M_ZERO - objectSB));
+  const objTransmission = isEmissionNebula
+    ? params.filterTransmission                              // emission: only transmission loss
+    : params.filterTransmission * (1 - skySuppression);     // continuum: skySuppression applies
+  const Sobj = objectFlux * apertureArea * samplingSq * params.quantumEfficiency * objTransmission;
+
+  // --- Optimal sub exposure time (sky-limited) ---
   const tOptimum = calculateOptimalExposureTime(bSky, params.readNoise, params.kFactor);
   const swampingFactor = bSky > 0 ? bSky / (params.readNoise * params.readNoise) : 0;
+
+  // Dynamic sub exposure time
+  const tSub = Math.max(30, Math.min(600, Math.round(tOptimum / 10) * 10));
+
+  // --- #2: Continuous adaptive SNR target (no step function) ---
+  // target_SNR = max(10, 30 × contrast^0.4)
+  // Smooth curve: rises fast for faint objects, flattens for bright ones
+  const contrast = bSky > 0 ? Sobj / bSky : 0;
+  const targetSNR = (params as any).targetSNR ?? Math.max(10, 500 * Math.pow(Math.max(contrast, 0.001), 0.5));
+
+  // --- #4: Angular size weighting (SNR per visual resolution element) ---
+  // Large objects (M31, M42) tolerate lower per-pixel SNR because our eyes/brain
+  // average adjacent pixels. Small objects (M97, M57) need higher per-pixel SNR.
+  // objectSizeArcmin: diameter in arcminutes
+  // pixelsCovered = object diameter / sampling [pixels]
+  // weighting = sqrt(pixelsCovered) — effectively a binning factor
+  const objectSizeArcmin = (params as any).objectSizeArcmin ?? 0;
+  let sizeWeighting = 1;
+  if (objectSizeArcmin > 0 && sampling > 0) {
+    const objectDiameterPx = (objectSizeArcmin * 60) / sampling; // arcsec / (arcsec/px) = px
+    // Normalize: 100px diameter = 1x weighting, larger objects get slight reduction
+    sizeWeighting = Math.sqrt(Math.max(1, objectDiameterPx / 100));
+  }
+  // Effective target per pixel is reduced by the binning factor
+  const effectiveTargetSNR = targetSNR / sizeWeighting;
+
+  // --- #3: Dark current in noise ---
+  // ASI533MC at -10°C: ~0.0005 e-/px/s. Uncooled DSLR: ~0.1 e-/px/s
+  const darkCurrent = (params as any).darkCurrent ?? 0.0005;
+
+  // --- SNR per sub ---
+  const signalPerSub = Sobj * tSub;
+  const noisePerSub = Math.sqrt((Sobj + bSky + darkCurrent) * tSub + params.readNoise * params.readNoise);
+  const snrPerSub = noisePerSub > 0 ? signalPerSub / noisePerSub : 0;
+
+  // Number of subs
+  const totalSubsForSNR = Math.max(1, Math.ceil(snrPerSub > 0 ? Math.pow(effectiveTargetSNR / snrPerSub, 2) : 1));
+  const totalIntegrationTime = (totalSubsForSNR * tSub) / 60;
 
   let recommendation = '';
   let warning: string | undefined;
 
-  if (tOptimum < 10) {
-    recommendation = `Pose très courte (${tOptimum.toFixed(1)}s). Considérez l\'empilement rapide.`;
-    warning = 'Temps de pose < 10s — risque de bruit de lecture dominant.';
-  } else if (tOptimum < 60) {
-    recommendation = `Pose courte acceptable (${tOptimum.toFixed(1)}s). Idéal pour le ciel profond rapide.`;
-  } else if (tOptimum < 300) {
-    recommendation = `Pose standard (${tOptimum.toFixed(1)}s). Zone confortable pour la plupart des montures.`;
-  } else if (tOptimum < 600) {
-    recommendation = `Pose longue (${tOptimum.toFixed(1)}s). Assurez-vous d\'un guidage < 1\"/px.`;
+  if (tSub < 60) {
+    recommendation = `Pose courte (${tSub}s). Empilement rapide — idéal pour objets brillants.`;
+  } else if (tSub < 180) {
+    recommendation = `Pose standard (${tSub}s). Zone confortable pour la plupart des montures.`;
+  } else if (tSub < 300) {
+    recommendation = `Pose longue (${tSub}s). Assurez-vous d\'un guidage < 1"/px.`;
   } else {
-    recommendation = `Pose très longue (${tOptimum.toFixed(1)}s). Nécessite un guidage excellent et ciel stable.`;
-    warning = 'Temps de pose > 600s — vérifiez le guidage et la stabilité thermique.';
+    recommendation = `Pose très longue (${tSub}s). Nécessite un guidage excellent.`;
+    warning = 'Temps de pose > 300s — vérifiez le guidage et la stabilité thermique.';
   }
 
-  // Nombre de poses pour SNR cible (approximation)
-  const targetSNR = 100; // SNR de qualité
-  const signalPerSub = bSky * tOptimum; // e⁻/px
-  const totalSignalNeeded = targetSNR * targetSNR * (signalPerSub + params.readNoise * params.readNoise);
-  const totalSubsForSNR = Math.ceil(totalSignalNeeded / (signalPerSub * signalPerSub));
-  const totalIntegrationTime = (totalSubsForSNR * tOptimum) / 60;
+  if (contrast < 1 && !isEmissionNebula) {
+    warning = (warning ?? '') + (warning ? ' ' : '') +
+      `Contraste faible (S/B < 1) + spectre continu — le filtre narrowband détruit le signal objet. UV/IR Cut recommandé.`;
+  } else if (contrast < 1) {
+    warning = (warning ?? '') + (warning ? ' ' : '') +
+      'Contraste faible (S/B < 1) — l objet est plus faible que le fond de ciel. Filtre narrowband recommandé.';
+  }
 
   return {
-    subExposureTime: Math.round(tOptimum),
+    subExposureTime: tSub,
     totalSubsForSNR,
     totalIntegrationTime: Math.round(totalIntegrationTime),
     bSky,
@@ -226,6 +292,8 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
     apertureArea,
   };
 }
+
+
 
 // ============================================================================
 // IMPACT RÉDUCTEUR — Démonstration mathématique
@@ -269,8 +337,8 @@ export function calculateReducerImpact(
 // ============================================================================
 
 /**
- * Simule le SNR en fonction du nombre de poses.
- * Approximation : SNR ∝ √(N_subs) pour le signal dominant.
+* Simule le SNR en fonction du nombre de poses.
+* Approximation : SNR ∝ √(N_subs) pour le signal dominant.
  */
 export function simulateSNR(
   params: ExposureParams,
@@ -278,30 +346,39 @@ export function simulateSNR(
   maxSubs: number,
   subDurationSeconds?: number
 ): SNRSimulation {
-  const duration = subDurationSeconds || params.kFactor === 10 ? 300 : 180;
+  const duration = subDurationSeconds || 180;
   const fluxSky = calculateSkyFlux(params.skyMagnitude);
   const apertureArea = calculateApertureArea(params.aperture);
-  const bSky = calculateSkyBrightness(
-    fluxSky,
-    apertureArea,
-    params.pixelSize,
-    params.quantumEfficiency,
-    params.filterTransmission
-  );
+  // Sampling (arcsec/pixel)²
+  let samplingSq: number;
+  if ((params as any).focalLength) {
+    const sampling = (206.265 * params.pixelSize) / (params as any).focalLength;
+    samplingSq = sampling * sampling;
+  } else {
+    const pixelSizeM = params.pixelSize / 1_000_000;
+    samplingSq = pixelSizeM * pixelSizeM;
+  }
+  const bSky = fluxSky * apertureArea * samplingSq * params.quantumEfficiency * params.filterTransmission;
+  // Object signal rate — uses object magnitude if available
+  const mObj = (params as any).objectMagnitude ?? params.skyMagnitude + 5;
+  const objectFlux = Math.pow(10, 0.4 * (M_ZERO - mObj));
+  const Sobj = objectFlux * apertureArea * samplingSq * params.quantumEfficiency * params.filterTransmission;
+  // SNR per sub on the object
+  const signalPerSub = Sobj * duration;
+  const noisePerSub = Math.sqrt((Sobj + bSky) * duration + params.readNoise * params.readNoise);
+  const snrPerSub = noisePerSub > 0 ? signalPerSub / noisePerSub : 0;
 
   const points: SNRPoint[] = [];
   let subsToReachTarget = maxSubs;
 
   for (let n = 1; n <= maxSubs; n++) {
-    const totalTime = n * duration;
-    const signal = bSky * duration * n; // e⁻/px total
-    const noise = Math.sqrt(signal + params.readNoise * params.readNoise * n);
-    const snr = noise > 0 ? signal / noise : 0;
+    // Cumulative SNR on the object: sqrt(N) × snrPerSub
+    const snr = snrPerSub * Math.sqrt(n);
 
     points.push({
       subsCount: n,
       subDuration: duration,
-      totalMinutes: totalTime / 60,
+      totalMinutes: (n * duration) / 60,
       snr: Math.round(snr * 10) / 10,
     });
 
