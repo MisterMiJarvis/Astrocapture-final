@@ -97,7 +97,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
   ).sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
 
   const inProgressCount = projects.filter(p => p.status === 'in_progress').length;
-  const completedCount = projects.filter(p => p.status === 'completed').length;
+  const completedCount = projects.filter(p => p.status === 'completed' || p.status === 'archived').length;
   const planningCount = projects.filter(p => p.status === 'planning').length;
 
   // Cumulative KPIs across all projects
