@@ -43,6 +43,7 @@ import {
   Telescope, MapPin, Clock, Moon, Target, Camera, Filter, BarChart3,
   X, Eye, Sparkles, Search, RotateCw, Star, ChevronLeft,
   Crosshair, Maximize2, Pencil, Save,
+  Activity, Award, AlertTriangle, TrendingUp,
 } from 'lucide-react';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
@@ -229,7 +230,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ locationSource, onLo
             <div className="text-xl font-bold text-blue-400">{overallProgress}%</div>
             <div className="text-[10px] text-text-secondary">📊 Overall Progress</div>
             <div className="w-full h-1.5 bg-background rounded-full overflow-hidden mt-1.5">
-              <div className={`h-full rounded-full transition-all ${overallProgress >= 100 ? 'bg-amber-500' : overallProgress >= 50 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, overallProgress)}%` }} />
+              <div className={`h-full rounded-full transition-all ${overallProgress >= 100 ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: `${Math.min(100, overallProgress)}%` }} />
             </div>
           </div>
         </div>
@@ -324,8 +325,7 @@ const ProjectCard: React.FC<{ project: Project; onClick: () => void; onDelete: (
         <div className="w-full h-2 bg-background rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              progress.completionPercent >= 100 ? 'bg-amber-500' :
-              progress.completionPercent >= 50 ? 'bg-emerald-500' : 'bg-blue-500'
+              progress.completionPercent >= 100 ? 'bg-emerald-500' : 'bg-orange-500'
             }`}
             style={{ width: `${Math.min(100, progress.completionPercent)}%` }}
           />
@@ -830,6 +830,186 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   );
 };
 // ─── Project Detail View ──────────────────────────────────────────────────
+
+
+// ============================================================================
+// GuidingPerformanceInline — Aggregated PHD2 stats for a project (inline in ProjectsView)
+// ============================================================================
+
+const GuidingPerformanceInline: React.FC<{ projectId: string }> = ({ projectId }) => {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGuiding = async () => {
+      try {
+        const API_BASE = (window as any).__AC_API_BASE__ || '/api';
+        const res = await fetch(`${API_BASE}/apls/projects/${projectId}/guiding`);
+        if (res.ok) {
+          const d = await res.json();
+          setData(d);
+        }
+      } catch (err) {
+        console.error('Guiding fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGuiding();
+  }, [projectId]);
+
+  const rmsColor = (rms: number) => {
+    if (rms <= 0.8) return 'text-emerald-500';
+    if (rms <= 1.5) return 'text-yellow-500';
+    if (rms <= 2.5) return 'text-orange-500';
+    return 'text-red-500';
+  };
+
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-5">
+        <h3 className="font-semibold text-text mb-3 flex items-center gap-2"><Activity size={16} /> Guiding Performance</h3>
+        <p className="text-text-secondary text-sm">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!data || !data.hasData) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-5">
+        <h3 className="font-semibold text-text mb-3 flex items-center gap-2"><Activity size={16} /> Guiding Performance</h3>
+        <p className="text-text-secondary text-sm">
+          No PHD2 guiding logs linked to this project yet. Link a session from the PHD2 Analysis tab.
+        </p>
+      </div>
+    );
+  }
+
+  const maxRms = Math.max(...data.rmsTrend.map((t: any) => t.rms_total), 1);
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+      <h3 className="font-semibold text-text flex items-center gap-2">
+        <Activity size={16} /> Guiding Performance
+        <span className="text-xs text-text-secondary font-normal">
+          {data.sessionCount} session{data.sessionCount > 1 ? 's' : ''} · {data.totalFrames} frames · {formatDuration(data.totalDurationSeconds)}
+        </span>
+      </h3>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-background rounded-lg p-3 border border-border">
+          <div className="text-xs text-text-secondary mb-1">Avg RMS Total</div>
+          <div className={`text-lg font-bold ${rmsColor(data.avgRmsTotal)}`}>
+            {data.avgRmsTotal.toFixed(2)}"
+          </div>
+          <div className="text-xs text-text-secondary mt-1">
+            RA {data.avgRmsRa.toFixed(2)}" / DEC {data.avgRmsDec.toFixed(2)}"
+          </div>
+        </div>
+
+        <div className="bg-background rounded-lg p-3 border border-border">
+          <div className="text-xs text-text-secondary mb-1">Avg SNR</div>
+          <div className="text-lg font-bold text-text">
+            {data.avgSnr.toFixed(1)}
+          </div>
+          <div className="text-xs text-text-secondary mt-1">
+            {data.totalDithers} dithers · {data.totalStarLost} star lost
+          </div>
+        </div>
+
+        <div className="bg-background rounded-lg p-3 border border-border">
+          <div className="text-xs text-text-secondary mb-1 flex items-center gap-1">
+            <Award size={12} className="text-emerald-500" /> Best Session
+          </div>
+          <div className={`text-lg font-bold ${rmsColor(data.bestSession?.rms_total_arcsec || 0)}`}>
+            {data.bestSession?.rms_total_arcsec.toFixed(2) || '—'}"
+          </div>
+          <div className="text-xs text-text-secondary mt-1 truncate">
+            {data.bestSession?.filename || data.bestSession?.start_time?.slice(0, 19) || '—'}
+          </div>
+        </div>
+
+        <div className="bg-background rounded-lg p-3 border border-border">
+          <div className="text-xs text-text-secondary mb-1 flex items-center gap-1">
+            <AlertTriangle size={12} className="text-orange-500" /> Worst Session
+          </div>
+          <div className={`text-lg font-bold ${rmsColor(data.worstSession?.rms_total_arcsec || 0)}`}>
+            {data.worstSession?.rms_total_arcsec.toFixed(2) || '—'}"
+          </div>
+          <div className="text-xs text-text-secondary mt-1 truncate">
+            {data.worstSession?.filename || data.worstSession?.start_time?.slice(0, 19) || '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* RMS Trend Bar Chart */}
+      {data.rmsTrend.length > 1 && (
+        <div>
+          <div className="text-xs text-text-secondary mb-2 flex items-center gap-1">
+            <TrendingUp size={12} /> RMS Trend across sessions
+          </div>
+          <div className="flex items-end gap-2 h-24">
+            {data.rmsTrend.map((t: any, i: number) => {
+              const heightPct = (t.rms_total / maxRms) * 100;
+              const color = t.rms_total <= 0.8 ? 'bg-emerald-500' :
+                           t.rms_total <= 1.5 ? 'bg-yellow-500' :
+                           t.rms_total <= 2.5 ? 'bg-orange-500' : 'bg-red-500';
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  <div className="text-[10px] text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity">
+                    {t.rms_total.toFixed(2)}"
+                  </div>
+                  <div
+                    className={`w-full rounded-t ${color} transition-all duration-300`}
+                    style={{ height: `${heightPct}%` }}
+                  />
+                  <div className="text-[10px] text-text-secondary">
+                    {t.start_time?.slice(5, 10) || `S${i + 1}`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Session List */}
+      <div className="space-y-1.5">
+        {data.sessions.map((s: any) => (
+          <div
+            key={s.id}
+            className="flex items-center gap-3 p-2 rounded bg-background border border-border text-sm"
+          >
+            <Crosshair size={14} className="text-text-secondary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-text">
+                {s.filename || `Session ${s.session_index + 1}`}
+              </span>
+              <span className="text-text-secondary ml-2 text-xs">
+                {s.start_time?.slice(0, 19)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-text-secondary">
+              <span>{s.frame_count} frames</span>
+              <span className={rmsColor(s.rms_total_arcsec)}>RMS {s.rms_total_arcsec.toFixed(2)}"</span>
+              <span>SNR {s.mean_snr.toFixed(1)}</span>
+              {s.star_lost_count > 0 && (
+                <span className="text-orange-500">⚠ {s.star_lost_count} lost</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 interface ProjectDetailViewProps {
   project: Project;
@@ -1421,8 +1601,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         <div className="w-full h-3 bg-background rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              progress.completionPercent >= 100 ? 'bg-amber-500' :
-              progress.completionPercent >= 50 ? 'bg-emerald-500' : 'bg-blue-500'
+              progress.completionPercent >= 100 ? 'bg-emerald-500' : 'bg-orange-500'
             }`}
             style={{ width: `${Math.min(100, progress.completionPercent)}%` }}
           />
@@ -1590,6 +1769,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
           </div>
         </div>
       </div>
+
+      {/* Guiding Performance */}
+      <GuidingPerformanceInline projectId={project.id} />
     </div>
   );
 };

@@ -131,14 +131,57 @@ export async function fetchProjectDetail(targetId: string): Promise<ProjectDetai
 
 export async function fetchAllProjects(): Promise<ProjectDetail[]> {
   try {
-    const targets = await apiFetch<any[]>('/targets');
-    const projects = await Promise.all(
-      (targets || []).map((t: any) => fetchProjectDetail(t.id))
-    );
-    return projects;
+    // Use APLS projects (the real project table) instead of targets
+    const aplsProjects = await apiFetch<any[]>('/apls/projects');
+    return aplsProjects.map(mapAplsProject);
   } catch {
     return [];
   }
+}
+
+export async function fetchAplsProjectDetail(projectId: string): Promise<ProjectDetail> {
+  const p = await apiFetch<any>(`/apls/projects/${projectId}`);
+  return mapAplsProject(p);
+}
+
+function mapAplsProject(p: any): ProjectDetail {
+  const observations = p.observations || [];
+  const capturedIntegrationTime = observations.reduce(
+    (sum: number, o: any) => sum + (o.exposureDuration || 0), 0
+  ) / 3600; // seconds → hours
+
+  return {
+    id: p.id,
+    targetId: p.targetId || p.target_id || '',
+    targetName: p.targetName || p.target_name || 'Unknown',
+    targetRa: p.targetRa || p.target_ra || '',
+    targetDec: p.targetDec || p.target_dec || '',
+    status: p.status || 'planned',
+    rigId: p.rigId || p.rig_id || '',
+    locationId: '',
+    targetIntegrationTime: p.targetIntegrationTime || p.total_planned_hours || 10,
+    capturedIntegrationTime: parseFloat(capturedIntegrationTime.toFixed(1)),
+    progress: p.completionPercent || p.completion_percent || 0,
+    weatherScore: 0,
+    priority: p.priority || 'medium',
+    notes: p.notes || '',
+    createdAt: new Date(p.createdAt || p.created_at || Date.now()),
+    updatedAt: new Date(p.updatedAt || p.updated_at || Date.now()),
+    filterPlans: [],
+    sessions: observations.map((o: any) => ({
+      id: o.id,
+      projectId: p.id,
+      date: new Date(o.date || Date.now()),
+      startTime: new Date(o.date || Date.now()),
+      endTime: undefined,
+      status: o.status || 'planned',
+      locationId: '',
+      totalIntegrationTime: o.exposureDuration || 0,
+      guidingRMS: o.guidingRms ? o.guidingRms / 1 : undefined,
+      imagesCount: o.exposuresTaken || 0,
+      notes: o.notes || '',
+    })),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

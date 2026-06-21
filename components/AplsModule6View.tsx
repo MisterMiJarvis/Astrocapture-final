@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ProjectDetailView from '../src/components/Module6/ProjectDetailView';
-import { fetchAllProjects, fetchProjectDetail } from '../src/services/module6/projectService';
+import { fetchAllProjects, fetchAplsProjectDetail } from '../src/services/module6/projectService';
 import { ProjectDetail } from '../src/types/module6';
 
 const AplsModule6View: React.FC = () => {
@@ -31,7 +31,7 @@ const AplsModule6View: React.FC = () => {
   const handleProjectSelect = async (projectId: string) => {
     setSelectedProjectId(projectId);
     try {
-      const project = await fetchProjectDetail(projectId);
+      const project = await fetchAplsProjectDetail(projectId);
       setSelectedProject(project);
     } catch (err) {
       console.error('Failed to load project:', err);

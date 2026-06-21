@@ -2912,7 +2912,7 @@ app.get('/api/phd2/sessions', async (c) => {
              rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
              mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
              project_id, created_at
-      FROM phd2_sessions ORDER BY created_at DESC
+      FROM phd2_sessions ORDER BY start_time DESC
     `).all();
     return c.json({ sessions });
   } catch (err: any) {

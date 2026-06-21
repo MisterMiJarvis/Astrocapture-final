@@ -410,12 +410,15 @@ const PHD2Analysis: React.FC = () => {
   const fetchProjects = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/apls/projects`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('astrosuite_token') || ''}` },
       });
       if (res.ok) {
         const data = await res.json();
         setProjects((Array.isArray(data) ? data : []).map((p: any) => ({
-          id: p.id, title: p.title || '', target_name: p.targetName || '', status: p.status || '',
+          id: p.id,
+          title: p.title || '',
+          target_name: p.targetName || p.title || '',
+          status: p.status || '',
         })));
       }
     } catch {}
