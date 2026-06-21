@@ -76,7 +76,15 @@ interface SavedSession {
   dither_count: number;
   star_lost_count: number;
   settling_failed_count: number;
+  project_id: string | null;
   created_at: string;
+}
+
+interface Project {
+  id: string;
+  title: string;
+  target_name: string;
+  status: string;
 }
 
 interface GlobalStats {
@@ -321,6 +329,8 @@ const PHD2Analysis: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [fileName, setFileName] = useState('');
   const [viewingSaved, setViewingSaved] = useState<{session: any; analysis: any} | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const handleViewSaved = useCallback(async (id: string) => {
     try {
@@ -397,8 +407,36 @@ const PHD2Analysis: React.FC = () => {
     } catch {}
   }, [fetchSavedSessions]);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/apls/projects`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjects((Array.isArray(data) ? data : []).map((p: any) => ({
+          id: p.id, title: p.title || '', target_name: p.targetName || '', status: p.status || '',
+        })));
+      }
+    } catch {}
+  }, []);
+
+  const handleLinkProject = useCallback(async (sessionId: string, projectId: string) => {
+    setLinkingId(sessionId);
+    try {
+      await fetch(`${API_BASE}/phd2/sessions/${sessionId}/link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId || null }),
+      });
+      await fetchSavedSessions();
+    } catch {} finally {
+      setLinkingId(null);
+    }
+  }, [fetchSavedSessions]);
+
   // Fetch saved sessions on mount
-  React.useEffect(() => { fetchSavedSessions(); }, [fetchSavedSessions]);
+  React.useEffect(() => { fetchSavedSessions(); fetchProjects(); }, [fetchSavedSessions, fetchProjects]);
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true);
@@ -740,14 +778,34 @@ const PHD2Analysis: React.FC = () => {
                       <span className={rmsColor(s.rms_total_arcsec)}>RMS {s.rms_total_arcsec}"</span>
                       <span className={snrColor(s.mean_snr)}>SNR {s.mean_snr.toFixed(1)}</span>
                     </div>
+                    {s.project_id && (
+                      <div className="text-xs text-primary mt-1">
+                        📁 {projects.find(p => p.id === s.project_id)?.target_name || 'Linked'}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
-                    className="p-2 text-text-secondary hover:text-red-400 transition-colors"
-                    title="Delete session"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={s.project_id || ''}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => { e.stopPropagation(); handleLinkProject(s.id, e.target.value); }}
+                      disabled={linkingId === s.id}
+                      className="text-xs bg-surface border border-border rounded px-2 py-1 text-text-secondary"
+                      title="Link to project"
+                    >
+                      <option value="">📁 Link to project</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.target_name || p.title}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
+                      className="p-2 text-text-secondary hover:text-red-400 transition-colors"
+                      title="Delete session"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1081,14 +1139,34 @@ const PHD2Analysis: React.FC = () => {
                     <span className={rmsColor(s.rms_total_arcsec)}>RMS {s.rms_total_arcsec}"</span>
                     <span className={snrColor(s.mean_snr)}>SNR {s.mean_snr.toFixed(1)}</span>
                   </div>
+                  {s.project_id && (
+                    <div className="text-xs text-primary mt-1">
+                      📁 {projects.find(p => p.id === s.project_id)?.target_name || 'Linked'}
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
-                  className="p-2 text-text-secondary hover:text-red-400 transition-colors"
-                  title="Delete session"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={s.project_id || ''}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => { e.stopPropagation(); handleLinkProject(s.id, e.target.value); }}
+                    disabled={linkingId === s.id}
+                    className="text-xs bg-surface border border-border rounded px-2 py-1 text-text-secondary"
+                    title="Link to project"
+                  >
+                    <option value="">📁 Link to project</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.target_name || p.title}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
+                    className="p-2 text-text-secondary hover:text-red-400 transition-colors"
+                    title="Delete session"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

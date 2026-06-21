@@ -2850,9 +2850,16 @@ function initPhd2Table() {
       settling_failed_count INTEGER NOT NULL DEFAULT 0,
       raw_log TEXT NOT NULL DEFAULT '',
       analysis_json TEXT NOT NULL DEFAULT '',
+      project_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  // Migration: add project_id column if it doesn't exist
+  try {
+    db.exec('ALTER TABLE phd2_sessions ADD COLUMN project_id TEXT');
+  } catch {}
+  // Index for project queries
+  db.exec('CREATE INDEX IF NOT EXISTS idx_phd2_sessions_project ON phd2_sessions(project_id)');
 }
 initPhd2Table();
 
@@ -2876,14 +2883,14 @@ app.post('/api/phd2/sessions', async (c) => {
          camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
          rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
          mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
-         raw_log, analysis_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         raw_log, analysis_json, project_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id, filename || '', s.index ?? i, s.start_time || '', s.end_time || '', s.duration_seconds || 0,
         s.camera || '', s.exposure_ms || 0, s.focal_length_mm || 0, s.pixel_scale || 0, s.mount || '', s.frame_count || 0,
         a.rms_total_arcsec || 0, a.rms_ra_arcsec || 0, a.rms_dec_arcsec || 0, a.peak_ra_arcsec || 0, a.peak_dec_arcsec || 0,
         a.mean_snr || 0, a.mean_star_mass || 0, a.dither_count || 0, a.star_lost_count || 0, a.settling_failed_count || 0,
-        raw_log || '', JSON.stringify(a)
+        raw_log || '', JSON.stringify(a), s.project_id || null
       );
 
       saved.push({ id, ...s, analysis: a });
@@ -2904,13 +2911,99 @@ app.get('/api/phd2/sessions', async (c) => {
              camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
              rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
              mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
-             created_at
+             project_id, created_at
       FROM phd2_sessions ORDER BY created_at DESC
     `).all();
     return c.json({ sessions });
   } catch (err: any) {
     console.error('PHD2 list error:', err);
     return c.json({ error: 'Failed to list sessions' }, 500);
+  }
+});
+
+// Link a PHD2 session to a project
+app.put('/api/phd2/sessions/:id/link', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { project_id } = await c.req.json();
+    const result = db.prepare('UPDATE phd2_sessions SET project_id = ? WHERE id = ?').run(project_id || null, id);
+    if (result.changes === 0) {
+      return c.json({ error: 'Session not found' }, 404);
+    }
+    return c.json({ linked: true, project_id: project_id || null });
+  } catch (err: any) {
+    console.error('PHD2 link error:', err);
+    return c.json({ error: 'Failed to link session' }, 500);
+  }
+});
+
+// Get guiding performance aggregated for a project
+app.get('/api/apls/projects/:id/guiding', async (c) => {
+  try {
+    const projectId = c.req.param('id');
+    const sessions = db.prepare(`
+      SELECT id, filename, session_index, start_time, end_time, duration_seconds,
+             camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
+             rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
+             mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
+             created_at
+      FROM phd2_sessions WHERE project_id = ? ORDER BY start_time ASC
+    `).all(projectId);
+
+    if (sessions.length === 0) {
+      return c.json({ hasData: false, sessions: [] });
+    }
+
+    const totalFrames = sessions.reduce((sum: number, s: any) => sum + s.frame_count, 0);
+    const totalDuration = sessions.reduce((sum: number, s: any) => sum + s.duration_seconds, 0);
+    const avgRmsTotal = sessions.reduce((sum: number, s: any) => sum + s.rms_total_arcsec, 0) / sessions.length;
+    const avgRmsRa = sessions.reduce((sum: number, s: any) => sum + s.rms_ra_arcsec, 0) / sessions.length;
+    const avgRmsDec = sessions.reduce((sum: number, s: any) => sum + s.rms_dec_arcsec, 0) / sessions.length;
+    const avgSnr = sessions.reduce((sum: number, s: any) => sum + s.mean_snr, 0) / sessions.length;
+    const totalDithers = sessions.reduce((sum: number, s: any) => sum + s.dither_count, 0);
+    const totalStarLost = sessions.reduce((sum: number, s: any) => sum + s.star_lost_count, 0);
+    const totalSettlingFailed = sessions.reduce((sum: number, s: any) => sum + s.settling_failed_count, 0);
+
+    const bestSession: any = sessions.reduce((best: any, s: any) =>
+      !best || s.rms_total_arcsec < best.rms_total_arcsec ? s : best, null);
+    const worstSession: any = sessions.reduce((worst: any, s: any) =>
+      !worst || s.rms_total_arcsec > worst.rms_total_arcsec ? s : worst, null);
+
+    // RMS trend (by session, chronological)
+    const rmsTrend = sessions.map((s: any) => ({
+      session_id: s.id,
+      start_time: s.start_time,
+      rms_total: s.rms_total_arcsec,
+      rms_ra: s.rms_ra_arcsec,
+      rms_dec: s.rms_dec_arcsec,
+    }));
+
+    return c.json({
+      hasData: true,
+      sessionCount: sessions.length,
+      totalFrames,
+      totalDurationSeconds: totalDuration,
+      avgRmsTotal,
+      avgRmsRa,
+      avgRmsDec,
+      avgSnr,
+      totalDithers,
+      totalStarLost,
+      totalSettlingFailed,
+      bestSession: bestSession ? {
+        id: bestSession.id, start_time: bestSession.start_time,
+        rms_total_arcsec: bestSession.rms_total_arcsec, filename: bestSession.filename,
+      } : null,
+      worstSession: worstSession ? {
+        id: worstSession.id, start_time: worstSession.start_time,
+        rms_total_arcsec: worstSession.rms_total_arcsec, filename: worstSession.filename,
+      } : null,
+      rmsTrend,
+      sessions,
+    });
+  } catch (err: any) {
+    console.error('Guiding performance error:', err);
+    return c.json({ error: 'Failed to get guiding performance' }, 500);
   }
 });
 
