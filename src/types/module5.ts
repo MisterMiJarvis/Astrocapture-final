@@ -1,6 +1,6 @@
 // ============================================================================
 // TYPES MODULE 5 — Environnement, Filtres & Calculateur d'Exposition
-// APLS v3 — Terrain Corrections
+// AstroCapture v5 — Pipeline Physique Refactorisé
 // ============================================================================
 
 export type FilterType = 'UV_IR_Cut' | 'L_Ultimate' | 'LPS_D2' | 'Ha' | 'OIII' | 'SII' | 'RGB' | 'Luminance';
@@ -11,10 +11,11 @@ export type DewRiskLevel = 'Safe' | 'Warning' | 'Critical';
 export interface FilterProfile {
   type: FilterType;
   name: string;
-  bandwidthNm: number;          // largeur de bande en nm
-  transmission: number;         // τ (0-1)
-  skySuppression: number;       // 0-1
-  color: string;                // hex pour UI
+  bandwidthNm: number;              // largeur de bande en nm
+  transmission: number;             // τ_filter (transmission au pic)
+  skySuppression: number;          // 0-1 (réduction du fond de ciel)
+  continuumTransmission: number;   // 0-1 (transmission du spectre continu — galaxies)
+  color: string;                    // hex pour UI
   description: string;
   useCases: string[];
   moonCompatible: boolean;
@@ -33,32 +34,61 @@ export interface SQMDynamicModel {
   degradation: number;          // mag de dégradation
 }
 
-/** Paramètres de calcul d'exposition */
+/** Paramètres de calcul d'exposition (v5) */
 export interface ExposureParams {
-  skyMagnitude: number;         // mag/arcsec² (SQM effectif)
-  aperture: number;             // mm
-  pixelSize: number;            // μm
-  focalLength: number;          // mm
-  quantumEfficiency: number;    // 0-1
-  filterTransmission: number;   // τ
-  readNoise: number;            // e⁻
-  kFactor: number;              // 5 ou 10
+  // Équipement & Capteur
+  aperture: number;             // D — diamètre du télescope en mm
+  focalLength: number;          // F — focale native du télescope en mm
+  reducerFactor?: number;       // f_R — multiplicateur du réducteur (défaut: 1.0)
+  pixelSize: number;            // p — taille des pixels en µm
+  readNoise: number;            // RN — bruit de lecture en e⁻
+  darkCurrent?: number;          // dc — courant d'obscurité en e⁻/px/s (défaut: 0.0005)
+  quantumEfficiency: number;    // QE — efficacité quantique (0-1)
+  kFactor: number;              // k — facteur de swamping (5 ou 10)
+
+  // Environnement local & éphémérides
+  skyMagnitude: number;         // m_sky — SQM effectif (mag/arcsec²)
+  moonAltitudeDeg?: number;     // altitude de la Lune en degrés (défaut: 0)
+  moonPhaseFactor?: number;     // intensité phase lunaire 0-3.5 (défaut: 0)
+  moonSeparationDeg?: number;   // distance angulaire cible-Lune en degrés (défaut: 180)
+
+  // Cible (objet)
+  objectSurfaceBrightness?: number;  // SB_obj — brillance de surface (mag/arcsec²)
+  objectDiameterArcmin?: number;      // diamètre apparent en minutes d'arc
+  isEmissionNebula?: boolean;         // true = émission, false = continuum (galaxies/amas)
+
+  // Filtre (rétro-compat — l'UI passe ces valeurs)
+  filterTransmission: number;   // τ_filter
+  skySuppression?: number;      // réduction du fond de ciel (rétro-compat)
 }
 
-/** Résultat du calculateur d'exposition */
+/** Résultat du calculateur d'exposition (v5) */
 export interface ExposureResult {
-  subExposureTime: number;      // secondes optimales
-  totalSubsForSNR: number;      // nombre de poses pour SNR cible
+  subExposureTime: number;      // t_sub — secondes optimales (clamped 30-600)
+  totalSubsForSNR: number;      // N_subs — nombre de poses pour SNR cible
   totalIntegrationTime: number; // minutes totales
-  bSky: number;                 // e⁻/px/sec
+  totalIntegrationHours: number; // heures totales (v5)
+
+  // Variables intermédiaires (v5 — pour debug/affichage)
+  sqmEffective: number;         // SQM après dégradation lunaire
+  sampling: number;              // arcsec/pixel
+  bSky: number;                 // B_sky — e⁻/px/sec
+  sObj: number;                  // S_obj — e⁻/px/sec (signal objet)
+  fluxSky: number;               // Φ_sky — photons/m²/s/arcsec²
+  apertureArea: number;          // A — m²
   swampingFactor: number;       // B_sky / RN²
+  snrPerSub: number;             // SNR unitaire par pose
+  contrast: number;              // S_obj / B_sky
+  effectiveTargetSNR: number;    // SNR cible effectif (après pondération taille)
+  tOptimumRaw: number;           // t_optimum avant clamping
+  kDynamic: number;              // k effectif utilisé (2.5 narrowband, 5.0 broadband) — v6
+
+  // Recommandations
   recommendation: string;
   warning?: string;
-  fluxSky: number;              // Φ_sky
-  apertureArea: number;         // m²
 }
 
-/** Impact du réducteur */
+/** Impact du réducteur (rétro-compat) */
 export interface ReducerImpact {
   withoutReducer: ExposureResult;
   withReducer: ExposureResult;

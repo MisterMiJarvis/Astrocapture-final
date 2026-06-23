@@ -30,7 +30,7 @@ const RAGChatView: React.FC = () => {
 
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }));
-      const res = await fetch('https://beta.astrocapture.org/api/rag-query', {
+      const res = await fetch('/api/rag-query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, history }),

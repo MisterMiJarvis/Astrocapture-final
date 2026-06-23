@@ -1,6 +1,9 @@
 // ============================================================================
-// SERVICE — Calculateur d'Exposition (Pipeline Physique)
-// APLS v3 — Module 5
+// SERVICE — Calculateur d'Exposition (Pipeline Physique v5)
+// AstroCapture v5 — Module 5
+//
+// Spec : 6 étapes — SQM effectif → Sampling → B_sky → t_sub → SNR → N_subs
+// Toutes les divisions protégées par max(1e-6, ...)
 // ============================================================================
 
 import {
@@ -18,10 +21,11 @@ import {
 } from '../../types/module5';
 
 // Constantes physiques
-const M_ZERO = 26.59; // Magnitude zéro
+const M_ZERO = 26.59;        // Magnitude zéro (photons/m²/s/arcsec²)
+const GUARD = 1e-6;          // Constante de garde anti division par zéro
 
 // ============================================================================
-// PROFILS DE FILTRES (données terrain)
+// PROFILS DE FILTRES v5 — avec continuumTransmission
 // ============================================================================
 
 export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
@@ -31,6 +35,7 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     bandwidthNm: 350,
     transmission: 1.0,
     skySuppression: 0.0,
+    continuumTransmission: 1.0,
     color: '#4FC3F7',
     description: 'Filtre de protection basique. Laisse passer tout le visible.',
     useCases: ['Nuits sans Lune', 'Pollution faible', 'Galaxies', 'Amas'],
@@ -42,7 +47,8 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     name: 'L-Ultimate',
     bandwidthNm: 7,
     transmission: 0.85,
-    skySuppression: 0.9,
+    skySuppression: 0.90,
+    continuumTransmission: 0.05,
     color: '#7C4DFF',
     description: 'Filtre dual-band Hα + OIII. Permet de shooter sous la Lune.',
     useCases: ['Nébuleuses Hα/OIII', 'Sous Lune', 'Pollution urbaine'],
@@ -54,7 +60,8 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     name: 'LPS-D2',
     bandwidthNm: 25,
     transmission: 0.75,
-    skySuppression: 0.6,
+    skySuppression: 0.60,
+    continuumTransmission: 0.70,
     color: '#FF9800',
     description: 'Filtre anti-pollution lumineuse. Sélectif sur sodium/mercure.',
     useCases: ['Pollution urbaine', 'Banlieue', 'Nuits claires'],
@@ -66,7 +73,8 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     name: 'Hα (7nm)',
     bandwidthNm: 7,
     transmission: 0.90,
-    skySuppression: 0.95,
+    skySuppression: 0.965,
+    continuumTransmission: 0.03,
     color: '#F44336',
     description: 'Filtre narrowband Hydrogène-alpha.',
     useCases: ['Nébuleuses Hα', 'Sous Lune', 'Bi-color', 'Tri-color'],
@@ -78,7 +86,8 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     name: 'OIII (7nm)',
     bandwidthNm: 7,
     transmission: 0.90,
-    skySuppression: 0.95,
+    skySuppression: 0.965,
+    continuumTransmission: 0.03,
     color: '#00BCD4',
     description: 'Filtre narrowband Oxygène III.',
     useCases: ['Nébuleuses OIII', 'Planétaires', 'Sous Lune'],
@@ -90,7 +99,8 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     name: 'SII (7nm)',
     bandwidthNm: 7,
     transmission: 0.90,
-    skySuppression: 0.95,
+    skySuppression: 0.965,
+    continuumTransmission: 0.03,
     color: '#E91E63',
     description: 'Filtre narrowband Soufre II.',
     useCases: ['Tri-color Hubble', 'Sous Lune', 'Nébuleuses'],
@@ -103,6 +113,7 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     bandwidthNm: 150,
     transmission: 1.0,
     skySuppression: 0.0,
+    continuumTransmission: 1.0,
     color: '#9C27B0',
     description: 'Pas de filtre additionnel — capteur OSC natif.',
     useCases: ['Nuits sans Lune', 'Couleur naturelle'],
@@ -115,6 +126,7 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     bandwidthNm: 200,
     transmission: 1.0,
     skySuppression: 0.0,
+    continuumTransmission: 1.0,
     color: '#9E9E9E',
     description: 'Filtre Luminance pour imagerie LRGB.',
     useCases: ['Nuits sans Lune', 'LRGB'],
@@ -124,140 +136,293 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
 };
 
 // ============================================================================
-// PIPELINE PHYSIQUE — Calculateur d'Exposition
+// PIPELINE PHYSIQUE v5 — 6 ÉTAPES
 // ============================================================================
 
 /**
- * Étape 1 : Flux du ciel (photons/m²/s/arcsec²)
- * Φ_sky = 10^(0.4 × (26.59 - m_sky))
- */
-export function calculateSkyFlux(skyMagnitude: number): number {
-  return Math.pow(10, 0.4 * (M_ZERO - skyMagnitude));
-}
-
-/**
- * Étape 2 : Aperture effective (m²)
- * A = π × (D/2000)²  [D en mm]
- */
-export function calculateApertureArea(apertureMm: number): number {
-  const radiusM = apertureMm / 2000;
-  return Math.PI * radiusM * radiusM;
-}
-
-/**
- * Étape 3 : Taux d'électrons fond de ciel (e⁻/px/sec)
- * B_sky = Φ_sky × A_aperture × p² × QE × τ
- * p en mètres (pixelSize_μm / 1e6)
- */
-export function calculateSkyBrightness(
-  skyFlux: number,
-  apertureArea: number,
-  pixelSizeMicrons: number,
-  quantumEfficiency: number,
-  filterTransmission: number
-): number {
-  const pixelSizeM = pixelSizeMicrons / 1_000_000;
-  const pixelArea = pixelSizeM * pixelSizeM;
-  return skyFlux * apertureArea * pixelArea * quantumEfficiency * filterTransmission;
-}
-
-/**
- * Étape 4 : Temps de pose optimal (secondes)
- * t_optimum = k × RN² / B_sky
- */
-export function calculateOptimalExposureTime(
-  skyBrightness: number,
-  readNoise: number,
-  kFactor: number = 5
-): number {
-  if (skyBrightness <= 0) return 0;
-  return (kFactor * readNoise * readNoise) / skyBrightness;
-}
-
-/**
- * Pipeline complet — calcule le résultat d'exposition (v4 — SB-based + améliorations)
+ * Étape 1 : Modélisation du Fond de Ciel Local (SQM Effectif)
  *
- * v3: SB-based, skySuppression, SNR target adaptatif
- * v4 améliorations:
- * - #1: is_emission_nebula → skySuppression s'applique aux galaxies (spectre continu)
- * - #2: SNR target continu (fonction puissance, sans seuil brutal)
- * - #3: Dark current ajouté au bruit total
- * - #4: SNR pondéré par la taille angulaire (élément de résolution visuelle)
+ * degradation = moonPhaseFactor × sin(moonAltitude × π/180) × proximityFactor
+ * sqmEffective = sqmBase - max(0, degradation)
  */
-export function calculateExposure(params: ExposureParams): ExposureResult {
-  const fluxSky = calculateSkyFlux(params.skyMagnitude);
-  const apertureArea = calculateApertureArea(params.aperture);
+export function calculateEffectiveSQM_v5(
+  sqmBase: number,
+  moonAltitudeDeg: number,
+  moonPhaseFactor: number,
+  moonSeparationDeg: number
+): { sqmEffective: number; degradation: number } {
+  let degradation = 0;
 
-  // Sampling: (206.265 × pixelSize_μm) / focalLength_mm  [arcsec/px]
-  let samplingSq: number;
-  let sampling: number;
-  if ((params as any).focalLength) {
-    sampling = (206.265 * params.pixelSize) / (params as any).focalLength;
-    samplingSq = sampling * sampling;
-  } else {
-    sampling = 0;
-    const pixelSizeM = params.pixelSize / 1_000_000;
-    samplingSq = pixelSizeM * pixelSizeM;
+  if (moonAltitudeDeg > 0) {
+    const proximityFactor = moonSeparationDeg < 30
+      ? 1 + (30 - moonSeparationDeg) / 30
+      : 1;
+    degradation = moonPhaseFactor * Math.sin((moonAltitudeDeg * Math.PI) / 180) * proximityFactor;
   }
 
-  // --- Sky brightness WITH filter sky suppression ---
-  const skySuppression = (params as any).skySuppression ?? 0;
-  const effectiveSkyTransmission = params.filterTransmission * (1 - skySuppression);
-  const bSky = fluxSky * apertureArea * samplingSq * params.quantumEfficiency * effectiveSkyTransmission;
+  degradation = Math.max(0, degradation);
+  const sqmEffective = sqmBase - degradation;
 
-  // --- Object signal per pixel (SB-based) ---
-  // #1: Emission nebulae (Hα/OIII) are NOT suppressed by narrowband filters
-  //     But galaxies (continuous spectrum) ARE suppressed just like the sky
-  const objectSB = (params as any).objectSurfaceBrightness ?? params.skyMagnitude + 5;
-  const isEmissionNebula = (params as any).isEmissionNebula ?? true;
-  const objectFlux = Math.pow(10, 0.4 * (M_ZERO - objectSB));
-  const objTransmission = isEmissionNebula
-    ? params.filterTransmission                              // emission: only transmission loss
-    : params.filterTransmission * (1 - skySuppression);     // continuum: skySuppression applies
-  const Sobj = objectFlux * apertureArea * samplingSq * params.quantumEfficiency * objTransmission;
+  return { sqmEffective, degradation };
+}
 
-  // --- Optimal sub exposure time (sky-limited) ---
-  const tOptimum = calculateOptimalExposureTime(bSky, params.readNoise, params.kFactor);
-  const swampingFactor = bSky > 0 ? bSky / (params.readNoise * params.readNoise) : 0;
+/**
+ * Étape 2 : Échantillonnage Optique & Géométrie
+ *
+ * F_eff = F × f_R
+ * s = (206.265 × p) / F_eff  [arcsec/pixel]
+ * A = π × (D/2000)²          [m²]
+ */
+export function calculateOpticalGeometry(
+  apertureMm: number,
+  focalLengthMm: number,
+  reducerFactor: number,
+  pixelSizeUm: number
+): { sampling: number; apertureArea: number; effectiveFocalLength: number } {
+  const fEff = focalLengthMm * reducerFactor;
+  const sampling = (206.265 * pixelSizeUm) / fEff; // arcsec/pixel
+  const radiusM = apertureMm / 2000;
+  const apertureArea = Math.PI * radiusM * radiusM;
+  return { sampling, apertureArea, effectiveFocalLength: fEff };
+}
 
-  // Dynamic sub exposure time
-  const tSub = Math.max(30, Math.min(600, Math.round(tOptimum / 10) * 10));
+/**
+ * Étape 3 : Calcul du Flux du Ciel (B_sky)
+ *
+ * Φ_sky = 10^(0.4 × (26.59 - sqmEffective))
+ * τ_eff_sky = τ_filter × (1 - skySuppression)
+ * B_sky = Φ_sky × A × s² × QE × τ_eff_sky  [e⁻/px/s]
+ */
+export function calculateSkyFluxAndBrightness(
+  sqmEffective: number,
+  apertureArea: number,
+  sampling: number,
+  quantumEfficiency: number,
+  filterTransmission: number,
+  skySuppression: number
+): { fluxSky: number; bSky: number } {
+  const fluxSky = Math.pow(10, 0.4 * (M_ZERO - sqmEffective));
+  const tauEffSky = filterTransmission * (1 - skySuppression);
+  const samplingSq = sampling * sampling;
+  const bSky = fluxSky * apertureArea * samplingSq * quantumEfficiency * tauEffSky;
+  return { fluxSky, bSky };
+}
 
-  // --- #2: Continuous adaptive SNR target (no step function) ---
-  // target_SNR = max(10, 30 × contrast^0.4)
-  // Smooth curve: rises fast for faint objects, flattens for bright ones
-  const contrast = bSky > 0 ? Sobj / bSky : 0;
-  const targetSNR = (params as any).targetSNR ?? Math.max(10, 500 * Math.pow(Math.max(contrast, 0.001), 0.5));
+/**
+ * Étape 4 : Temps de Pose Unitaire Optimal (t_sub) — v6
+ *
+ * k dynamique : 2.5 pour narrowband (≤12nm), 5.0 pour broadband
+ * Clamping intelligent : 60-300s broadband, 30-600s narrowband
+ *
+ * t_optimum = (k_dyn × RN²) / max(1e-6, B_sky)
+ * Broadband : t_sub = max(60, min(300, round(t_optimum / 10) × 10))
+ * Narrowband : t_sub = max(30, min(600, round(t_optimum / 10) × 10))
+ */
+export function calculateOptimalSubExposure(
+  bSky: number,
+  readNoise: number,
+  kFactor: number,
+  filterBandwidthNm: number
+): { tOptimumRaw: number; tSub: number; kDynamic: number } {
+  // k dynamique : narrowband tolère sous-swamping pour préserver tracking/étoiles
+  const kDynamic = filterBandwidthNm <= 12 ? 2.5 : 5.0;
+  const tOptimumRaw = (kDynamic * readNoise * readNoise) / Math.max(GUARD, bSky);
 
-  // --- #4: Angular size weighting (SNR per visual resolution element) ---
-  // Large objects (M31, M42) tolerate lower per-pixel SNR because our eyes/brain
-  // average adjacent pixels. Small objects (M97, M57) need higher per-pixel SNR.
-  // objectSizeArcmin: diameter in arcminutes
-  // pixelsCovered = object diameter / sampling [pixels]
-  // weighting = sqrt(pixelsCovered) — effectively a binning factor
-  const objectSizeArcmin = (params as any).objectSizeArcmin ?? 0;
+  // Clamping intelligent selon le type de filtre
+  const isBroadband = filterBandwidthNm > 50;
+  const tSub = isBroadband
+    ? Math.max(60, Math.min(300, Math.round(tOptimumRaw / 10) * 10))
+    : Math.max(30, Math.min(600, Math.round(tOptimumRaw / 10) * 10));
+
+  return { tOptimumRaw, tSub, kDynamic };
+}
+
+/**
+ * Étape 5 : Signal de l'Objet et Calcul du SNR
+ *
+ * τ_obj = τ_filter (émission) | τ_filter × continuumTransmission (continuum)
+ * S_obj = 10^(0.4 × (26.59 - SB_obj)) × A × s² × QE × τ_obj
+ * Noise_sub = √((S_obj + B_sky + dc) × t_sub + RN²)
+ * SNR_sub = (S_obj × t_sub) / Noise_sub
+ */
+export function calculateObjectSignalAndSNR(
+  objectSurfaceBrightness: number,
+  isEmissionNebula: boolean,
+  apertureArea: number,
+  sampling: number,
+  quantumEfficiency: number,
+  filterTransmission: number,
+  continuumTransmission: number,
+  bSky: number,
+  darkCurrent: number,
+  tSub: number,
+  readNoise: number
+): { sObj: number; noiseSub: number; snrPerSub: number } {
+  const objectFlux = Math.pow(10, 0.4 * (M_ZERO - objectSurfaceBrightness));
+  const tauObj = isEmissionNebula
+    ? filterTransmission
+    : filterTransmission * continuumTransmission;
+  const samplingSq = sampling * sampling;
+  const sObj = objectFlux * apertureArea * samplingSq * quantumEfficiency * tauObj;
+
+  const noiseSub = Math.sqrt(
+    (sObj + bSky + darkCurrent) * tSub + readNoise * readNoise
+  );
+  const snrPerSub = noiseSub > 0 ? (sObj * tSub) / noiseSub : 0;
+
+  return { sObj, noiseSub, snrPerSub };
+}
+
+/**
+ * Étape 6 : SNR Cible Métier & Nombre de Poses (N_subs) — v7
+ *
+ * SNR target fixe selon le type d'objet + filtre (ne dépend plus du contraste) :
+ * - Narrowband (≤12nm) + émission : target_SNR = 250
+ * - Broadband/dual-band large + émission : target_SNR = 150
+ * - Continuum (galaxies/amas) : target_SNR = 100
+ *
+ * sizeWeighting capé : min(2.0, max(0.5, √(diameter_px / 100)))
+ * effectiveTargetSNR = target_SNR / sizeWeighting
+ *
+ * Plancher de poses minimum (anti-cosmiques/satellites/sigma-clipping) :
+ * - Broadband : N_subs = max(20, ⌈(effectiveTargetSNR / SNR_sub)²⌉)
+ * - Narrowband : N_subs = max(15, ⌈(effectiveTargetSNR / SNR_sub)²⌉)
+ */
+export function calculateSubCount(
+  sObj: number,
+  bSky: number,
+  snrPerSub: number,
+  sampling: number,
+  objectDiameterArcmin: number,
+  isEmissionNebula: boolean,
+  filterBandwidthNm: number
+): { contrast: number; targetSNR: number; sizeWeighting: number; effectiveTargetSNR: number; nSubs: number } {
+  const contrast = sObj / Math.max(GUARD, bSky);
+
+  // v7 : SNR target fixe selon type d'objet + filtre
+  const targetSNR = isEmissionNebula
+    ? (filterBandwidthNm <= 12 ? 250 : 150)
+    : 100;
+
+  // v8 : sizeWeighting capé entre 0.5 et 5.0 (autorise les objets géants comme M31)
   let sizeWeighting = 1;
-  if (objectSizeArcmin > 0 && sampling > 0) {
-    const objectDiameterPx = (objectSizeArcmin * 60) / sampling; // arcsec / (arcsec/px) = px
-    // Normalize: 100px diameter = 1x weighting, larger objects get slight reduction
-    sizeWeighting = Math.sqrt(Math.max(1, objectDiameterPx / 100));
+  if (objectDiameterArcmin > 0 && sampling > 0) {
+    const diameterPx = (objectDiameterArcmin * 60) / sampling;
+    sizeWeighting = Math.sqrt(Math.max(1, diameterPx / 100));
   }
-  // Effective target per pixel is reduced by the binning factor
+  sizeWeighting = Math.min(5.0, Math.max(0.5, sizeWeighting));
+
   const effectiveTargetSNR = targetSNR / sizeWeighting;
 
-  // --- #3: Dark current in noise ---
-  // ASI533MC at -10°C: ~0.0005 e-/px/s. Uncooled DSLR: ~0.1 e-/px/s
-  const darkCurrent = (params as any).darkCurrent ?? 0.0005;
+  // v7 : plancher minimum de poses
+  const isBroadband = filterBandwidthNm > 50;
+  const minSubs = isBroadband ? 20 : 15;
+  const nSubs = Math.max(minSubs, Math.ceil(
+    Math.pow(effectiveTargetSNR / Math.max(GUARD, snrPerSub), 2)
+  ));
 
-  // --- SNR per sub ---
-  const signalPerSub = Sobj * tSub;
-  const noisePerSub = Math.sqrt((Sobj + bSky + darkCurrent) * tSub + params.readNoise * params.readNoise);
-  const snrPerSub = noisePerSub > 0 ? signalPerSub / noisePerSub : 0;
+  return { contrast, targetSNR, sizeWeighting, effectiveTargetSNR, nSubs };
+}
 
-  // Number of subs
-  const totalSubsForSNR = Math.max(1, Math.ceil(snrPerSub > 0 ? Math.pow(effectiveTargetSNR / snrPerSub, 2) : 1));
-  const totalIntegrationTime = (totalSubsForSNR * tSub) / 60;
+// ============================================================================
+// PIPELINE COMPLET v5
+// ============================================================================
 
+/**
+ * Pipeline complet v5 — calcule le résultat d'exposition en 6 étapes.
+ *
+ * Rétro-compat : accepte les params v4 (filterTransmission, skySuppression)
+ * et les params v5 (reducerFactor, moonAltitudeDeg, moonPhaseFactor, etc.)
+ */
+export function calculateExposure(params: ExposureParams): ExposureResult {
+  // --- Defaults ---
+  const reducerFactor = params.reducerFactor ?? 1.0;
+  const darkCurrent = params.darkCurrent ?? 0.0005;
+  const isEmissionNebula = params.isEmissionNebula ?? true;
+  const objectSurfaceBrightness = params.objectSurfaceBrightness ?? params.skyMagnitude + 5;
+  const objectDiameterArcmin = params.objectDiameterArcmin ?? 0;
+  const skySuppression = params.skySuppression ?? 0;
+
+  // --- Étape 1 : SQM Effectif ---
+  // Si l'appelant fournit déjà skyMagnitude (SQM effectif), on l'utilise directement.
+  // Sinon, on calcule depuis moonAltitudeDeg / moonPhaseFactor.
+  let sqmEffective = params.skyMagnitude;
+  let degradation = 0;
+  if (params.moonAltitudeDeg !== undefined && params.moonPhaseFactor !== undefined) {
+    const moonSep = params.moonSeparationDeg ?? 180;
+    const result = calculateEffectiveSQM_v5(
+      params.skyMagnitude, // ici c'est sqmBase
+      params.moonAltitudeDeg,
+      params.moonPhaseFactor,
+      moonSep
+    );
+    sqmEffective = result.sqmEffective;
+    degradation = result.degradation;
+  }
+
+  // --- Étape 2 : Échantillonnage & Géométrie ---
+  const { sampling, apertureArea, effectiveFocalLength } = calculateOpticalGeometry(
+    params.aperture,
+    params.focalLength,
+    reducerFactor,
+    params.pixelSize
+  );
+
+  // --- Étape 3 : B_sky ---
+  const { fluxSky, bSky } = calculateSkyFluxAndBrightness(
+    sqmEffective,
+    apertureArea,
+    sampling,
+    params.quantumEfficiency,
+    params.filterTransmission,
+    skySuppression
+  );
+
+  // --- Étape 4 : t_sub (k dynamique + clamping intelligent) ---
+  // Déterminer la bande passante du filtre depuis FILTER_PROFILES
+  const filterEntry = Object.values(FILTER_PROFILES).find(
+    f => f.transmission === params.filterTransmission && f.skySuppression === skySuppression
+  );
+  const filterBandwidthNm = filterEntry?.bandwidthNm ?? 350; // défaut : broadband
+  const isBroadband = filterBandwidthNm > 50 || (!isEmissionNebula && filterBandwidthNm > 50);
+
+  const { tOptimumRaw, tSub, kDynamic } = calculateOptimalSubExposure(
+    bSky,
+    params.readNoise,
+    params.kFactor,
+    filterBandwidthNm
+  );
+
+  // --- Étape 5 : Signal objet & SNR ---
+  // #3 : utiliser strictecontinueuumTransmission depuis FILTER_PROFILES
+  const continuumTransmission = filterEntry?.continuumTransmission ?? 1.0;
+
+  const { sObj, noiseSub, snrPerSub } = calculateObjectSignalAndSNR(
+    objectSurfaceBrightness,
+    isEmissionNebula,
+    apertureArea,
+    sampling,
+    params.quantumEfficiency,
+    params.filterTransmission,
+    continuumTransmission,
+    bSky,
+    darkCurrent,
+    tSub,
+    params.readNoise
+  );
+
+  // --- Étape 6 : N_subs (v7 — SNR target métier + plancher minimum) ---
+  const { contrast, targetSNR, sizeWeighting, effectiveTargetSNR, nSubs } = calculateSubCount(
+    sObj,
+    bSky,
+    snrPerSub,
+    sampling,
+    objectDiameterArcmin,
+    isEmissionNebula,
+    filterBandwidthNm
+  );
+
+  // --- Recommandations ---
   let recommendation = '';
   let warning: string | undefined;
 
@@ -266,7 +431,7 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
   } else if (tSub < 180) {
     recommendation = `Pose standard (${tSub}s). Zone confortable pour la plupart des montures.`;
   } else if (tSub < 300) {
-    recommendation = `Pose longue (${tSub}s). Assurez-vous d\'un guidage < 1"/px.`;
+    recommendation = `Pose longue (${tSub}s). Assurez-vous d'un guidage < 1"/px.`;
   } else {
     recommendation = `Pose très longue (${tSub}s). Nécessite un guidage excellent.`;
     warning = 'Temps de pose > 300s — vérifiez le guidage et la stabilité thermique.';
@@ -280,65 +445,65 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
       'Contraste faible (S/B < 1) — l objet est plus faible que le fond de ciel. Filtre narrowband recommandé.';
   }
 
+  const totalIntegrationTime = Math.round((nSubs * tSub) / 60);
+  const totalIntegrationHours = totalIntegrationTime / 60;
+
   return {
     subExposureTime: tSub,
-    totalSubsForSNR,
-    totalIntegrationTime: Math.round(totalIntegrationTime),
+    totalSubsForSNR: nSubs,
+    totalIntegrationTime,
+    totalIntegrationHours,
+    sqmEffective,
+    sampling,
     bSky,
-    swampingFactor,
-    recommendation,
-    warning,
+    sObj,
     fluxSky,
     apertureArea,
+    swampingFactor: bSky > 0 ? bSky / (params.readNoise * params.readNoise) : 0,
+    snrPerSub,
+    contrast,
+    effectiveTargetSNR,
+    tOptimumRaw,
+    kDynamic,
+    recommendation,
+    warning,
   };
 }
 
-
-
 // ============================================================================
-// IMPACT RÉDUCTEUR — Démonstration mathématique
+// IMPACT RÉDUCTEUR — Démonstration mathématique (rétro-compat)
 // ============================================================================
 
 /**
  * Compare le temps de pose avec et sans réducteur.
- * Le réducteur diminue F_eff, donc augmente le pixel scale,
- * donc B_sky augmente drastiquement → t_optimum diminue.
+ * v5 : utilise reducerFactor dans le pipeline directement.
  */
 export function calculateReducerImpact(
   params: ExposureParams,
   reducerFactor: number,
   originalFocalLength: number
 ): ReducerImpact {
-  const reducedFocalLength = originalFocalLength * reducerFactor;
-  const reducedPixelSize = params.pixelSize / reducerFactor; // effet équivalent
+  const without = calculateExposure({ ...params, reducerFactor: 1.0, focalLength: originalFocalLength });
+  const withReducer = calculateExposure({ ...params, reducerFactor, focalLength: originalFocalLength });
 
-  const without = calculateExposure(params);
-
-  const withParams: ExposureParams = {
-    ...params,
-    focalLength: reducedFocalLength,
-    pixelSize: reducedPixelSize,
-  };
-  const withReducer = calculateExposure(withParams);
-
-  const ratio = without.subExposureTime / withReducer.subExposureTime;
-  const timeSavedPercent = ((1 - 1 / ratio) * 100);
+  const ratio = without.subExposureTime / Math.max(1, withReducer.subExposureTime);
+  const timeSavedPercent = Math.round((1 - 1 / ratio) * 100);
 
   return {
     withoutReducer: without,
-    withReducer: withReducer,
+    withReducer,
     ratio,
-    timeSavedPercent: Math.round(timeSavedPercent),
+    timeSavedPercent,
   };
 }
 
 // ============================================================================
-// SIMULATEUR SNR
+// SIMULATEUR SNR (rétro-compat, mis à jour avec dark current)
 // ============================================================================
 
 /**
-* Simule le SNR en fonction du nombre de poses.
-* Approximation : SNR ∝ √(N_subs) pour le signal dominant.
+ * Simule le SNR en fonction du nombre de poses.
+ * SNR ∝ √(N_subs) pour le signal dominant.
  */
 export function simulateSNR(
   params: ExposureParams,
@@ -347,41 +512,60 @@ export function simulateSNR(
   subDurationSeconds?: number
 ): SNRSimulation {
   const duration = subDurationSeconds || 180;
-  const fluxSky = calculateSkyFlux(params.skyMagnitude);
-  const apertureArea = calculateApertureArea(params.aperture);
-  // Sampling (arcsec/pixel)²
-  let samplingSq: number;
-  if ((params as any).focalLength) {
-    const sampling = (206.265 * params.pixelSize) / (params as any).focalLength;
-    samplingSq = sampling * sampling;
-  } else {
-    const pixelSizeM = params.pixelSize / 1_000_000;
-    samplingSq = pixelSizeM * pixelSizeM;
-  }
-  const bSky = fluxSky * apertureArea * samplingSq * params.quantumEfficiency * params.filterTransmission;
-  // Object signal rate — uses object magnitude if available
-  const mObj = (params as any).objectMagnitude ?? params.skyMagnitude + 5;
-  const objectFlux = Math.pow(10, 0.4 * (M_ZERO - mObj));
-  const Sobj = objectFlux * apertureArea * samplingSq * params.quantumEfficiency * params.filterTransmission;
-  // SNR per sub on the object
-  const signalPerSub = Sobj * duration;
-  const noisePerSub = Math.sqrt((Sobj + bSky) * duration + params.readNoise * params.readNoise);
+  const reducerFactor = params.reducerFactor ?? 1.0;
+  const darkCurrent = params.darkCurrent ?? 0.0005;
+  const skySuppression = params.skySuppression ?? 0;
+
+  // Pipeline léger pour le simulateur
+  const { sampling, apertureArea } = calculateOpticalGeometry(
+    params.aperture,
+    params.focalLength,
+    reducerFactor,
+    params.pixelSize
+  );
+
+  const { fluxSky, bSky } = calculateSkyFluxAndBrightness(
+    params.skyMagnitude,
+    apertureArea,
+    sampling,
+    params.quantumEfficiency,
+    params.filterTransmission,
+    skySuppression
+  );
+
+  const objectSB = params.objectSurfaceBrightness ?? params.skyMagnitude + 5;
+  const isEmission = params.isEmissionNebula ?? true;
+  const continuumT = skySuppression > 0 ? Math.max(0.01, 1 - skySuppression) : 1.0;
+  const { sObj } = calculateObjectSignalAndSNR(
+    objectSB,
+    isEmission,
+    apertureArea,
+    sampling,
+    params.quantumEfficiency,
+    params.filterTransmission,
+    continuumT,
+    bSky,
+    darkCurrent,
+    duration,
+    params.readNoise
+  );
+
+  // SNR par sub sur l'objet
+  const signalPerSub = sObj * duration;
+  const noisePerSub = Math.sqrt((sObj + bSky + darkCurrent) * duration + params.readNoise * params.readNoise);
   const snrPerSub = noisePerSub > 0 ? signalPerSub / noisePerSub : 0;
 
   const points: SNRPoint[] = [];
   let subsToReachTarget = maxSubs;
 
   for (let n = 1; n <= maxSubs; n++) {
-    // Cumulative SNR on the object: sqrt(N) × snrPerSub
     const snr = snrPerSub * Math.sqrt(n);
-
     points.push({
       subsCount: n,
       subDuration: duration,
       totalMinutes: (n * duration) / 60,
       snr: Math.round(snr * 10) / 10,
     });
-
     if (snr >= targetSNR && subsToReachTarget === maxSubs) {
       subsToReachTarget = n;
     }
@@ -397,7 +581,7 @@ export function simulateSNR(
 }
 
 // ============================================================================
-// MODÉLISATION SQM DYNAMIQUE
+// MODÉLISATION SQM DYNAMIQUE (rétro-compat UI)
 // ============================================================================
 
 /**
@@ -421,10 +605,7 @@ export function calculateMoonDegradation(
     baseDegradation = 2.5 + (moonPhase - 0.75) * 4.0; // 2.5 → 3.5
   }
 
-  // Facteur altitude (sinus) — Lune haute = plus de lumière
   const altitudeFactor = moonAltitude > 0 ? Math.sin((moonAltitude * Math.PI) / 180) : 0;
-
-  // Facteur proximité — Lune proche de la cible = plus de dégradation
   const proximityFactor = targetMoonSeparation < 30
     ? 1 + (30 - targetMoonSeparation) / 30
     : 1;
@@ -433,7 +614,7 @@ export function calculateMoonDegradation(
 }
 
 /**
- * Calcule le SQM effectif.
+ * Calcule le SQM effectif (rétro-compat avec SQMDynamicModel).
  */
 export function calculateEffectiveSQM(
   sqmBase: number,
@@ -443,8 +624,6 @@ export function calculateEffectiveSQM(
 ): SQMDynamicModel {
   const degradation = calculateMoonDegradation(moonPhase, moonAltitude, targetMoonSeparation);
   const sqmEffective = sqmBase - degradation;
-
-  // Mapping Bortle approximatif
   const bortleScale = Math.max(1, Math.min(9, Math.round((22.0 - sqmEffective) * 1.5)));
 
   return {
@@ -452,7 +631,7 @@ export function calculateEffectiveSQM(
     sqmEffective: Math.round(sqmEffective * 10) / 10,
     moonPhase,
     moonAltitude,
-    moonAzimuth: 0, // à calculer séparément si besoin
+    moonAzimuth: 0,
     targetMoonSeparation,
     bortleScale,
     degradation: Math.round(degradation * 10) / 10,
@@ -460,13 +639,9 @@ export function calculateEffectiveSQM(
 }
 
 // ============================================================================
-// DEW RISK ALGORITHM (Point #4 v3)
+// DEW RISK ALGORITHM
 // ============================================================================
 
-/**
- * Calcule le niveau de risque de rosée.
- * IF (temperature - dewpoint) <= 2.0°C THEN dewRisk = 'Critical'
- */
 export function calculateDewRisk(temperature: number, dewpoint: number): DewRiskLevel {
   const delta = temperature - dewpoint;
   if (delta <= 2.0) return 'Critical';
@@ -474,9 +649,6 @@ export function calculateDewRisk(temperature: number, dewpoint: number): DewRisk
   return 'Safe';
 }
 
-/**
- * Génère une alerte Dashboard pour la rosée.
- */
 export function generateDewAlert(conditions: EnvironmentConditions): DewAlert {
   const level = calculateDewRisk(conditions.temperature, conditions.dewpoint);
   const delta = Math.round((conditions.temperature - conditions.dewpoint) * 10) / 10;
@@ -496,29 +668,13 @@ export function generateDewAlert(conditions: EnvironmentConditions): DewAlert {
     },
   };
 
-  return {
-    level,
-    ...messages[level],
-    delta,
-  };
+  return { level, ...messages[level], delta };
 }
 
 // ============================================================================
-// SÉPARATION LUNE-CIBLE — Trigonométrie Sphérique (Point #5 v3)
+// SÉPARATION LUNE-CIBLE — Trigonométrie Sphérique
 // ============================================================================
 
-/**
- * Calcule la séparation angulaire entre deux objets célestes
- * par trigonométrie sphérique.
- *
- * d = acos(sin(δ₁)·sin(δ₂) + cos(δ₁)·cos(δ₂)·cos(α₁ - α₂))
- *
- * @param ra1Deg — Ascension droite objet 1 (degrés)
- * @param dec1Deg — Déclinaison objet 1 (degrés)
- * @param ra2Deg — Ascension droite objet 2 (degrés)
- * @param dec2Deg — Déclinaison objet 2 (degrés)
- * @returns Séparation en degrés
- */
 export function calculateMoonSeparation(
   ra1Deg: number,
   dec1Deg: number,
@@ -533,7 +689,6 @@ export function calculateMoonSeparation(
     Math.sin(dec1Rad) * Math.sin(dec2Rad) +
     Math.cos(dec1Rad) * Math.cos(dec2Rad) * Math.cos(deltaRaRad);
 
-  // Clamp pour éviter les erreurs d'arrondi
   const clampedCosD = Math.max(-1, Math.min(1, cosD));
   const separationRad = Math.acos(clampedCosD);
 
@@ -544,9 +699,6 @@ export function calculateMoonSeparation(
 // RECOMMANDATION FILTRE AUTOMATIQUE
 // ============================================================================
 
-/**
- * Recommande le meilleur filtre selon les conditions.
- */
 export function recommendFilter(
   moonPhase: number,
   moonAltitude: number,
@@ -570,9 +722,11 @@ export function recommendFilter(
     }
   }
 
-  // Fallback
   return {
     filter: availableFilters[0] || 'UV_IR_Cut',
     reason: 'Filtre par défaut selon disponibilité.',
   };
 }
+
+// Les sous-fonctions v5/v6/v7/v8 sont déjà exportées individuellement
+n// au-dessus (export function ...). Pas besoin de re-exporter ici.

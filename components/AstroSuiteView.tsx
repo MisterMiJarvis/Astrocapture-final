@@ -7,6 +7,7 @@ import ProjectsView from './ProjectsView';
 import AplsModule6View from './AplsModule6View';
 import PHD2Analysis from '@/src/components/PHD2Analysis';
 import RAGChatView from './RAGChatView';
+import ExposureEngineDocs from './ExposureEngineDocs';
 import AstroSuiteLoginView from './AstroSuiteLoginView';
 import AstroSuiteWeatherView from './AstroSuiteWeatherView';
 import { getCurrentAstroSuiteUser, logoutAstroSuite } from '../src/services/userService';
@@ -14,7 +15,7 @@ import TargetExplorerView from './TargetExplorerView';
 import { TelescopiusTarget } from '../src/services/targetExplorerService';
 import { MapPin, LogOut } from 'lucide-react';
 
-type AplsTab = 'dashboard' | 'projects' | 'filters' | 'equipment' | 'weather' | 'analysis' | 'help';
+type AplsTab = 'dashboard' | 'projects' | 'filters' | 'equipment' | 'weather' | 'analysis' | 'help' | 'exposure';
 type LocationSource = 'current' | 'saintEtienne' | 'pradelles' | '';
 
 interface AstroSuiteViewProps {
@@ -29,6 +30,7 @@ const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'equipment', label: 'Equipment', icon: '🔭' },
   { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
+  { id: 'exposure', label: 'Exposure', icon: '🔬' },
   { id: 'help', label: 'Knowledge', icon: '📚' },
 ];
 
@@ -91,6 +93,8 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
         return <ProjectsView locationSource={locationSource} onLocationChange={handleLocationChange} preselectedTarget={projectFromTarget} onClearTarget={() => setProjectFromTarget(null)} />;
       case 'analysis':
         return <PHD2Analysis />;
+      case 'exposure':
+        return <ExposureEngineDocs />;
       case 'help':
         return <RAGChatView />;
       default:
