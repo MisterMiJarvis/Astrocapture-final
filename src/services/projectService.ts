@@ -41,24 +41,20 @@ function generateObsId(): string {
   return `obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ─── SNR / Exposure Calculator — Physical Pipeline (v2 — corrected) ──────────
+// ─── SNR / Exposure Calculator — Délègue au pipeline v8 (exposureCalculator.ts) ──────
 //
-// Based on the APLS v3 specification, corrected for object SNR:
-//   Step 1: Sky flux          Φ_sky = 10^(0.4 × (M_zero - m_sky))
-//   Step 2: Object flux        Φ_obj = 10^(0.4 × (M_zero - m_obj))
-//   Step 3: Aperture          A = π × (D/2000)²  [m²]
-//   Step 4: Sampling          sampling = (206.265 × pixelSize_μm) / focalLength_mm  [arcsec/px]
-//   Step 5: Sky e- rate       B_sky = Φ_sky × A × sampling² × QE × τ_sky
-//   Step 6: Object e- rate     S_obj = Φ_obj × A × sampling² × QE × τ_signal
-//   Step 7: Optimal sub-exp   t_opt = k × RN² / B_sky   (k=5 conservative, Swainson)
-//   Step 8: SNR per sub       snrPerSub = (S_obj × t_sub) / sqrt((S_obj + B_sky) × t_sub + RN²)
-//   Step 9: Num subs          N = (SNR_target / snrPerSub)²
+// projectService.ts wrapper : convertit ExposureCalcParams → ExposureParams (v8)
+// puis convertit ExposureResult (v8) → ProjectExposurePlan (rétro-compat UI)
 //
-// M_zero = 26.59 (V-band zero-point flux in mag/arcsec²)
+// Le pipeline physique v8 est dans src/services/module5/exposureCalculator.ts
+// 6 étapes : SQM effectif → sampling → B_sky → t_sub (k dyn) → SNR → N_subs
+// Calibration SkyTools : 9/10 t_sub dans 3x, 8/10 N_subs dans 3x
 // ──────────────────────────────────────────────────────────────────────────────
 
-const M_ZERO = 26.59; // V-band zero-point (mag/arcsec²)
-const K_CONSERVATIVE = 5; // Swainson k-factor (conservative)
+import { calculateExposure, FILTER_PROFILES } from './module5/exposureCalculator';
+import type { ExposureParams, FilterType } from '../types/module5';
+
+const M_ZERO = 26.59; // conservé pour référence — v8 utilise le même dans exposureCalculator.ts
 
 interface ExposureCalcParams {
   targetMagnitude: number | null;
@@ -90,8 +86,9 @@ function bortleToSQM(bortle: number): number {
 }
 
 /**
- * Physical pipeline: Calculate optimal sub-exposure and total integration time
- * for a given SNR target.
+ * Délègue au pipeline v8 (exposureCalculator.ts → calculateExposure)
+ * Convertit ExposureCalcParams → ExposureParams (v8)
+ * puis ExposureResult (v8) → ProjectExposurePlan (rétro-compat UI)
  */
 export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposurePlan[] {
   const {
@@ -105,194 +102,115 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
     readNoise,
     quantumEfficiency,
     moonIllumination,
-    avgSeeing = 2.5,
     bortle = 4,
-    snrTarget = 30,
-    filterData,
   } = params;
 
+  // ─── Convert integrated magnitude to surface brightness (mag/arcsec²) ───────
   const rawMag = targetMagnitude ?? 10;
-
-  // Convert integrated magnitude to surface brightness (mag/arcsec²)
-  // Extended objects have integrated magnitudes that must be converted.
-  // Priority: surfaceBrightness > sizeArcmin conversion > fallback assumption
-  let mag: number;
+  let sbObj: number;
   if (surfaceBrightness != null && surfaceBrightness > 0) {
-    mag = surfaceBrightness;
+    sbObj = surfaceBrightness;
   } else if (targetSizeArcmin && targetSizeArcmin > 0) {
-    // Convert integrated magnitude to surface brightness using object size
     const surfaceArcsec2 = Math.PI * Math.pow((targetSizeArcmin * 60) / 2, 2);
-    mag = rawMag + 2.5 * Math.log10(surfaceArcsec2);
+    sbObj = rawMag + 2.5 * Math.log10(surfaceArcsec2);
   } else {
-    // No size info and no surface brightness — assume moderate surface brightness
-    mag = Math.max(rawMag + 5, 18);
+    sbObj = Math.max(rawMag + 5, 18);
   }
 
-  // ─── Filter-aware surface brightness correction ───────────────────────────
-  // V-band surface brightness is NOT the right metric for narrowband/dual-band.
-  // Emission nebulae have concentrated line emission that is MUCH brighter than
-  // their V-band surface brightness. But we must target the faint outer structures.
-  //
-  // Strategy: For narrowband/dual-band, we keep the V-band SB as the reference
-  // for the FAINT structures (they're roughly at the V-band SB level even in narrowband),
-  // and let the filter model (tauSignal vs tauSky) handle the brightness advantage.
-  // The key insight: narrowband filters have tauSignal ≈ 0.9 but tauSky ≈ 0.02-0.08,
-  // giving a huge SNR advantage per pixel that naturally produces shorter exposures.
-  //
-  // We only apply a small correction for broadband LP filters:
-  const isNarrowHa = filter === 'Ha';
-  const isNarrowOIII = filter === 'OIII';
-  const isNarrowSII = filter === 'SII';
-  const isNarrowband = isNarrowHa || isNarrowOIII || isNarrowSII;
-  const isDualBand = ['L_Ultimate', 'L_Extreme'].includes(filter);
-  const isAntiPollution = ['LPS_D2', 'IDAS_LPS'].includes(filter);
-
-  // No correction for narrowband/dual-band — the tauSignal/tauSky model handles it
-  // Small correction for LP filters (they slightly improve contrast)
-  if (isAntiPollution) {
-    mag -= 0.5;
-  }
-
-  // Step 1: Sky flux and object flux
-  let mSky = bortleToSQM(bortle);
-
-  // Moon impact: LP filters partially reject moonlight, narrowband nearly immune
-  if (isNarrowband) {
-    mSky -= moonIllumination * 0.2;
-  } else if (isDualBand) {
-    mSky -= moonIllumination * 0.8;
-  } else {
-    mSky -= moonIllumination * 1.5;
-  }
-
-  // Filter model: separate signal transmission (tauSignal) from sky transmission (tauSky)
-  // For narrowband/dual-band filters, the object signal passes at peak transmission
-  // but the sky background is suppressed — these are DIFFERENT effective transmissions
-  let tauSignal: number; // transmission for object signal
-  let tauSky: number;    // transmission for sky background
-  
-  if (filterData) {
-    // Use real filter specs from user's collection
-    const cat = filterData.category || 'broadband';
-    const pt = filterData.peakTransmission;
-    const ss = filterData.skySuppression;
-    
-    if (cat === 'narrowband') {
-      // Ha/OIII/SII: object signal at peak transmission, sky heavily suppressed
-      tauSignal = pt;
-      tauSky = pt * (1 - ss); // sky only passes through the narrow band
-    } else if (cat === 'dualband') {
-      // L-Ultimate type: object signal passes at peak on the full covered bandwidth
-      // (Ha line, OIII line, AND continuous emission between them)
-      tauSignal = pt;
-      // Sky: only passes through the narrow Ha/OIII windows, rest is blocked
-      // Effective sky bandwidth is ~2 × 3nm = 6nm out of ~300nm total → ~2% passthrough
-      // Plus slight continuous leak between the lines
-      tauSky = pt * (1 - ss) * 0.08; // dual-band lets ~8% of broadband sky through
-    } else if (cat === 'anti_pollution') {
-      // LPS-D2 type: selective filter — passes object signal well on target lines
-      // but blocks specific emission lines (Na, Hg) from light pollution
-      tauSignal = pt; // object signal barely attenuated on astrophysically relevant bands
-      tauSky = pt * (1 - ss * 0.6); // sky suppression is selective, not uniform
-    } else {
-      // Broadband (UV/IR Cut, Luminance): minimal sky suppression
-      tauSignal = pt;
-      tauSky = pt; // no sky suppression effect
-    }
-  } else {
-    // Fallbacks without filterData
-    const FILTER_TAUS: Record<string, { signal: number; sky: number }> = {
-      L_Ultimate: { signal: 0.90, sky: 0.08 },
-      LPS_D2:     { signal: 0.90, sky: 0.45 },
-      UV_IR_Cut:  { signal: 0.97, sky: 0.97 },
-      Ha:         { signal: 0.90, sky: 0.02 },
-      OIII:       { signal: 0.85, sky: 0.02 },
-      SII:        { signal: 0.80, sky: 0.02 },
-      RGB:        { signal: 0.85, sky: 0.85 },
-      Luminance:  { signal: 0.95, sky: 0.95 },
+  // ─── Convert Bortle to SQM base ─────────────────────────────────────────
+  const bortleToSQM = (b: number): number => {
+    const table: Record<number, number> = {
+      1: 22.0, 2: 21.5, 3: 21.0, 4: 20.5, 5: 19.5,
+      6: 18.5, 7: 18.0, 8: 17.0, 9: 16.0,
     };
-    const ft = FILTER_TAUS[filter] ?? { signal: 0.85, sky: 0.85 };
-    tauSignal = ft.signal;
-    tauSky = ft.sky;
-  }
+    return table[Math.min(9, Math.max(1, Math.round(b)))] ?? 20.5;
+  };
+  const sqmBase = bortleToSQM(bortle);
 
-  // Object flux (using the mean surface brightness directly — "Main Extent" model)
-  const structureOffset = 0; // No artificial offset — use mean SB directly (Main Extent)
-  const magForSignal = mag; // Mean SB = Main Extent
-  const phiSky = Math.pow(10, 0.4 * (M_ZERO - mSky));
-  const phiObj = Math.pow(10, 0.4 * (M_ZERO - magForSignal));
+  // ─── Moon → v8 params ──────────────────────────────────────────────────
+  // projectService a moonIllumination (0-1) → v8 veut moonPhaseFactor (0-3.5)
+  const moonPhaseFactor = moonIllumination * 3.5;
+  const moonAltitudeDeg = moonIllumination > 0 ? 45 : 0; // altitude approximative
 
-  // Step 2: Aperture effective area
-  const A = Math.PI * Math.pow(aperture / 2000, 2); // m²
+  // ─── Mapper filter string → FilterType v8 ──────────────────────────────
+  const FILTER_MAP: Record<string, FilterType> = {
+    'UV_IR_Cut': 'UV_IR_Cut', 'UV/IR Cut': 'UV_IR_Cut',
+    'L_Ultimate': 'L_Ultimate', 'L-Ultimate': 'L_Ultimate',
+    'LPS_D2': 'LPS_D2', 'LPS-D2': 'LPS_D2',
+    'Ha': 'Ha', 'Hα': 'Ha',
+    'OIII': 'OIII',
+    'SII': 'SII',
+    'RGB': 'RGB',
+    'Luminance': 'Luminance', 'Lum': 'Luminance',
+  };
+  const filterType = FILTER_MAP[filter] ?? 'UV_IR_Cut';
+  const filterProfile = FILTER_PROFILES[filterType];
 
-  // Step 3: Sampling (arcsec/pixel) — replaces p² (meters) with sampling² (arcsec²)
-  const sampling = (206.265 * pixelSize) / focalLength; // arcsec/pixel
-  const samplingSq = sampling * sampling; // arcsec²/pixel
+  // Déterminer le type d'objet (émission vs continuum)
+  const isEmissionNebula = ['Ha', 'OIII', 'SII', 'L_Ultimate'].includes(filter);
 
-  // Step 4: Dark current
-  const darkCurrent = 0.001; // e-/px/s (cooled sensors)
+  // ─── Construire ExposureParams (v8) ──────────────────────────────────────
+  const v8Params: ExposureParams = {
+    aperture,
+    focalLength,
+    pixelSize,
+    readNoise,
+    quantumEfficiency,
+    kFactor: 5, // v8 utilise k dynamique en interne (2.5 NB / 5.0 BB)
+    skyMagnitude: sqmBase,
+    moonAltitudeDeg,
+    moonPhaseFactor,
+    moonSeparationDeg: 90, // défaut
+    filterTransmission: filterProfile.transmission,
+    skySuppression: filterProfile.skySuppression,
+    objectSurfaceBrightness: sbObj,
+    objectDiameterArcmin: targetSizeArcmin ?? 0,
+    isEmissionNebula,
+  };
 
-  // Step 5: Sky electron rate (e-/px/s) — uses sampling² and tauSky
-  const Bsky = phiSky * A * samplingSq * quantumEfficiency * tauSky + darkCurrent;
+  // ─── Appeler le pipeline v8 ──────────────────────────────────────────────
+  const result = calculateExposure(v8Params);
 
-  // Step 6: Object signal electron rate (e-/px/s) — uses sampling² and tauSignal
-  const Sobj = phiObj * A * samplingSq * quantumEfficiency * tauSignal;
-
-  // Step 7: Optimal sub-exposure (Swainson equation)
+  // ─── Operating bounds (Cosgrove) — conservé pour rétro-compat UI ──────────
   const RN = readNoise;
-  const tOpt = K_CONSERVATIVE * RN * RN / Bsky;
-  const tSub = Math.max(30, Math.min(600, Math.round(tOpt / 10) * 10));
+  const Bsky = result.bSky;
+  const tSubMin = Bsky > 0 ? Math.max(10, Math.ceil(9 * RN * RN / Bsky / 5) * 5) : 10;
+  const wellDepth = params.fullWellDepth || (quantumEfficiency > 0.7 ? 50000 : 100000);
+  const brightStarMag = 4;
+  const brightStarFlux = Math.pow(10, 0.4 * (M_ZERO - brightStarMag + (filterProfile.bandwidthNm <= 12 ? 2 : 0)));
+  const A = Math.PI * Math.pow(aperture / 2000, 2);
+  const Sbright = brightStarFlux * A * Math.pow((206.265 * pixelSize) / focalLength, 2) * quantumEfficiency * filterProfile.transmission;
+  const skyPerPixel = Bsky * 600;
+  const tSubMaxFromSaturation = Sbright > 0 ? Math.floor((wellDepth * 0.5 - skyPerPixel) / Sbright) : 600;
+  const tSubMax = Math.max(tSubMin + 10, Math.min(600, tSubMaxFromSaturation));
 
-  // Step 8: SNR per sub on the OBJECT (not sky)
-  // signalPerSub = S_obj × t_sub
-  // noisePerSub = sqrt((S_obj + B_sky) × t_sub + RN²)
-  // snrPerSub = signalPerSub / noisePerSub
-  const signalPerSub = Sobj * tSub;
-  const noisePerSub = Math.sqrt((Sobj + Bsky) * tSub + RN * RN);
-  const snrPerSub = noisePerSub > 0 ? signalPerSub / noisePerSub : 0;
+  // Workflow overhead
+  const overheadPerSub = 12;
+  const totalExposureTime = result.totalSubsForSNR * result.subExposureTime;
+  const totalWithOverhead = totalExposureTime + result.totalSubsForSNR * overheadPerSub;
 
-  // Step 9: Number of subs to reach target SNR
-  // N = (SNR_target / snrPerSub)²
-  const N = Math.max(1, Math.ceil(snrPerSub > 0 ? Math.pow(snrTarget / snrPerSub, 2) : 1));
-  const totalExposureTime = N * tSub;
-
-  // Actual SNR achieved (cumulative on object)
-  // SNR_total = sqrt(N) × snrPerSub
-  const actualSNR = snrPerSub * Math.sqrt(N);
+  // SNR label
+  const actualSNR = result.snrPerSub * Math.sqrt(result.totalSubsForSNR);
   const snrLabel = actualSNR >= 80 ? 'Exceptional' : actualSNR >= 50 ? 'Excellent' : actualSNR >= 25 ? 'Good' : actualSNR >= 12 ? 'Fair' : 'Low';
 
-  // ─── Operating Band (Cosgrove's method) ──────────────────────────────
-  // Lower bound: read noise < 10% of total noise → tSub where RN² < 0.1 × (Bsky × tSub + RN²)
-  // → tSub > 9 × RN² / Bsky
-  const tSubMin = Bsky > 0 ? Math.max(10, Math.ceil(9 * RN * RN / Bsky / 5) * 5) : 10; // round to 5s
-  // Upper bound: sky + bright stars should not exceed 50% of full well
-  // Assume well depth from QE (typical CMOS: 50-100ke-), brightest star mag 4
-  const wellDepth = params.fullWellDepth || (quantumEfficiency > 0.7 ? 50000 : 100000); // e-
-  const brightStarMag = 4; // typical bright star in field
-  const brightStarFlux = Math.pow(10, 0.4 * (M_ZERO - brightStarMag + (isNarrowband ? 2 : 0)));
-  const Sbright = brightStarFlux * A * Math.pow((206.265 * pixelSize) / focalLength, 2) * quantumEfficiency * tauSignal;
-  const skyPerPixel = Bsky * 600; // worst case: 600s sub
-  const tSubMaxFromSaturation = Sbright > 0 ? Math.floor((wellDepth * 0.5 - skyPerPixel) / Sbright) : 600;
-  const tSubMax = Math.max(tSubMin + 10, Math.min(600, tSubMaxFromSaturation)); // clamp 600s
-
-  // Workflow overhead: dither + download + filter change ≈ 10-15s per sub
-  const overheadPerSub = 12; // seconds
-  const totalWithOverhead = totalExposureTime + N * overheadPerSub;
+  // tauSignal / tauSky pour rétro-compat UI
+  const tauSignal = filterProfile.transmission;
+  const tauSky = filterProfile.transmission * (1 - filterProfile.skySuppression);
 
   return [{
     filter,
-    subExposure: tSub,
-    subCount: N,
-    totalExposureTime,
-    totalWithOverhead,
+    subExposure: result.subExposureTime,
     subExposureMin: tSubMin,
     subExposureMax: tSubMax,
+    subCount: result.totalSubsForSNR,
+    totalExposureTime,
+    totalWithOverhead,
     snrEstimate: `${snrLabel} (SNR ~${actualSNR.toFixed(1)})`,
     snrValue: actualSNR,
     skyElectronRate: Bsky,
-    objectElectronRate: Sobj,
-    sampling: parseFloat(sampling.toFixed(2)),
-    darkCurrent,
+    objectElectronRate: result.sObj,
+    sampling: parseFloat(result.sampling.toFixed(2)),
+    darkCurrent: 0.0005,
     tauSignal,
     tauSky,
   }];
