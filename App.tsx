@@ -614,7 +614,51 @@ const App = () => {
   );
 };
 
-const Footer: React.FC<{ config: FooterConfig, isLoggedIn: boolean, onNavigateToLicense: () => void, onNavigateToLegalNotice: () => void, onNavigateToAdmin: () => void, onNavigateToAbout: () => void }> = ({ config, isLoggedIn, onNavigateToLicense, onNavigateToLegalNotice, onNavigateToAdmin, onNavigateToAbout }) => (
+const Footer: React.FC<{ config: FooterConfig, isLoggedIn: boolean, onNavigateToLicense: () => void, onNavigateToLegalNotice: () => void, onNavigateToAdmin: () => void, onNavigateToAbout: () => void }> = ({ config, isLoggedIn, onNavigateToLicense, onNavigateToLegalNotice, onNavigateToAdmin, onNavigateToAbout }) => {
+  const [installPrompt, setInstallPrompt] = React.useState<any>(null);
+  const [isInstalled, setIsInstalled] = React.useState(false);
+
+  React.useEffect(() => {
+    // Check if already installed (standalone mode)
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true) {
+      setIsInstalled(true);
+      return;
+    }
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) {
+      // iOS Safari doesn't support beforeinstallprompt — show instructions
+      alert('To install AstroCapture on your device:\n\niOS: Tap the Share button, then "Add to Home Screen".\n\nAndroid: Tap the menu (⋮) in Chrome, then "Install app" or "Add to Home screen".');
+      return;
+    }
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+    }
+    setInstallPrompt(null);
+  };
+
+  return (
   <footer className="mt-16 bg-surface border-t border-border py-12">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center md:text-left">
       <div className="flex flex-col md:flex-row justify-between items-center gap-8">
@@ -629,16 +673,23 @@ const Footer: React.FC<{ config: FooterConfig, isLoggedIn: boolean, onNavigateTo
       </div>
       <div className="mt-8 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
         <p className="text-sm text-text-secondary/50">System Status: Operational // v4.2.0</p>
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-4 items-center">
           <button onClick={onNavigateToAbout} className="text-sm text-text-secondary hover:text-primary">About</button>
           <button onClick={onNavigateToLicense} className="text-sm text-text-secondary hover:text-primary">License</button>
           <button onClick={onNavigateToLegalNotice} className="text-sm text-text-secondary hover:text-primary">Legal Notice</button>
           <button onClick={onNavigateToAdmin} className="text-sm text-text-secondary hover:text-primary">{isLoggedIn ? 'Dashboard' : 'Admin'}</button>
+          {!isInstalled && (
+            <button onClick={handleInstall} className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-primary transition-colors">
+              <Download size={14} />
+              Install App
+            </button>
+          )}
         </div>
       </div>
     </div>
   </footer>
-);
+  );
+};
 
 const HeroSlider: React.FC<{ slides: HeroSlide[], onNavigate: (url: string) => void }> = ({ slides, onNavigate }) => {
   const [currentIndex, setCurrentIndex] = React.useState(0);
