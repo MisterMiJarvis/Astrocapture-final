@@ -1,56 +1,55 @@
+// AstroCapture Service Worker v4 — PWA with app shell caching + offline fallback
 
-// A name for our cache, including a version number for easy updates.
-const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v3';
+const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v4';
 const ALADIN_CACHE_NAME = 'aladin-tile-cache-v1';
+const APP_SHELL_CACHE_NAME = 'astrocapture-app-shell-v1';
 
-// A list of all caches that are currently in use.
-// When updating a cache version, change the name above and the old one will be
-// automatically cleaned up during the 'activate' event.
-const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME];
+const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME, APP_SHELL_CACHE_NAME];
 
-// The origin of the images we want to cache (self-hosted uploads).
 const IMAGE_ORIGIN = self.location.origin;
 
-/**
- * Implements the "Stale-While-Revalidate" caching strategy.
- * This strategy serves content from the cache immediately if available,
- * providing a fast user experience, while simultaneously fetching an updated
- * version from the network to keep the cache fresh for the next visit.
- *
- * @param {Request} request The request to handle.
- * @returns {Promise<Response>} A promise that resolves to a response.
- */
+// App shell — the core assets needed for offline use
+const APP_SHELL_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/favicon.svg',
+];
+
+// ─── Install: pre-cache app shell ─────────────────────────────────────────────
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(APP_SHELL_CACHE_NAME).then((cache) => {
+      return cache.addAll(APP_SHELL_ASSETS).catch((err) => {
+        console.warn('SW: Some app shell assets failed to cache:', err);
+      });
+    })
+  );
+  // Take control immediately
+  self.skipWaiting();
+});
+
+// ─── Stale-While-Revalidate for images ────────────────────────────────────────
 const staleWhileRevalidate = async (request) => {
   const cache = await caches.open(IMAGE_CACHE_NAME);
-  const cachedResponsePromise = await cache.match(request);
+  const cachedResponse = await cache.match(request);
 
-  const fetchPromise = fetch(request).then(networkResponse => {
-    // If we get a valid response, update the cache with the new version.
+  const fetchPromise = fetch(request).then((networkResponse) => {
     if (networkResponse && networkResponse.status === 200) {
       cache.put(request, networkResponse.clone());
     }
     return networkResponse;
-  }).catch(err => {
-    // The network failed, but we can still rely on the cache if it exists.
-    console.warn('Service Worker: Network request failed for', request.url, err);
-    // If the network fails and we have a cached response, this error is gracefully handled.
-    // If not, the promise will reject, and the browser will show its default network error page.
+  }).catch((err) => {
+    console.warn('SW: Network failed for', request.url, err);
   });
 
-  // Return the cached response immediately if it exists, otherwise wait for the network.
-  return cachedResponsePromise || fetchPromise;
+  return cachedResponse || fetchPromise;
 };
 
-
-/**
- * Implements a "Cache-First" then "Network" strategy for Aladin Lite tiles.
- * This is necessary because Aladin requests resources from servers that may not
- * provide CORS headers. Fetching with 'no-cors' mode is required, which results
- * in an "opaque" response. We can cache these, but we can't inspect their status.
- *
- * @param {Request} request The request to handle.
- * @returns {Promise<Response>} A promise that resolves to a response.
- */
+// ─── Cache-First for Aladin tiles (no-cors) ───────────────────────────────────
 const aladinCacheFirst = async (request) => {
   const cache = await caches.open(ALADIN_CACHE_NAME);
   const cachedResponse = await cache.match(request);
@@ -60,30 +59,50 @@ const aladinCacheFirst = async (request) => {
   }
 
   try {
-    // FIX: Reconstruct the request to ensure it's a simple request compatible
-    // with 'no-cors' mode. This prevents TypeErrors when fetching resources
-    // from servers that don't provide CORS headers, like some map tile servers.
     const newRequest = new Request(request.url, {
       mode: 'no-cors',
-      credentials: 'omit', // Explicitly omit credentials to improve CORS compatibility
+      credentials: 'omit',
     });
-
     const networkResponse = await fetch(newRequest);
-    
-    // We put a clone of the response into the cache.
-    // This will be an 'opaque' response, which is acceptable for caching these assets.
     await cache.put(request, networkResponse.clone());
-    
     return networkResponse;
   } catch (error) {
-    console.error('Service Worker: Fetch failed for Aladin resource:', request.url, error);
-    // Rethrow the error to let the browser handle the network failure.
+    console.error('SW: Aladin fetch failed:', request.url, error);
     throw error;
   }
 };
 
+// ─── Network-First for navigation (HTML pages) with offline fallback ──────────
+const networkFirstWithFallback = async (request) => {
+  try {
+    const networkResponse = await fetch(request);
+    // Cache successful HTML responses
+    if (networkResponse && networkResponse.status === 200) {
+      const cache = await caches.open(APP_SHELL_CACHE_NAME);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (err) {
+    // Network failed — try cache
+    const cache = await caches.open(APP_SHELL_CACHE_NAME);
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    // Final fallback to cached index.html (app shell)
+    const fallback = await cache.match('/index.html');
+    if (fallback) {
+      return fallback;
+    }
+    // Last resort: a simple offline page
+    return new Response(
+      '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AstroCapture — Offline</title><style>body{background:#0a0f1a;color:#e8eaf6;font-family:Inter,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}.container{max-width:400px;padding:2rem}h1{color:#3b82f6;font-size:1.5rem}p{opacity:0.7;margin-top:0.5rem}</style></head><body><div class="container"><h1>🔭 AstroCapture</h1><p>You are offline. Your cached content will appear when you reconnect.</p></div></body></html>',
+      { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
+  }
+};
 
-// Intercept fetch events.
+// ─── Fetch handler ────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
@@ -92,31 +111,42 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy for AstroCapture images (self-hosted)
-  // Only cache /uploads/ paths — never cache /api/ requests
+  // Navigation requests (HTML pages) → Network-First with offline fallback
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkFirstWithFallback(event.request));
+    return;
+  }
+
+  // Self-hosted images → Stale-While-Revalidate
   if (requestUrl.origin === IMAGE_ORIGIN && requestUrl.pathname.startsWith('/uploads/')) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
 
-  // Strategy for Aladin Lite map tiles and properties. These requests often
-  // lack CORS headers, and the service worker context requires us to handle this.
-  // We identify them by the '/hips/' path segment, a common convention.
+  // Aladin/HIPS tiles → Cache-First (no-cors)
   if (requestUrl.pathname.includes('/hips/')) {
     event.respondWith(aladinCacheFirst(event.request));
     return;
   }
+
+  // Static assets from same origin (JS, CSS, icons) → Stale-While-Revalidate
+  if (requestUrl.origin === IMAGE_ORIGIN) {
+    event.respondWith(staleWhileRevalidate(event.request));
+    return;
+  }
 });
 
-// Clean up old caches when a new service worker activates.
+// ─── Activate: clean up old caches ────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter(name => !ACTIVE_CACHES.includes(name)) // Find all caches not in our active list
-          .map(name => caches.delete(name)) // and delete them
+          .filter((name) => !ACTIVE_CACHES.includes(name))
+          .map((name) => caches.delete(name))
       );
     })
   );
+  // Take control of all clients immediately
+  self.clients.claim();
 });

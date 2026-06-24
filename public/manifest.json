@@ -3,18 +3,37 @@
   "short_name": "AstroCapture",
   "description": "Astrophotography Portfolio & Blog — Explore the cosmos one frame at a time",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0a0f1a",
   "theme_color": "#3b82f6",
-  "orientation": "portrait-primary",
+  "categories": ["photography", "education"],
+  "lang": "en",
   "icons": [
     {
-      "src": "/uploads/0760ac98-970b-4f95-92a4-e043634b2d7b.ico",
-      "sizes": "any",
-      "type": "image/x-icon",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ],
-  "categories": ["photography", "education"],
-  "lang": "en"
+  ]
 }
