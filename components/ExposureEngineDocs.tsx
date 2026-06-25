@@ -29,23 +29,23 @@ const EXAMPLE_TARGETS = [
 ];
 
 const ExposureEngineDocs: React.FC = () => {
-  const [activeView, setActiveView] = useState<'docs' | 'calculator'>('docs');
+  const [activeView, setActiveView] = useState<'docs' | 'calculator'>('calculator');
 
   return (
     <div className="space-y-6">
       {/* Toggle */}
       <div className="flex gap-2 bg-surface-secondary rounded-lg p-1 w-fit">
         <button
-          onClick={() => setActiveView('docs')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeView === 'docs' ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text'}`}
-        >
-          📖 Documentation
-        </button>
-        <button
           onClick={() => setActiveView('calculator')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeView === 'calculator' ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text'}`}
         >
           🧮 Interactive Calculator
+        </button>
+        <button
+          onClick={() => setActiveView('docs')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeView === 'docs' ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text'}`}
+        >
+          📖 Documentation
         </button>
       </div>
 
