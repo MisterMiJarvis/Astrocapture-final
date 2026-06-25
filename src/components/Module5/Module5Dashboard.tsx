@@ -18,7 +18,7 @@ interface Module5DashboardProps {
 }
 
 /**
- * Dashboard du Module 5 — regroupe tous les composants.
+ * Module 5 Dashboard — groups all environment & exposure components.
  */
 export const Module5Dashboard: React.FC<Module5DashboardProps> = ({
   sqmModel,
@@ -28,9 +28,9 @@ export const Module5Dashboard: React.FC<Module5DashboardProps> = ({
   return (
     <div className="space-y-6 p-4">
       <header>
-        <h2 className="text-2xl font-bold">Module 5 — Environnement & Exposition</h2>
+        <h2 className="text-2xl font-bold">Module 5 — Environment & Exposure</h2>
         <p className="text-gray-500">
-          Modélisation SQM, filtres, calculateur d'exposition et simulateur SNR
+          SQM modeling, filters, exposure calculator and SNR simulator
         </p>
       </header>
 

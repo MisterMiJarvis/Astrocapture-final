@@ -24,7 +24,7 @@ interface FilterSelectorProps {
 }
 
 /**
- * Sélecteur de filtres avec indicateur de compatibilité Lune.
+ * Filter selector with Moon compatibility indicator.
  */
 export const FilterSelector: React.FC<FilterSelectorProps> = ({
   selectedFilter,
@@ -36,7 +36,7 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Filtre</h3>
+      <h3 className="text-lg font-semibold">Filter</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {(Object.keys(FILTER_PROFILES) as FilterType[]).map((type) => {
           const profile = FILTER_PROFILES[type];
@@ -66,9 +66,9 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
               </div>
               <div className="mt-1 flex items-center gap-1">
                 {profile.moonCompatible ? (
-                  <span className="text-xs text-green-600">🌙 Compatible Lune</span>
+                  <span className="text-xs text-green-600">🌙 Moon compatible</span>
                 ) : (
-                  <span className="text-xs text-red-400">🚫 Lune</span>
+                  <span className="text-xs text-red-400">🚫 Moon</span>
                 )}
               </div>
             </button>
@@ -84,7 +84,7 @@ interface SQMDisplayProps {
 }
 
 /**
- * Gauge SQM avec zones colorées.
+ * SQM gauge with color zones.
  */
 export const SQMDisplay: React.FC<SQMDisplayProps> = ({ sqmModel }) => {
   const getColor = (sqm: number) => {
@@ -101,7 +101,7 @@ export const SQMDisplay: React.FC<SQMDisplayProps> = ({ sqmModel }) => {
 
   return (
     <div className="p-4 bg-white rounded-lg border">
-      <h3 className="text-lg font-semibold mb-3">SQM Dynamique</h3>
+      <h3 className="text-lg font-semibold mb-3">Dynamic SQM</h3>
       <div className="flex items-center gap-4">
         <div className={`text-3xl font-bold ${getColor(sqmModel.sqmEffective)}`}>
           {sqmModel.sqmEffective.toFixed(1)}
@@ -116,19 +116,19 @@ export const SQMDisplay: React.FC<SQMDisplayProps> = ({ sqmModel }) => {
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>17 (Ville)</span>
-            <span>20 (Banlieue)</span>
+            <span>17 (City)</span>
+            <span>20 (Suburban)</span>
             <span>21.5 (Rural)</span>
-            <span>23 (Noir)</span>
+            <span>23 (Dark)</span>
           </div>
         </div>
       </div>
       <div className="mt-3 text-sm text-gray-600 space-y-1">
-        <p>Base : {sqmModel.sqmBase} mag/arcsec²</p>
-        <p>Dégradation Lune : -{sqmModel.degradation} mag</p>
-        <p>Bortle estimé : {sqmModel.bortleScale}</p>
-        <p>Phase Lune : {(sqmModel.moonPhase * 100).toFixed(0)}% | Altitude : {sqmModel.moonAltitude.toFixed(0)}°</p>
-        <p>Séparation cible-Lune : {sqmModel.targetMoonSeparation.toFixed(1)}°</p>
+        <p>Base: {sqmModel.sqmBase} mag/arcsec²</p>
+        <p>Moon degradation: -{sqmModel.degradation} mag</p>
+        <p>Estimated Bortle: {sqmModel.bortleScale}</p>
+        <p>Moon phase: {(sqmModel.moonPhase * 100).toFixed(0)}% | Altitude: {sqmModel.moonAltitude.toFixed(0)}°</p>
+        <p>Target-Moon separation: {sqmModel.targetMoonSeparation.toFixed(1)}°</p>
       </div>
     </div>
   );
@@ -146,7 +146,7 @@ interface ExposureCalculatorProps {
 }
 
 /**
- * Formulaire calculateur d'exposition avec pipeline physique.
+ * Exposure calculator form with physics-based pipeline.
  */
 export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
   rigProfile,
@@ -180,7 +180,7 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
   return (
     <div className="space-y-6">
       <div className="p-4 bg-white rounded-lg border">
-        <h3 className="text-lg font-semibold mb-4">Calculateur d'Exposition</h3>
+        <h3 className="text-lg font-semibold mb-4">Exposure Calculator</h3>
 
         <FilterSelector
           selectedFilter={filterType}
@@ -191,25 +191,25 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium">Facteur k</label>
+            <label className="block text-sm font-medium">k Factor</label>
             <select
               value={kFactor}
               onChange={(e) => setKFactor(Number(e.target.value) as 5 | 10)}
               className="mt-1 block w-full rounded border-gray-300"
             >
-              <option value={5}>k = 5 (conservateur)</option>
-              <option value={10}>k = 10 (agressif)</option>
+              <option value={5}>k = 5 (conservative)</option>
+              <option value={10}>k = 10 (aggressive)</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Réducteur</label>
+            <label className="block text-sm font-medium">Reducer</label>
             <select
               value={reducerFactor}
               onChange={(e) => setReducerFactor(Number(e.target.value))}
               className="mt-1 block w-full rounded border-gray-300"
             >
-              <option value={1.0}>Sans réducteur (1.0×)</option>
+              <option value={1.0}>No reducer (1.0×)</option>
               <option value={0.73}>×0.73 (TS-Optics)</option>
               <option value={0.8}>×0.8</option>
               <option value={0.6}>×0.6</option>
@@ -218,24 +218,24 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
         </div>
       </div>
 
-      {/* Résultat */}
+      {/* Result */}
       <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h4 className="font-semibold text-blue-900">Résultat — Pipeline v9</h4>
+        <h4 className="font-semibold text-blue-900">Result — Pipeline v9</h4>
         <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
-            <p className="text-sm text-blue-700">Temps de pose optimal</p>
+            <p className="text-sm text-blue-700">Optimal sub-exposure</p>
             <p className="text-2xl font-bold text-blue-900">
               {result.subExposureTime}s
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">B_sky (fond de ciel)</p>
+            <p className="text-sm text-blue-700">B_sky (sky background)</p>
             <p className="text-xl font-bold text-blue-900">
               {result.bSky.toFixed(2)} e⁻/px/s
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">S_obj (signal objet)</p>
+            <p className="text-sm text-blue-700">S_obj (object signal)</p>
             <p className="text-xl font-bold text-blue-900">
               {result.sObj.toFixed(3)} e⁻/px/s
             </p>
@@ -247,31 +247,31 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">SNR par pose</p>
+            <p className="text-sm text-blue-700">SNR per sub</p>
             <p className="text-xl font-bold text-blue-900">
               {result.snrPerSub.toFixed(1)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">Contraste (S/B)</p>
+            <p className="text-sm text-blue-700">Contrast (S/B)</p>
             <p className="text-xl font-bold text-blue-900">
               {result.contrast.toFixed(2)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">Poses requises</p>
+            <p className="text-sm text-blue-700">Required subs</p>
             <p className="text-xl font-bold text-blue-900">
               {result.totalSubsForSNR} subs
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">Temps total</p>
+            <p className="text-sm text-blue-700">Total integration</p>
             <p className="text-xl font-bold text-blue-900">
               {result.totalIntegrationHours.toFixed(1)}h
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">SNR cible effectif</p>
+            <p className="text-sm text-blue-700">Effective target SNR</p>
             <p className="text-xl font-bold text-blue-900">
               {result.effectiveTargetSNR.toFixed(0)}
             </p>
@@ -285,26 +285,26 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
         )}
       </div>
 
-      {/* Impact réducteur */}
+      {/* Reducer impact */}
       {impact && (
         <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-          <h4 className="font-semibold text-purple-900">Impact du Réducteur</h4>
+          <h4 className="font-semibold text-purple-900">Reducer Impact</h4>
           <div className="mt-2 grid grid-cols-3 gap-4">
             <div>
-              <p className="text-sm text-purple-700">Sans réducteur</p>
+              <p className="text-sm text-purple-700">Without reducer</p>
               <p className="text-xl font-bold">{impact.withoutReducer.subExposureTime}s</p>
             </div>
             <div>
-              <p className="text-sm text-purple-700">Avec réducteur</p>
+              <p className="text-sm text-purple-700">With reducer</p>
               <p className="text-xl font-bold">{impact.withReducer.subExposureTime}s</p>
             </div>
             <div>
-              <p className="text-sm text-purple-700">Gain de temps</p>
+              <p className="text-sm text-purple-700">Time saved</p>
               <p className="text-xl font-bold text-green-700">-{impact.timeSavedPercent}%</p>
             </div>
           </div>
           <p className="mt-2 text-sm text-purple-800">
-            Votre réducteur divise le temps de pose par {impact.ratio.toFixed(2)}×
+            Your reducer divides exposure time by {impact.ratio.toFixed(2)}×
           </p>
         </div>
       )}
@@ -325,8 +325,8 @@ interface ReducerImpactChartProps {
 }
 
 /**
- * Graphique comparatif avec/sans réducteur.
- * Affiche un simple bar chart SVG.
+ * Reducer impact comparison chart.
+ * Simple SVG bar chart.
  */
 export const ReducerImpactChart: React.FC<ReducerImpactChartProps> = ({
   rigProfile,
@@ -342,7 +342,7 @@ export const ReducerImpactChart: React.FC<ReducerImpactChartProps> = ({
       skyMagnitude: sqmModel.sqmEffective,
       aperture: rigProfile.aperture,
       pixelSize: rigProfile.pixelSize / factor,
-      focalLength: 500 * factor, // Focale de référence
+      focalLength: 500 * factor,
       quantumEfficiency: rigProfile.quantumEfficiency,
       filterTransmission: FILTER_PROFILES[filterType].transmission,
       readNoise: rigProfile.readNoise,
@@ -357,7 +357,7 @@ export const ReducerImpactChart: React.FC<ReducerImpactChartProps> = ({
 
   return (
     <div className="p-4 bg-white rounded-lg border">
-      <h4 className="font-semibold">Impact Réducteur — Temps de Pose</h4>
+      <h4 className="font-semibold">Reducer Impact — Exposure Time</h4>
       <svg viewBox="0 0 320 250" className="w-full mt-4">
         {data.map((value, i) => {
           const height = (value / max) * chartHeight;
@@ -395,7 +395,7 @@ export const ReducerImpactChart: React.FC<ReducerImpactChartProps> = ({
         })}
       </svg>
       <p className="text-xs text-gray-500 mt-2">
-        Référence : focale 500mm, capteur standard. B_sky augmente quand F diminue.
+        Reference: 500mm focal length, standard sensor. B_sky increases as F decreases.
       </p>
     </div>
   );
@@ -413,8 +413,8 @@ interface SNRSimulatorProps {
 }
 
 /**
- * Simulateur SNR vs nombre de poses.
- * Affiche une courbe SVG simple.
+ * SNR vs sub count simulator.
+ * Simple SVG curve.
  */
 export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
   rigProfile,
@@ -425,7 +425,6 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
   const [maxSubs, setMaxSubs] = useState(100);
   const [subDuration, setSubDuration] = useState(180);
 
-  // simulateSNR est importé en haut du fichier via ES module
   const simulation = simulateSNR(
     {
       skyMagnitude: sqmModel.sqmEffective,
@@ -457,11 +456,11 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
 
   return (
     <div className="p-4 bg-white rounded-lg border">
-      <h4 className="font-semibold">Simulateur SNR</h4>
+      <h4 className="font-semibold">SNR Simulator</h4>
 
       <div className="mt-3 grid grid-cols-3 gap-4">
         <div>
-          <label className="text-sm">SNR cible</label>
+          <label className="text-sm">Target SNR</label>
           <input
             type="number"
             value={targetSNR}
@@ -470,7 +469,7 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
           />
         </div>
         <div>
-          <label className="text-sm">Max poses</label>
+          <label className="text-sm">Max subs</label>
           <input
             type="number"
             value={maxSubs}
@@ -479,7 +478,7 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
           />
         </div>
         <div>
-          <label className="text-sm">Durée pose (s)</label>
+          <label className="text-sm">Sub duration (s)</label>
           <input
             type="number"
             value={subDuration}
@@ -507,7 +506,7 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
             stroke="#ccc"
           />
 
-          {/* Ligne cible SNR */}
+          {/* Target SNR line */}
           <line
             x1={padding}
             y1={yScale(targetSNR)}
@@ -524,7 +523,7 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
             SNR={targetSNR}
           </text>
 
-          {/* Ligne SNR=30 (détection) */}
+          {/* SNR=30 (detection) line */}
           <line
             x1={padding}
             y1={yScale(30)}
@@ -541,10 +540,10 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
             SNR=30
           </text>
 
-          {/* Courbe */}
+          {/* Curve */}
           <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth={2} />
 
-          {/* Point cible atteint */}
+          {/* Target reached point */}
           {simulation.subsToReachTarget < maxSubs && (
             <g>
               <circle
@@ -564,14 +563,14 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
             </g>
           )}
 
-          {/* Labels axes */}
+          {/* Axis labels */}
           <text
             x={width / 2}
             y={height - 8}
             textAnchor="middle"
             className="text-xs fill-gray-500"
           >
-            Nombre de poses
+            Number of subs
           </text>
           <text
             x={12}
@@ -587,7 +586,7 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
 
       <div className="mt-3 text-sm text-gray-600">
         <p>
-          🎯 Atteint en {simulation.subsToReachTarget} poses ({simulation.minutesToReachTarget} min)
+          🎯 Reached in {simulation.subsToReachTarget} subs ({simulation.minutesToReachTarget} min)
         </p>
       </div>
     </div>

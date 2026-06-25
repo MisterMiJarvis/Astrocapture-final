@@ -73,8 +73,8 @@ const DocsView: React.FC = () => (
           { n: 2, title: 'Optical Sampling', formula: 's = (206.265 × p) / (F × fR) | A = π × (D/2000)²', desc: 'Effective focal length with reducer, arcsec/pixel sampling, collecting area' },
           { n: 3, title: 'Sky Flux (B_sky)', formula: 'B_sky = 10^(0.4×(26.59-sqmEff)) × A × s² × QE × τ_eff', desc: 'Sky background electron rate per pixel per second' },
           { n: 4, title: 'Optimal Sub-Exposure', formula: 't_opt = k_dyn × RN² / B_sky → clamp 30-600s', desc: 'k=2.5 (narrowband) or 5.0 (broadband), intelligent clamping (configurable in v9)' },
-          { n: 5, title: 'Object Signal & SNR', formula: 'SNR_sub = (S_obj × t_sub) / √((S_obj+B_sky+dc)×t_sub + RN²)', desc: 'Object signal with continuumTransmission, total noise including dark current. Dark current warning if dc×t_sub > 0.1×RN²' },
-          { n: 6, title: 'Target SNR & N_subs', formula: 'N = max(minSubs, ⌈(effTarget/SNR_sub)²⌉)', desc: 'Fixed SNR target by type, sizeWeighting capped 0.5-5.0, floor 15-20 subs. Mission impossible warning if total > 15h' },
+          { n: 5, title: 'Object Signal & SNR', formula: 'SNR_sub = (S_obj × t_sub) / √((S_obj+B_sky+dc)×t_sub + RN²)', desc: 'Object signal with continuumTransmission, total noise including dark current. Dark current warning if dc×t_sub &gt; 0.1×RN²' },
+          { n: 6, title: 'Target SNR & N_subs', formula: 'N = max(minSubs, ⌈(effTarget/SNR_sub)²⌉)', desc: 'Fixed SNR target by type, sizeWeighting capped 0.5-5.0, floor 15-20 subs. Mission impossible warning if total &gt; 15h' },
         ].map(s => (
           <div key={s.n} className="flex gap-4">
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">{s.n}</div>
@@ -93,7 +93,7 @@ const DocsView: React.FC = () => (
       <h2 className="text-lg font-bold text-yellow-300 mb-3">⚠️ Known Limitations</h2>
       <div className="space-y-2 text-sm text-text-secondary">
         <p><strong>M_ZERO = 26.59</strong> — AB V-band zeropoint (~0.3–0.8 mag uncertainty). The night sky spectrum (OH lines, sodium, LED) and emission nebulae (Hα ~0.6nm) differ from a flat-frequency reference. Errors partially cancel in differential (SB_obj and B_sky use the same constant). Shared by all market tools — documented per Claude AI review 25/06/2026.</p>
-        <p><strong>Dark current</strong> — Default 0.0005 e⁻/px/s assumes a cooled sensor (ASI2600/IMX571). Uncooled sensors in summer can reach 0.01–0.05. Warning triggered when dc × t_sub > 0.1 × RN².</p>
+        <p><strong>Dark current</strong> — Default 0.0005 e⁻/px/s assumes a cooled sensor (ASI2600/IMX571). Uncooled sensors in summer can reach 0.01–0.05. Warning triggered when dc × t_sub &gt; 0.1 × RN².</p>
         <p><strong>Clamping</strong> — Default 30-600s (narrowband) / 60-300s (broadband). Configurable via clampMin/clampMax params since v9.</p>
       </div>
     </section>
@@ -205,7 +205,7 @@ const DocsView: React.FC = () => (
         <p><strong>sizeWeighting</strong> = √(diameter_px / 100), capped between 0.5 and 5.0</p>
         <p><strong>effectiveTargetSNR</strong> = target_SNR / sizeWeighting</p>
         <p><strong>Sub floor</strong>: 20 (broadband) / 15 (narrowband) — anti-cosmics, satellites, sigma-clipping</p>
-        <p><strong>Mission impossible</strong>: warning if total integration > 15h</p>
+        <p><strong>Mission impossible</strong>: warning if total integration &gt; 15h</p>
       </div>
     </section>
 
