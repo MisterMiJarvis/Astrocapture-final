@@ -21,8 +21,16 @@ import {
 } from '../../types/module5';
 
 // Constantes physiques
-const M_ZERO = 26.59;        // Magnitude zéro (photons/m²/s/arcsec²)
+// NOTE: M_ZERO = 26.59 est le zeropoint AB en V-band (photons/m²/s/arcsec²).
+// Limitation connue (~0.3–0.8 mag d'incertitude) : le spectre du ciel nocturne
+// (raies OH, sodium, LED) et des nébuleuses en émission (Hα ~0.6nm) diffère
+// d'un spectre plat en fréquence. Les erreurs s'annulent partiellement en
+// différentiel (SB_obj et B_sky utilisent la même constante). Ne pas corriger
+// sans intégration spectrale complète. Tous les outils du marché partagent
+// cette limitation. — Documenté suite review Claude AI 25/06/2026.
+const M_ZERO = 26.59;        // Magnitude zéro AB V-band (photons/m²/s/arcsec²)
 const GUARD = 1e-6;          // Constante de garde anti division par zéro
+const MISSION_IMPOSSIBLE_HOURS = 15; // Seuil "mission impossible" pour le total d'intégration
 
 // ============================================================================
 // PROFILS DE FILTRES v5 — avec continuumTransmission
@@ -222,17 +230,24 @@ export function calculateOptimalSubExposure(
   bSky: number,
   readNoise: number,
   kFactor: number,
-  filterBandwidthNm: number
+  filterBandwidthNm: number,
+  clampMin?: number,
+  clampMax?: number,
 ): { tOptimumRaw: number; tSub: number; kDynamic: number } {
   // k dynamique : narrowband tolère sous-swamping pour préserver tracking/étoiles
   const kDynamic = filterBandwidthNm <= 12 ? 2.5 : 5.0;
   const tOptimumRaw = (kDynamic * readNoise * readNoise) / Math.max(GUARD, bSky);
 
   // Clamping intelligent selon le type de filtre
+  // v9 : bornes configurables via clampMin/clampMax (sinon valeurs par défaut)
+  // Claude AI note : 30s peut être trop conservateur pour narrowband 3nm sous Bortle 2-3
+  // et 600s peut être insuffisant pour Halpha petite ouverture sous LP
   const isBroadband = filterBandwidthNm > 50;
-  const tSub = isBroadband
-    ? Math.max(60, Math.min(300, Math.round(tOptimumRaw / 10) * 10))
-    : Math.max(30, Math.min(600, Math.round(tOptimumRaw / 10) * 10));
+  const defaultMin = isBroadband ? 60 : 30;
+  const defaultMax = isBroadband ? 300 : 600;
+  const min = clampMin ?? defaultMin;
+  const max = clampMax ?? defaultMax;
+  const tSub = Math.max(min, Math.min(max, Math.round(tOptimumRaw / 10) * 10));
 
   return { tOptimumRaw, tSub, kDynamic };
 }
@@ -257,7 +272,7 @@ export function calculateObjectSignalAndSNR(
   darkCurrent: number,
   tSub: number,
   readNoise: number
-): { sObj: number; noiseSub: number; snrPerSub: number } {
+): { sObj: number; noiseSub: number; snrPerSub: number; darkCurrentWarning?: string } {
   const objectFlux = Math.pow(10, 0.4 * (M_ZERO - objectSurfaceBrightness));
   const tauObj = isEmissionNebula
     ? filterTransmission
@@ -270,7 +285,16 @@ export function calculateObjectSignalAndSNR(
   );
   const snrPerSub = noiseSub > 0 ? (sObj * tSub) / noiseSub : 0;
 
-  return { sObj, noiseSub, snrPerSub };
+  // Warning dark current : si dc × t_sub > 0.1 × RN², le dark current devient non négligeable
+  // Capteur refroidi (ASI2600/IMX571) = 0.0005 e⁻/px/s, mais capteur non refroidi en été peut monter à 0.01-0.05
+  let darkCurrentWarning: string | undefined;
+  const dcContribution = darkCurrent * tSub;
+  const rnSquared = readNoise * readNoise;
+  if (dcContribution > 0.1 * rnSquared) {
+    darkCurrentWarning = `Dark current non négligeable : dc×t_sub = ${dcContribution.toFixed(3)} e⁻/px > 0.1×RN² (${(0.1 * rnSquared).toFixed(3)}). Vérifiez le refroidissement du capteur.`;
+  }
+
+  return { sObj, noiseSub, snrPerSub, darkCurrentWarning };
 }
 
 /**
@@ -397,7 +421,7 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
   // #3 : utiliser strictecontinueuumTransmission depuis FILTER_PROFILES
   const continuumTransmission = filterEntry?.continuumTransmission ?? 1.0;
 
-  const { sObj, noiseSub, snrPerSub } = calculateObjectSignalAndSNR(
+  const { sObj, noiseSub, snrPerSub, darkCurrentWarning } = calculateObjectSignalAndSNR(
     objectSurfaceBrightness,
     isEmissionNebula,
     apertureArea,
@@ -447,6 +471,20 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
 
   const totalIntegrationTime = Math.round((nSubs * tSub) / 60);
   const totalIntegrationHours = totalIntegrationTime / 60;
+
+  // Warning "mission impossible" : si le temps total d'intégration dépasse le seuil
+  // Suggéré par Claude AI review 25/06/2026
+  let missionWarning: string | undefined;
+  if (totalIntegrationHours > MISSION_IMPOSSIBLE_HOURS) {
+    missionWarning = `⚠️ Temps total d'intégration ${totalIntegrationHours.toFixed(1)}h — au-delà de ${MISSION_IMPOSSIBLE_HOURS}h. Considérez : (1) réduire le SNR cible, (2) un filtre plus étroit, (3) un ciel plus sombre, ou (4) multi-nuits.`;
+  }
+
+  if (darkCurrentWarning) {
+    warning = (warning ?? '') + (warning ? ' ' : '') + darkCurrentWarning;
+  }
+  if (missionWarning) {
+    warning = (warning ?? '') + (warning ? ' ' : '') + missionWarning;
+  }
 
   return {
     subExposureTime: tSub,
