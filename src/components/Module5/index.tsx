@@ -220,8 +220,8 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
 
       {/* Résultat */}
       <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h4 className="font-semibold text-blue-900">Résultat</h4>
-        <div className="mt-2 grid grid-cols-2 gap-4">
+        <h4 className="font-semibold text-blue-900">Résultat — Pipeline v9</h4>
+        <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-blue-700">Temps de pose optimal</p>
             <p className="text-2xl font-bold text-blue-900">
@@ -235,21 +235,53 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
             </p>
           </div>
           <div>
+            <p className="text-sm text-blue-700">S_obj (signal objet)</p>
+            <p className="text-xl font-bold text-blue-900">
+              {result.sObj.toFixed(3)} e⁻/px/s
+            </p>
+          </div>
+          <div>
             <p className="text-sm text-blue-700">Swamping Factor</p>
             <p className="text-xl font-bold text-blue-900">
               {result.swampingFactor.toFixed(1)}×
             </p>
           </div>
           <div>
-            <p className="text-sm text-blue-700">Poses pour SNR=100</p>
+            <p className="text-sm text-blue-700">SNR par pose</p>
+            <p className="text-xl font-bold text-blue-900">
+              {result.snrPerSub.toFixed(1)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-blue-700">Contraste (S/B)</p>
+            <p className="text-xl font-bold text-blue-900">
+              {result.contrast.toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-blue-700">Poses requises</p>
             <p className="text-xl font-bold text-blue-900">
               {result.totalSubsForSNR} subs
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-blue-700">Temps total</p>
+            <p className="text-xl font-bold text-blue-900">
+              {result.totalIntegrationHours.toFixed(1)}h
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-blue-700">SNR cible effectif</p>
+            <p className="text-xl font-bold text-blue-900">
+              {result.effectiveTargetSNR.toFixed(0)}
             </p>
           </div>
         </div>
         <p className="mt-3 text-sm text-blue-800">{result.recommendation}</p>
         {result.warning && (
-          <p className="mt-1 text-sm text-red-600">⚠️ {result.warning}</p>
+          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+            <p className="text-sm text-red-600">⚠️ {result.warning}</p>
+          </div>
         )}
       </div>
 
