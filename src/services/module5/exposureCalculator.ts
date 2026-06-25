@@ -328,7 +328,7 @@ export function calculateSubCount(
     ? (filterBandwidthNm <= 12 ? 250 : 150)
     : 100;
 
-  // v8 : sizeWeighting capé entre 0.5 et 5.0 (autorise les objets géants comme M31)
+  // v8 (historique) : sizeWeighting capé entre 0.5 et 5.0 (autorise les objets géants comme M31)
   let sizeWeighting = 1;
   if (objectDiameterArcmin > 0 && sampling > 0) {
     const diameterPx = (objectDiameterArcmin * 60) / sampling;
@@ -766,5 +766,5 @@ export function recommendFilter(
   };
 }
 
-// Les sous-fonctions v5/v6/v7/v8 sont déjà exportées individuellement
+// Les sous-fonctions v5/v6/v7/v8/v9 sont déjà exportées individuellement
 // au-dessus (export function ...). Pas besoin de re-exporter ici.

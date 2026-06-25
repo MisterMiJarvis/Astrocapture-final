@@ -41,12 +41,12 @@ function generateObsId(): string {
   return `obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ─── SNR / Exposure Calculator — Délègue au pipeline v8 (exposureCalculator.ts) ──────
+// ─── SNR / Exposure Calculator — Délègue au pipeline v9 (exposureCalculator.ts) ──────
 //
-// projectService.ts wrapper : convertit ExposureCalcParams → ExposureParams (v8)
-// puis convertit ExposureResult (v8) → ProjectExposurePlan (rétro-compat UI)
+// projectService.ts wrapper : convertit ExposureCalcParams → ExposureParams (v9)
+// puis convertit ExposureResult (v9) → ProjectExposurePlan (rétro-compat UI)
 //
-// Le pipeline physique v8 est dans src/services/module5/exposureCalculator.ts
+// Le pipeline physique v9 est dans src/services/module5/exposureCalculator.ts
 // 6 étapes : SQM effectif → sampling → B_sky → t_sub (k dyn) → SNR → N_subs
 // Calibration SkyTools : 9/10 t_sub dans 3x, 8/10 N_subs dans 3x
 // ──────────────────────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ function generateObsId(): string {
 import { calculateExposure, FILTER_PROFILES } from './module5/exposureCalculator';
 import type { ExposureParams, FilterType } from '../types/module5';
 
-const M_ZERO = 26.59; // conservé pour référence — v8 utilise le même dans exposureCalculator.ts
+const M_ZERO = 26.59; // conservé pour référence — v9 utilise le même dans exposureCalculator.ts
 
 interface ExposureCalcParams {
   targetMagnitude: number | null;
@@ -86,9 +86,9 @@ function bortleToSQM(bortle: number): number {
 }
 
 /**
- * Délègue au pipeline v8 (exposureCalculator.ts → calculateExposure)
- * Convertit ExposureCalcParams → ExposureParams (v8)
- * puis ExposureResult (v8) → ProjectExposurePlan (rétro-compat UI)
+ * Délègue au pipeline v9 (exposureCalculator.ts → calculateExposure)
+ * Convertit ExposureCalcParams → ExposureParams (v9)
+ * puis ExposureResult (v9) → ProjectExposurePlan (rétro-compat UI)
  */
 export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposurePlan[] {
   const {
@@ -127,12 +127,12 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
   };
   const sqmBase = bortleToSQM(bortle);
 
-  // ─── Moon → v8 params ──────────────────────────────────────────────────
-  // projectService a moonIllumination (0-1) → v8 veut moonPhaseFactor (0-3.5)
+  // ─── Moon → v9 params ──────────────────────────────────────────────────
+  // projectService a moonIllumination (0-1) → v9 veut moonPhaseFactor (0-3.5)
   const moonPhaseFactor = moonIllumination * 3.5;
   const moonAltitudeDeg = moonIllumination > 0 ? 45 : 0; // altitude approximative
 
-  // ─── Mapper filter string → FilterType v8 ──────────────────────────────
+  // ─── Mapper filter string → FilterType v9 ──────────────────────────────
   const FILTER_MAP: Record<string, FilterType> = {
     'UV_IR_Cut': 'UV_IR_Cut', 'UV/IR Cut': 'UV_IR_Cut',
     'L_Ultimate': 'L_Ultimate', 'L-Ultimate': 'L_Ultimate',
@@ -149,14 +149,14 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
   // Déterminer le type d'objet (émission vs continuum)
   const isEmissionNebula = ['Ha', 'OIII', 'SII', 'L_Ultimate'].includes(filter);
 
-  // ─── Construire ExposureParams (v8) ──────────────────────────────────────
-  const v8Params: ExposureParams = {
+  // ─── Construire ExposureParams (v9) ──────────────────────────────────────
+  const v9Params: ExposureParams = {
     aperture,
     focalLength,
     pixelSize,
     readNoise,
     quantumEfficiency,
-    kFactor: 5, // v8 utilise k dynamique en interne (2.5 NB / 5.0 BB)
+    kFactor: 5, // v9 utilise k dynamique en interne (2.5 NB / 5.0 BB)
     skyMagnitude: sqmBase,
     moonAltitudeDeg,
     moonPhaseFactor,
@@ -168,8 +168,8 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
     isEmissionNebula,
   };
 
-  // ─── Appeler le pipeline v8 ──────────────────────────────────────────────
-  const result = calculateExposure(v8Params);
+  // ─── Appeler le pipeline v9 ──────────────────────────────────────────────
+  const result = calculateExposure(v9Params);
 
   // ─── Operating bounds (Cosgrove) — conservé pour rétro-compat UI ──────────
   const RN = readNoise;
