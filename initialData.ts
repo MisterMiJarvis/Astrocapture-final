@@ -4,8 +4,8 @@ import { AppData } from './types';
 // FIX: Completed the INITIAL_DATA object to match the AppData type and provide default content.
 export const INITIAL_DATA: AppData = {
   version: '3.1.0-Slider',
-  logoUrl: '/uploads/1e47bea7-5d1e-474c-83d1-b9d1c41118ee.jpg',
-  faviconUrl: '/uploads/1e47bea7-5d1e-474c-83d1-b9d1c41118ee.jpg',
+  logoUrl: '/icons/icon-512.png',
+  faviconUrl: '/icons/favicon-32.png',
   
   heroSlides: [
     {
