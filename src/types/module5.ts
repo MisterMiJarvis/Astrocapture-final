@@ -3,6 +3,8 @@
 // AstroCapture v5 — Pipeline Physique Refactorisé
 // ============================================================================
 
+import { ObjectType } from '../services/module5/exposureCalculator';
+
 export type FilterType = 'UV_IR_Cut' | 'L_Ultimate' | 'LPS_D2' | 'Ha' | 'OIII' | 'SII' | 'RGB' | 'Luminance';
 
 export type DewRiskLevel = 'Safe' | 'Warning' | 'Critical';
@@ -56,6 +58,8 @@ export interface ExposureParams {
   objectSurfaceBrightness?: number;  // SB_obj — brillance de surface (mag/arcsec²)
   objectDiameterArcmin?: number;      // diamètre apparent en minutes d'arc
   isEmissionNebula?: boolean;         // true = émission, false = continuum (galaxies/amas)
+  targetName?: string;                // nom de la cible (pour auto-détection k_calib)
+  objectType?: ObjectType;            // type d'objet (surcharge manuelle du k_calib)
 
   // Filtre (rétro-compat — l'UI passe ces valeurs)
   filterTransmission: number;   // τ_filter

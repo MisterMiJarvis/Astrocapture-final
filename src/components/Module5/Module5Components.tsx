@@ -14,6 +14,10 @@ import {
   calculateEffectiveSQM,
   calculateMoonSeparation,
   simulateSNR,
+  getKCalib,
+  inferObjectType,
+  ObjectType,
+  K_CALIB_BY_TYPE,
 } from '../../services/module5/exposureCalculator';
 
 interface FilterSelectorProps {
@@ -155,6 +159,7 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
   const [filterType, setFilterType] = useState<FilterType>('L_Ultimate');
   const [kFactor, setKFactor] = useState<5 | 10>(5);
   const [reducerFactor, setReducerFactor] = useState<number>(1.0);
+  const [targetName, setTargetName] = useState<string>('');
 
   const params: ExposureParams = useMemo(
     () => ({
@@ -166,8 +171,9 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
       filterTransmission: FILTER_PROFILES[filterType].transmission,
       readNoise: rigProfile.readNoise,
       kFactor,
+      targetName: targetName || undefined,
     }),
-    [rigProfile, sqmModel, filterType, kFactor, reducerFactor]
+    [rigProfile, sqmModel, filterType, kFactor, reducerFactor, targetName]
   );
 
   const result: ExposureResult = useMemo(() => calculateExposure(params), [params]);
@@ -215,6 +221,27 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
               <option value={0.6}>×0.6</option>
             </select>
           </div>
+        </div>
+
+        {/* Target name — pour k_calib auto */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium">Target name (for calibration)</label>
+          <input
+            type="text"
+            value={targetName}
+            onChange={(e) => setTargetName(e.target.value)}
+            placeholder="e.g. M16, M27, M51, NGC6888..."
+            className="mt-1 block w-full rounded border-gray-300 px-2 py-1"
+          />
+          {targetName && (() => {
+            const objType = inferObjectType(targetName);
+            const k = getKCalib(objType);
+            return (
+              <p className="mt-1 text-xs text-gray-500">
+                Detected: <span className="font-medium">{objType}</span> → k_calib = <span className="font-mono">{k.toFixed(3)}</span>
+              </p>
+            );
+          })()}
         </div>
       </div>
 
@@ -306,6 +333,71 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
           <p className="mt-2 text-sm text-purple-800">
             Your reducer divides exposure time by {impact.ratio.toFixed(2)}×
           </p>
+        </div>
+      )}
+
+      {/* Calibration info panel */}
+      <CalibrationInfoPanel />
+    </div>
+  );
+};
+
+// ============================================================================
+// CALIBRATION INFO PANEL — k_calib par type d'objet
+// ============================================================================
+
+const CALIB_ROWS = [
+  { type: 'Diffuse nebula', key: 'diffuse_nebula' as ObjectType, k: K_CALIB_BY_TYPE.diffuse_nebula, n: 5, note: 'M16=0.99 (reference). Reliable if uniform SB.' },
+  { type: 'Planetary nebula', key: 'planetary_nebula' as ObjectType, k: K_CALIB_BY_TYPE.planetary_nebula, n: 2, note: 'Pipeline over-estimates (bright core vs faint halo).' },
+  { type: 'Galaxy', key: 'galaxy' as ObjectType, k: K_CALIB_BY_TYPE.galaxy, n: 2, note: 'Pipeline under-estimates (core captured).' },
+  { type: 'Stellar cluster', key: 'stellar' as ObjectType, k: K_CALIB_BY_TYPE.stellar, n: 1, note: 'Not enough data.' },
+];
+
+const CalibrationInfoPanel: React.FC = () => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="p-4 bg-gray-50 rounded-lg border">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700">🔬 SNR Calibration — k_calib by object type</h3>
+        <span className="text-gray-400">{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        >
+        <p className="text-xs text-gray-500 mt-2 mb-3">
+          Coefficients measured by aperture photometry on 10 master FITS sessions (2026-06-29).
+          Applied to S_obj (object signal) in the SNR calculation. Refined as new sessions are added.
+        </p>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-1">Object type</th>
+              <th className="text-right">k_calib</th>
+              <th className="text-right">Sessions</th>
+              <th className="text-left pl-3">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CALIB_ROWS.map((r) => (
+              <tr key={r.key} className="border-b border-gray-200">
+                <td className="py-1 font-medium">{r.type}</td>
+                <td className="text-right font-mono">{r.k.toFixed(3)}</td>
+                <td className="text-right text-gray-400">{r.n}</td>
+                <td className="text-left pl-3 text-gray-400">{r.note}</td>
+              </tr>
+            ))}
+            <tr className="border-b border-gray-200">
+              <td className="py-1 font-medium">Unknown</td>
+              <td className="text-right font-mono">1.000</td>
+              <td className="text-right text-gray-400">—</td>
+              <td className="text-left pl-3 text-gray-400">No correction</td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="mt-2 text-xs text-gray-400">
+          <p>Method: astropy aperture photometry on 16-bit non-normalized master FITS. Adaptive aperture based on target diameter.</p>
+          <p>Script: astro-calibration/run-calibration.py</p>
         </div>
       )}
     </div>

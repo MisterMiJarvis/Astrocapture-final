@@ -460,7 +460,11 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
   );
 
   // --- Étape 5 : Signal objet & SNR ---
-  // #3 : utiliser strictecontinueuumTransmission depuis FILTER_PROFILES
+  // k_calib : calibration empirique par type d'objet (29/06/2026)
+  const objectType = params.objectType ?? (params.targetName ? inferObjectType(params.targetName) : 'unknown');
+  const kCalib = getKCalib(objectType);
+
+  // #3 : utiliser continuumTransmission depuis FILTER_PROFILES
   const continuumTransmission = filterEntry?.continuumTransmission ?? 1.0;
 
   const { sObj, noiseSub, snrPerSub, darkCurrentWarning } = calculateObjectSignalAndSNR(
@@ -474,7 +478,8 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
     bSky,
     darkCurrent,
     tSub,
-    params.readNoise
+    params.readNoise,
+    kCalib
   );
 
   // --- Étape 6 : N_subs (v7 — SNR target métier + plancher minimum) ---
