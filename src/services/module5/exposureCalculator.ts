@@ -40,7 +40,7 @@ const MISSION_IMPOSSIBLE_HOURS = 15; // Seuil "mission impossible" pour le total
 
 export type ObjectType = 'diffuse_nebula' | 'planetary_nebula' | 'galaxy' | 'stellar' | 'unknown';
 
-const K_CALIB_BY_TYPE: Record<ObjectType, number> = {
+export const K_CALIB_BY_TYPE: Record<ObjectType, number> = {
   diffuse_nebula:   0.223,  // 5 sessions, médiane. M16=0.99 (référence)
   planetary_nebula: 0.019,  // 2 sessions M27. Pipeline sur-estime (core bright vs halo)
   galaxy:           2.572,  // 2 sessions M51/M63. Pipeline sous-estime (core capturé)
