@@ -33,6 +33,47 @@ const GUARD = 1e-6;          // Constante de garde anti division par zéro
 const MISSION_IMPOSSIBLE_HOURS = 15; // Seuil "mission impossible" pour le total d'intégration
 
 // ============================================================================
+// k_calib PAR TYPE D'OBJET — Calibration empirique (29/06/2026)
+// Mesuré sur 10 sessions master FITS vs pipeline. À affiner au fur et à mesure.
+// Source: astro-calibration/run-calibration.py (astropy aperture photometry)
+// ============================================================================
+
+export type ObjectType = 'diffuse_nebula' | 'planetary_nebula' | 'galaxy' | 'stellar' | 'unknown';
+
+const K_CALIB_BY_TYPE: Record<ObjectType, number> = {
+  diffuse_nebula:   0.223,  // 5 sessions, médiane. M16=0.99 (référence)
+  planetary_nebula: 0.019,  // 2 sessions M27. Pipeline sur-estime (core bright vs halo)
+  galaxy:           2.572,  // 2 sessions M51/M63. Pipeline sous-estime (core capturé)
+  stellar:          2.905,  // 1 session c4. Trop peu de données
+  unknown:          1.0,    // Pas de correction par défaut
+};
+
+/**
+ * Retourne le k_calib selon le type d'objet.
+ * Appliqué sur S_obj (signal objet) dans le calcul de SNR.
+ */
+export function getKCalib(objectType: ObjectType): number {
+  return K_CALIB_BY_TYPE[objectType] ?? 1.0;
+}
+
+/**
+ * Détermine le type d'objet à partir du nom/catalogue.
+ */
+export function inferObjectType(targetName: string): ObjectType {
+  const name = targetName.toUpperCase().trim();
+  // Planetary nebulae
+  if (/^M27|^NGC\s?7293|^NGC\s?6720|^NGC\s?2392|^NGC\s?6543/.test(name)) return 'planetary_nebula';
+  // Galaxies
+  const galaxies = ['M31','M51','M63','M81','M82','M104','M106','M33','M74','M77','M84','M86','M87','M89','M90','M98','M99','M100','M58','M59','M60','M61','M64','M65','M66','M88','M91','M94','M95','M96','M101','M102','M108','M109'];
+  if (galaxies.some(g => name.startsWith(g))) return 'galaxy';
+  // Stellar clusters
+  if (/^M45|^M44|^M52|^M103|^NGC\s?869|^NGC\s?884|^C\d/.test(name)) return 'stellar';
+  // Diffuse nebulae (default for emission nebulae)
+  if (/^M16|^M17|^M20|^M42|^M43|^M78|^IC\d|^NGC\s?281|^NGC\s?6888|^NGC\s?7380|^NGC\s?6960|^NGC\s?7000|^IC\s?1396|^SH\d/.test(name)) return 'diffuse_nebula';
+  return 'unknown';
+}
+
+// ============================================================================
 // PROFILS DE FILTRES v5 — avec continuumTransmission
 // ============================================================================
 
@@ -271,14 +312,15 @@ export function calculateObjectSignalAndSNR(
   bSky: number,
   darkCurrent: number,
   tSub: number,
-  readNoise: number
+  readNoise: number,
+  kCalib: number = 1.0
 ): { sObj: number; noiseSub: number; snrPerSub: number; darkCurrentWarning?: string } {
   const objectFlux = Math.pow(10, 0.4 * (M_ZERO - objectSurfaceBrightness));
   const tauObj = isEmissionNebula
     ? filterTransmission
     : filterTransmission * continuumTransmission;
   const samplingSq = sampling * sampling;
-  const sObj = objectFlux * apertureArea * samplingSq * quantumEfficiency * tauObj;
+  const sObj = objectFlux * apertureArea * samplingSq * quantumEfficiency * tauObj * kCalib;
 
   const noiseSub = Math.sqrt(
     (sObj + bSky + darkCurrent) * tSub + readNoise * readNoise
