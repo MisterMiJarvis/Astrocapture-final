@@ -73,7 +73,7 @@ const DocsView: React.FC = () => (
           { n: 2, title: 'Optical Sampling', formula: 's = (206.265 × p) / (F × fR) | A = π × (D/2000)²', desc: 'Effective focal length with reducer, arcsec/pixel sampling, collecting area' },
           { n: 3, title: 'Sky Flux (B_sky)', formula: 'B_sky = 10^(0.4×(26.59-sqmEff)) × A × s² × QE × τ_eff', desc: 'Sky background electron rate per pixel per second' },
           { n: 4, title: 'Optimal Sub-Exposure', formula: 't_opt = k_dyn × RN² / B_sky → clamp 30-600s', desc: 'k=2.5 (narrowband) or 5.0 (broadband), intelligent clamping (configurable in v9)' },
-          { n: 5, title: 'Object Signal & SNR', formula: 'SNR_sub = (S_obj × t_sub) / √((S_obj+B_sky+dc)×t_sub + RN²)', desc: 'Object signal with continuumTransmission, total noise including dark current. Dark current warning if dc×t_sub &gt; 0.1×RN²' },
+          { n: 5, title: 'Object Signal & SNR', formula: 'S_obj = Φ_obj × A × s² × QE × τ_obj × k_calib | SNR_sub = (S_obj × t_sub) / √((S_obj+B_sky+dc)×t_sub + RN²)', desc: 'Object signal with continuumTransmission and empirical k_calib correction by object type. Total noise including dark current. Dark current warning if dc×t_sub &gt; 0.1×RN²' },
           { n: 6, title: 'Target SNR & N_subs', formula: 'N = max(minSubs, ⌈(effTarget/SNR_sub)²⌉)', desc: 'Fixed SNR target by type, sizeWeighting capped 0.5-5.0, floor 15-20 subs. Mission impossible warning if total &gt; 15h' },
         ].map(s => (
           <div key={s.n} className="flex gap-4">
@@ -85,6 +85,54 @@ const DocsView: React.FC = () => (
             </div>
           </div>
         ))}
+      </div>
+    </section>
+
+    {/* SNR Calibration — k_calib section */}
+    <section className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-lg font-bold text-text mb-3">🔬 SNR Calibration — k_calib by Object Type</h2>
+      <p className="text-sm text-text-secondary mb-4">
+        Empirical calibration coefficients measured by aperture photometry on 10 master FITS sessions (2026-06-29).
+        The pipeline computes S_obj from surface brightness, but real objects have non-uniform brightness profiles
+        (bright cores vs faint halos for planetary nebulae, spiral arms for galaxies). The k_calib coefficient
+        corrects this systematic bias, applied as: S_obj_corrected = S_obj × k_calib.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-text-secondary text-xs uppercase">
+              <th className="text-left py-2 px-3">Object Type</th>
+              <th className="text-right py-2 px-3">k_calib</th>
+              <th className="text-right py-2 px-3">Sessions</th>
+              <th className="text-right py-2 px-3">Range</th>
+              <th className="text-left py-2 px-3">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/50">
+            {[
+              ['Diffuse nebula', '0.223', '5', '0.049–0.988', 'M16=0.99 (reference). Reliable for uniform SB. Pipeline over-estimates signal for faint extended nebulae (NGC7380, IC1396).'],
+              ['Planetary nebula', '0.019', '2', '0.017–0.021', 'M27. Pipeline massively over-estimates: bright core dominates but aperture captures faint halo too. Needs radial SB profile.'],
+              ['Galaxy', '2.572', '2', '0.687–4.457', 'M51/M63. Pipeline under-estimates: aperture captures bright core. M51 core is much brighter than average SB suggests.'],
+              ['Stellar cluster', '2.905', '1', '—', 'c4. Not enough data. Point sources follow different physics.'],
+              ['Unknown', '1.000', '—', '—', 'No correction applied. Used when object type cannot be determined.'],
+            ].map(([type, k, n, range, notes]) => (
+              <tr key={type} className="hover:bg-surface-secondary/50">
+                <td className="py-2 px-3 text-text font-medium">{type}</td>
+                <td className="py-2 px-3 text-right font-mono text-blue-300">{k}</td>
+                <td className="py-2 px-3 text-right text-text-secondary">{n}</td>
+                <td className="py-2 px-3 text-right text-text-secondary font-mono text-xs">{range}</td>
+                <td className="py-2 px-3 text-text-secondary text-xs">{notes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 space-y-2 text-sm text-text-secondary">
+        <p><strong className="text-text">Method:</strong> Astropy aperture photometry on 16-bit non-normalized master FITS. Adaptive aperture sized to target diameter (TARGETS_DIAM). Sky annulus for local background. SNR_measured = integrated_signal / √(signal + n_pix × σ_sky²).</p>
+        <p><strong className="text-text">Ratio:</strong> k_calib = median(SNR_measured / SNR_predicted) across sessions of the same object type. The Interactive Calculator auto-detects object type from target name and applies the corresponding k_calib.</p>
+        <p><strong className="text-text">Limitations:</strong> High variance within types (e.g. diffuse nebulae range 0.05–0.99). Surface brightness is non-uniform within objects. A single k_calib per type is a first-order correction. Future: radial SB profiles or per-object calibration.</p>
+        <p><strong className="text-text">Refinement:</strong> Coefficients updated as new master FITS sessions are added. Script: <code className="text-blue-300">astro-calibration/run-calibration.py</code></p>
       </div>
     </section>
 
@@ -128,6 +176,7 @@ const DocsView: React.FC = () => (
               ['Object SB', 'SB_obj', 'Telescopius API', 'mag/arcsec²'],
               ['Object diameter', '—', 'Telescopius API', 'arcmin'],
               ['Object type', '—', 'Category', 'emission/continuum'],
+              ['k_calib', 'k_calib', 'Empirical (auto)', '0.019–2.905'],
             ].map(([p, s, src, def]) => (
               <tr key={p} className="hover:bg-surface-secondary/50">
                 <td className="py-2 px-3 text-text">{p}</td>
