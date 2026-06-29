@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FilterType, FILTER_PROFILES, calculateExposure } from '../src/services/module5/exposureCalculator';
+import { FilterType, FILTER_PROFILES, calculateExposure, getKCalib, inferObjectType, K_CALIB_BY_TYPE, ObjectType } from '../src/services/module5/exposureCalculator';
 import { ExposureParams, ExposureResult } from '../src/types/module5';
 
 const RIG_PRESETS = {
@@ -269,6 +269,7 @@ const CalculatorView: React.FC = () => {
     objectSurfaceBrightness: target.sb,
     objectDiameterArcmin: target.diameter,
     isEmissionNebula: target.isEmission,
+    targetName: target.name,
   };
 
   const result: ExposureResult = calculateExposure(params);
@@ -291,6 +292,15 @@ const CalculatorView: React.FC = () => {
             <select value={targetIdx} onChange={e => setTargetIdx(Number(e.target.value))} className="mt-1 block w-full bg-background border border-border rounded-lg p-2 text-sm text-text">
               {EXAMPLE_TARGETS.map((t, i) => <option key={i} value={i}>{t.name}</option>)}
             </select>
+            {(() => {
+              const objType = inferObjectType(target.name);
+              const k = getKCalib(objType);
+              return (
+                <p className="mt-1 text-xs text-text-secondary">
+                  Type: <span className="font-medium text-text">{objType}</span> → k_calib = <span className="font-mono text-blue-300">{k.toFixed(3)}</span>
+                </p>
+              );
+            })()}
           </div>
           <div>
             <label className="text-xs text-text-secondary uppercase font-semibold">Reducer</label>
@@ -397,6 +407,63 @@ const CalculatorView: React.FC = () => {
           Filter: {filterProfile.name} ({filterProfile.bandwidthNm}nm) | Type: {target.isEmission ? 'Emission' : 'Continuum'}
         </p>
       </div>
+
+      {/* Calibration info panel */}
+      <CalibrationInfoPanel />
+    </div>
+  );
+};
+
+// Calibration Info Panel — k_calib by object type
+const CALIB_ROWS = [
+  { type: 'Diffuse nebula', key: 'diffuse_nebula' as ObjectType, k: K_CALIB_BY_TYPE.diffuse_nebula, n: 5, note: 'M16=0.99 (reference)' },
+  { type: 'Planetary nebula', key: 'planetary_nebula' as ObjectType, k: K_CALIB_BY_TYPE.planetary_nebula, n: 2, note: 'Over-estimates (core vs halo)' },
+  { type: 'Galaxy', key: 'galaxy' as ObjectType, k: K_CALIB_BY_TYPE.galaxy, n: 2, note: 'Under-estimates (core captured)' },
+  { type: 'Stellar cluster', key: 'stellar' as ObjectType, k: K_CALIB_BY_TYPE.stellar, n: 1, note: 'Not enough data' },
+];
+
+const CalibrationInfoPanel: React.FC = () => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="bg-surface border border-border rounded-xl p-4">
+      <button onClick={() => setExpanded(!expanded)} className="w-full text-left flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-text">🔬 SNR Calibration — k_calib by object type</h3>
+        <span className="text-text-secondary">{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <>
+        <p className="text-xs text-text-secondary mt-2 mb-3">
+          Coefficients measured by aperture photometry on 10 master FITS sessions (2026-06-29). Applied to S_obj in SNR calculation. Refined as new sessions are added.
+        </p>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-text-secondary uppercase">
+              <th className="text-left py-1 px-2">Object type</th>
+              <th className="text-right px-2">k_calib</th>
+              <th className="text-right px-2">Sessions</th>
+              <th className="text-left px-2">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CALIB_ROWS.map(r => (
+              <tr key={r.key} className="border-b border-border/50">
+                <td className="py-1 px-2 text-text font-medium">{r.type}</td>
+                <td className="py-1 px-2 text-right font-mono text-blue-300">{r.k.toFixed(3)}</td>
+                <td className="py-1 px-2 text-right text-text-secondary">{r.n}</td>
+                <td className="py-1 px-2 text-text-secondary">{r.note}</td>
+              </tr>
+            ))}
+            <tr className="border-b border-border/50">
+              <td className="py-1 px-2 text-text font-medium">Unknown</td>
+              <td className="py-1 px-2 text-right font-mono text-blue-300">1.000</td>
+              <td className="py-1 px-2 text-right text-text-secondary">—</td>
+              <td className="py-1 px-2 text-text-secondary">No correction</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-text-secondary mt-2">Method: astropy aperture photometry on 16-bit non-normalized master FITS. Adaptive aperture based on target diameter.</p>
+        </>
+      )}
     </div>
   );
 };
