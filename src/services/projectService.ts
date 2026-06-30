@@ -51,8 +51,9 @@ function generateObsId(): string {
 // Calibration SkyTools : 9/10 t_sub dans 3x, 8/10 N_subs dans 3x
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { calculateExposure, FILTER_PROFILES } from './module5/exposureCalculator';
+import { calculateExposure, FILTER_PROFILES, inferObjectType } from './module5/exposureCalculator';
 import type { ExposureParams, FilterType } from '../types/module5';
+import type { ObjectType } from './module5/exposureCalculator';
 
 const M_ZERO = 26.59; // conservé pour référence — v9 utilise le même dans exposureCalculator.ts
 
@@ -72,6 +73,8 @@ interface ExposureCalcParams {
   snrTarget: SNRTarget;
   fullWellDepth?: number;  // e- (camera full well capacity)
   filterData?: AstroFilter;
+  targetName?: string;    // nom de la cible (pour auto-dÃ©tection k_calib)
+  targetType?: string;    // type de cible (string libre â mappÃ© vers ObjectType)
 }
 
 /**
@@ -277,6 +280,8 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
     avgSeeing: 2.5,
     bortle,
     snrTarget: data.snrTarget ?? 30,
+    targetName: data.targetName,
+    targetType: data.targetType,
   });
 
   const totalPlannedHours = exposurePlan.reduce((sum, p) => sum + p.totalExposureTime, 0) / 3600;
