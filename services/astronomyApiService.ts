@@ -1,6 +1,6 @@
 import { AstronomyData } from '../types';
 
-const API_KEY = "67c92973fb3d47a1a3878de288cbe404";
+const API_KEY = process.env.IPGEOLOCATION_API_KEY || '';
 const API_BASE_URL = 'https://api.ipgeolocation.io/v2/astronomy';
 
 // Helper to format date as YYYY-MM-DD

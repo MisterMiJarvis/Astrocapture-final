@@ -9,7 +9,7 @@ import { APOD } from '../types';
 // 2. Fill out the form to generate your API key.
 // 3. Paste your key below, replacing the "YOUR_NASA_API_KEY_HERE" placeholder.
 // ==================================================================
-const NASA_API_KEY = "eiPqQkklE0WUqvy2KsZyC8V5NREe4bCFMFEKuxay"; // <-- PASTE YOUR KEY HERE, DEMO_KEY has limits
+const NASA_API_KEY = process.env.NASA_API_KEY || 'DEMO_KEY';
 
 const API_BASE_URL = 'https://api.nasa.gov/planetary/apod';
 
