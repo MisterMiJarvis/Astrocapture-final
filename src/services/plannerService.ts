@@ -601,7 +601,7 @@ export async function fetchPlannerAstronomy(
   });
 
   try {
-    const res = await fetch(`/api/apls/weather/astronomy?${params.toString()}`);
+    const res = await fetch(`/api/apls/weather/forecast?${params.toString()}`);
     if (!res.ok) return null;
     const data = await res.json();
     const d = data.daily;
