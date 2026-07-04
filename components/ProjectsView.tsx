@@ -43,8 +43,9 @@ import {
   Telescope, MapPin, Clock, Moon, Target, Camera, Filter, BarChart3,
   X, Eye, Sparkles, Search, RotateCw, Star, ChevronLeft,
   Crosshair, Maximize2, Pencil, Save,
-  Activity, Award, AlertTriangle, TrendingUp,
+  Activity, Award, AlertTriangle, TrendingUp, Download,
 } from 'lucide-react';
+import { exportNinaTargetFile, generateNinaFileName } from '../src/services/nina/ninaTargetExport';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
   planning: { label: 'Planning', icon: '📋', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30' },
@@ -1614,6 +1615,31 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
               <div>{(plan.totalExposureTime / 3600).toFixed(1)}h</div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* NINA Export */}
+      <div className="bg-surface border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-text flex items-center gap-2"><Download size={16} /> Export NINA</h3>
+            <p className="text-xs text-text-secondary mt-1">Génère un fichier target pour NINA Advanced Sequencer (JSON)</p>
+          </div>
+          <button
+            onClick={() => {
+              const json = exportNinaTargetFile(project);
+              const blob = new Blob([json], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = generateNinaFileName(project);
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Download size={16} /> Télécharger le target file
+          </button>
         </div>
       </div>
 
