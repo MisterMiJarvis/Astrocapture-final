@@ -1,10 +1,10 @@
 // AstroCapture Service Worker v4
 // Caching strategies based on Modern Web Guidance best practices
 
-const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v5';
-const ALADIN_CACHE_NAME = 'aladin-tile-cache-v2';
-const STATIC_CACHE_NAME = 'astrocapture-static-cache-v3';
-const HTML_CACHE_NAME = 'astrocapture-html-cache-v3';
+const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v6';
+const ALADIN_CACHE_NAME = 'aladin-tile-cache-v3';
+const STATIC_CACHE_NAME = 'astrocapture-static-cache-v4';
+const HTML_CACHE_NAME = 'astrocapture-html-cache-v4';
 
 const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME, STATIC_CACHE_NAME, HTML_CACHE_NAME];
 
