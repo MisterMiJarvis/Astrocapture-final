@@ -67,6 +67,7 @@ function parseRaToDegrees(ra: string | number): number {
 function parseDecToDegrees(dec: string | number): number {
   if (typeof dec === 'number') return dec;
   if (!dec) return 0;
+  if (!dec.includes(':')) return parseFloat(dec) || 0;
   const sign = dec.startsWith('-') ? -1 : 1;
   const parts = dec.replace(/^[+-]/, '').split(':').map(Number);
   return sign * (parts[0] + parts[1] / 60 + parts[2] / 3600);
