@@ -17,7 +17,7 @@ import {
   type WeatherSnapshot,
 } from '../src/services/plannerService';
 import {
-  Clock, Moon, Sun, Cloud, Wind, Droplets, Eye, TrendingUp,
+  Clock, Moon, Sun, Cloud, Wind, Droplets, Eye, TrendingUp, Camera,
   Mountain, AlertTriangle, CheckCircle2, Calendar, RotateCw,
 } from 'lucide-react';
 
@@ -207,6 +207,27 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
             )}
           </div>
 
+          {/* Exposure budget */}
+          {planner.remainingExposureMinutes > 0 ? (
+            <div className="text-xs text-text-secondary flex items-center gap-3 bg-background/50 px-3 py-2 rounded-lg">
+              <span className="flex items-center gap-1">
+                <Camera size={12} /> Exposition restante:
+              </span>
+              <span className="font-mono text-text">
+                {(planner.remainingExposureMinutes / 60).toFixed(1)}h
+              </span>
+              {planner.totalObservableHours * 60 >= planner.remainingExposureMinutes ? (
+                <span className="text-emerald-400">✅ Fenêtres suffisent</span>
+              ) : (
+                <span className="text-orange-400">⚠️ Pas assez de temps de nuit</span>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg">
+              ✅ Toutes les poses prévues sont déjà acquises
+            </div>
+          )}
+
           {/* Night boundaries */}
           {planner.nightStart && planner.nightEnd && (
             <div className="text-xs text-text-secondary flex items-center gap-3">
@@ -395,6 +416,12 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
   const durStr = slot.durationMinutes >= 60
     ? `${Math.floor(slot.durationMinutes / 60)}h${(slot.durationMinutes % 60).toString().padStart(2, '0')}`
     : `${Math.round(slot.durationMinutes)}min`;
+  const cappedEndStr = slot.cappedEndTime ? slot.cappedEndTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+  const cappedDurStr = slot.cappedDurationMinutes > 0
+    ? slot.cappedDurationMinutes >= 60
+      ? `${Math.floor(slot.cappedDurationMinutes / 60)}h${(slot.cappedDurationMinutes % 60).toString().padStart(2, '0')}`
+      : `${Math.round(slot.cappedDurationMinutes)}min`
+    : '0min';
 
   return (
     <div className={`p-3 rounded-lg border ${colors.bg} ${colors.border} ${slot.isBestWindow ? 'ring-1 ring-primary/40' : ''}`}>
@@ -414,6 +441,17 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
           <span className={`text-xs ${colors.text}`}>{slot.qualityLabel}</span>
         </div>
       </div>
+      {cappedEndStr && slot.cappedDurationMinutes > 0 && (
+        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-primary bg-primary/10 px-2 py-1 rounded">
+          <Camera size={10} />
+          <span>Limité à l'exposition: {startStr} → {cappedEndStr} ({cappedDurStr})</span>
+        </div>
+      )}
+      {slot.cappedDurationMinutes === 0 && (
+        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+          <span>✅ Exposition déjà acquise — fenêtre en surplus</span>
+        </div>
+      )}
       <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">
         <span className="flex items-center gap-1">
           <Mountain size={10} /> max {slot.maxAltitude.toFixed(0)}°

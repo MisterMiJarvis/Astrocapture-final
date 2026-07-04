@@ -20,7 +20,9 @@ export interface AltitudePoint {
 export interface ImagingWindowSlot {
   startTime: Date;
   endTime: Date;
-  durationMinutes: number;
+  durationMinutes: number;           // actual window duration
+  cappedEndTime: Date | null;        // end time capped to required exposure (null = full window used)
+  cappedDurationMinutes: number;     // duration after capping to required exposure
   avgAltitude: number;
   maxAltitude: number;
   qualityScore: number;        // 0-100
@@ -50,6 +52,8 @@ export interface PlannerResult {
   windows: ImagingWindowSlot[];
   bestWindow: ImagingWindowSlot | null;
   totalObservableHours: number;
+  requiredExposureMinutes: number;   // total exposure time needed (after deducting observations)
+  remainingExposureMinutes: number;  // what's left to capture
   nightStart: Date | null;
   nightEnd: Date | null;
 }
@@ -429,6 +433,51 @@ export function computePlanner(
     if (slot) windows.push(slot);
   }
 
+  // ─── Calculate required exposure time (minus observations already done) ──
+  // Total planned = sum of subExposure * subCount for all filters in exposurePlan
+  const totalPlannedSeconds = (project.exposurePlan || []).reduce(
+    (sum, p) => sum + p.subExposure * p.subCount, 0
+  );
+  // Already acquired = sum of exposuresTaken * exposureDuration from observations
+  const alreadyAcquiredSeconds = (project.observations || []).reduce(
+    (sum, obs) => sum + obs.exposuresTaken * obs.exposureDuration, 0
+  );
+  const remainingExposureSeconds = Math.max(0, totalPlannedSeconds - alreadyAcquiredSeconds);
+  const requiredExposureMinutes = totalPlannedSeconds / 60;
+  const remainingExposureMinutes = remainingExposureSeconds / 60;
+
+  // ─── Cap windows to remaining exposure time ───────────────────────────────
+  // If a window is longer than remaining exposure needed, cap it.
+  // If remaining exposure is longer than the window, keep the full window.
+  if (remainingExposureMinutes > 0) {
+    let exposureBudgetMs = remainingExposureMinutes * 60 * 1000; // ms
+    for (const w of windows) {
+      const windowMs = w.endTime.getTime() - w.startTime.getTime();
+      if (exposureBudgetMs >= windowMs) {
+        // Full window used, deduct from budget
+        exposureBudgetMs -= windowMs;
+        w.cappedEndTime = null; // null = full window used
+        w.cappedDurationMinutes = w.durationMinutes;
+      } else if (exposureBudgetMs > 0) {
+        // Cap window to remaining budget
+        const cappedEnd = new Date(w.startTime.getTime() + exposureBudgetMs);
+        w.cappedEndTime = cappedEnd;
+        w.cappedDurationMinutes = exposureBudgetMs / 60000;
+        exposureBudgetMs = 0;
+      } else {
+        // No budget left — window is entirely surplus
+        w.cappedEndTime = w.startTime; // zero-length
+        w.cappedDurationMinutes = 0;
+      }
+    }
+  } else {
+    // All exposure already done — all windows are surplus
+    for (const w of windows) {
+      w.cappedEndTime = w.startTime;
+      w.cappedDurationMinutes = 0;
+    }
+  }
+
   // ─── Score and find best window ────────────────────────────────────────────
   if (windows.length > 0) {
     // Mark best window (highest quality score, prefer longer + higher altitude)
@@ -445,6 +494,8 @@ export function computePlanner(
     windows,
     bestWindow: windows.find(w => w.isBestWindow) || null,
     totalObservableHours: totalObservable,
+    requiredExposureMinutes,
+    remainingExposureMinutes,
     nightStart,
     nightEnd,
   };
@@ -548,6 +599,8 @@ function buildWindowSlot(
     startTime,
     endTime,
     durationMinutes,
+    cappedEndTime: null,        // will be set by computePlanner
+    cappedDurationMinutes: durationMinutes,  // default = full window
     avgAltitude: avgAlt,
     maxAltitude: maxAlt,
     qualityScore: Math.round(score),
