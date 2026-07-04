@@ -594,7 +594,7 @@ export async function fetchPlannerAstronomy(
   const params = new URLSearchParams({
     latitude: lat.toFixed(2),
     longitude: lon.toFixed(2),
-    daily: 'sunrise,sunset,moonrise,moonset,moon_phase',
+    daily: 'sunrise,sunset',
     timezone: 'auto',
     start_date: formatDate(date),
     end_date: formatDate(date),
@@ -610,37 +610,55 @@ export async function fetchPlannerAstronomy(
     // Determine full night (astronomical twilight) — approximate from sunset/sunrise
     // Open-Meteo doesn't provide astronomical twilight directly in this query
     const sunset = d.sunset?.[0];
-    const sunrise = d.sunset?.[1] || d.sunrise?.[0];
-    const moonIllumRaw = d.moon_phase?.[0] ?? 0.5;
+    const sunrise = d.sunrise?.[0];
 
     // Parse moon phase number → illumination
-    // Open-Meteo moon_phase: 0 = new, 0.25 = first quarter, 0.5 = full, 0.75 = last quarter
+    // Open-Meteo doesn't return moon_phase in daily, compute from date
+    const moonIllumRaw = computeMoonPhase(date);
     const moonIllum = Math.abs((moonIllumRaw % 0.5) * 2);  // 0-1
-    const moonPhaseName = moonPhaseName(moonIllumRaw);
+    const moonPhaseName = moonPhaseNameFn(moonIllumRaw);
 
     return {
-      sunrise: d.sunrise?.[0] || '',
+      sunrise: sunrise || '',
       sunset: sunset || '',
-      moonrise: d.moonrise?.[0] || '',
-      moonset: d.moonset?.[0] || '',
+      moonrise: '',
+      moonset: '',
       moonPhase: moonPhaseName,
       moonIllumination: moonIllum.toFixed(2),
-      // Approximate astronomical night: sunset + 1h to sunrise - 1h
-      fullNightBegins: sunset ? addHours(sunset, 1) : '',
-      fullNightEnds: d.sunrise?.[0] ? addHours(d.sunrise?.[0], -1) : '',
+      // Approximate astronomical night: sunset + 1.5h to sunrise - 1.5h
+      fullNightBegins: sunset ? addHoursLocal(sunset, 1.5) : '',
+      fullNightEnds: sunrise ? addHoursLocal(sunrise, -1.5) : '',
     };
   } catch {
     return null;
   }
 }
 
-function addHours(isoTime: string, hours: number): string {
-  const d = new Date(isoTime);
-  d.setTime(d.getTime() + hours * 3600000);
+function addHoursLocal(isoTime: string, hours: number): string {
+  // Parse ISO time — if no timezone suffix, treat as local time
+  let d: Date;
+  if (isoTime.includes('+') || isoTime.includes('Z') || isoTime.includes('T') && isoTime.length > 16) {
+    // Has timezone or is full ISO — parse as-is
+    d = new Date(isoTime);
+  } else {
+    // No timezone — Open-Meteo returns local time strings like "2026-07-04T21:26"
+    // Parse as local by appending T and letting Date parse in local TZ
+    d = new Date(isoTime);
+  }
+  d = new Date(d.getTime() + hours * 3600000);
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function moonPhaseName(phase: number): string {
+function computeMoonPhase(date: Date): number {
+  // Simple moon phase calculation (0 = new, 0.5 = full, 0.25 = first quarter)
+  const knownNewMoon = new Date('2000-01-06T18:14:00Z').getTime();
+  const synodicMonth = 29.530588853 * 86400000;
+  const elapsed = date.getTime() - knownNewMoon;
+  const phase = (elapsed % synodicMonth) / synodicMonth;
+  return phase < 0 ? phase + 1 : phase;
+}
+
+function moonPhaseNameFn(phase: number): string {
   if (phase < 0.0625 || phase > 0.9375) return 'New Moon';
   if (phase < 0.1875) return 'Waxing Crescent';
   if (phase < 0.3125) return 'First Quarter';
