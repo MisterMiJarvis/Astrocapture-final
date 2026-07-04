@@ -516,6 +516,11 @@ function buildWindowSlot(
     else if (weather.windKmh < 30) score -= 10;
     else score -= 20;
 
+    // Hard limit: wind > 10 km/h = no go for imaging
+    if (weather.windKmh > 10) {
+      score = Math.min(score, 15);  // Cap at Poor
+    }
+
     if (weather.dewRisk === 'Safe') score += 5;
     else if (weather.dewRisk === 'Warning') score += 2;
     else score += 0;

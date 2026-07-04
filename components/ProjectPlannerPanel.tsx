@@ -200,7 +200,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                     <span className="text-xs text-text-secondary ml-1">km/h</span>
                   </div>
                   <div className="text-[10px] text-text-secondary">
-                    {planner.bestWindow.weather && planner.bestWindow.weather.windKmh >= 10 ? '⚠️ Défavorable' : '✅ OK'}
+                    {planner.bestWindow.weather && planner.bestWindow.weather.windKmh > 10 ? '🔴 No go' : '✅ OK'}
                   </div>
                 </div>
               </>
@@ -433,8 +433,8 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
           </span>
         )}
         {slot.weather && (
-          <span className={`flex items-center gap-1 ${slot.weather.windKmh >= 10 ? 'text-orange-400' : ''}`}>
-            <Wind size={10} /> {Math.round(slot.weather.windKmh)} km/h
+          <span className={`flex items-center gap-1 ${slot.weather.windKmh > 10 ? 'text-red-400' : ''}`}>
+            <Wind size={10} /> {Math.round(slot.weather.windKmh)} km/h{slot.weather.windKmh > 10 ? ' 🔴' : ''}
           </span>
         )}
       </div>
