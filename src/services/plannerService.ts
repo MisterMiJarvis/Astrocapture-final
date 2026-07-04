@@ -511,9 +511,10 @@ function buildWindowSlot(
     else score += 0;
 
     if (weather.windKmh < 10) score += 5;
-    else if (weather.windKmh < 20) score += 4;
-    else if (weather.windKmh < 30) score += 2;
-    else score += 0;
+    else if (weather.windKmh < 15) score += 2;
+    else if (weather.windKmh < 20) score -= 5;
+    else if (weather.windKmh < 30) score -= 10;
+    else score -= 20;
 
     if (weather.dewRisk === 'Safe') score += 5;
     else if (weather.dewRisk === 'Warning') score += 2;

@@ -140,7 +140,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
       ) : (
         <>
           {/* Summary KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-background p-3 rounded-lg border border-border">
               <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
                 <Mountain size={12} /> Alt. max
@@ -189,6 +189,18 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                     {planner.bestWindow.moonAltitude != null && (
                       (planner.bestWindow.moonAltitude > 0 ? '↑' : '↓') + ' ' + Math.abs(planner.bestWindow.moonAltitude).toFixed(0) + '°'
                     )}
+                  </div>
+                </div>
+                <div className="bg-background p-3 rounded-lg border border-border">
+                  <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+                    <Wind size={12} /> Vent
+                  </div>
+                  <div className="font-mono font-bold text-text text-lg">
+                    {planner.bestWindow.weather ? Math.round(planner.bestWindow.weather.windKmh) : '--'}
+                    <span className="text-xs text-text-secondary ml-1">km/h</span>
+                  </div>
+                  <div className="text-[10px] text-text-secondary">
+                    {planner.bestWindow.weather && planner.bestWindow.weather.windKmh >= 10 ? '⚠️ Défavorable' : '✅ OK'}
                   </div>
                 </div>
               </>
@@ -418,6 +430,11 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
         {slot.weather && (
           <span className="flex items-center gap-1">
             <Cloud size={10} /> {slot.weather.cloudCoverPct.toFixed(0)}%
+          </span>
+        )}
+        {slot.weather && (
+          <span className={`flex items-center gap-1 ${slot.weather.windKmh >= 10 ? 'text-orange-400' : ''}`}>
+            <Wind size={10} /> {Math.round(slot.weather.windKmh)} km/h
           </span>
         )}
       </div>
