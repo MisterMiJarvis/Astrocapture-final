@@ -591,43 +591,30 @@ export async function fetchPlannerAstronomy(
   date: Date,
 ): Promise<MappedAstronomyData | null> {
   const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  const apiKey = '67c92973fb3d47a1a3878de288cbe404';
   const params = new URLSearchParams({
-    latitude: lat.toFixed(2),
-    longitude: lon.toFixed(2),
-    daily: 'sunrise,sunset',
-    timezone: 'auto',
-    start_date: formatDate(date),
-    end_date: formatDate(date),
+    apiKey,
+    lat: lat.toString(),
+    long: lon.toString(),
+    date: formatDate(date),
   });
 
   try {
-    const res = await fetch(`/api/apls/weather/forecast?${params.toString()}`);
+    const res = await fetch(`https://api.ipgeolocation.io/v2/astronomy?${params.toString()}`);
     if (!res.ok) return null;
     const data = await res.json();
-    const d = data.daily;
-    if (!d) return null;
-
-    // Determine full night (astronomical twilight) — approximate from sunset/sunrise
-    // Open-Meteo doesn't provide astronomical twilight directly in this query
-    const sunset = d.sunset?.[0];
-    const sunrise = d.sunrise?.[0];
-
-    // Parse moon phase number → illumination
-    // Open-Meteo doesn't return moon_phase in daily, compute from date
-    const moonIllumRaw = computeMoonPhase(date);
-    const moonIllum = Math.abs((moonIllumRaw % 0.5) * 2);  // 0-1
-    const moonPhaseName = moonPhaseNameFn(moonIllumRaw);
+    const astro = data.astronomy;
+    if (!astro) return null;
 
     return {
-      sunrise: sunrise || '',
-      sunset: sunset || '',
-      moonrise: '',
-      moonset: '',
-      moonPhase: moonPhaseName,
-      moonIllumination: moonIllum.toFixed(2),
-      // Approximate astronomical night: sunset + 1.5h to sunrise - 1.5h
-      fullNightBegins: sunset ? addHoursLocal(sunset, 1.5) : '',
-      fullNightEnds: sunrise ? addHoursLocal(sunrise, -1.5) : '',
+      sunrise: astro.sunrise || '',
+      sunset: astro.sunset || '',
+      moonrise: astro.moonrise || '',
+      moonset: astro.moonset || '',
+      moonPhase: (astro.moon_phase || '').replace(/_/g, ' '),
+      moonIllumination: String(Math.abs(Math.round(parseFloat(astro.moon_illumination_percentage) || 0))),
+      fullNightBegins: astro.evening?.astronomical_twilight_end || '',
+      fullNightEnds: astro.morning?.astronomical_twilight_begin || '',
     };
   } catch {
     return null;
