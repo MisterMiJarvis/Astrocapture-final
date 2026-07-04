@@ -29,9 +29,33 @@ const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLo
     const [coordinates, setCoordinates] = React.useState<{ lat: number; lon: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = React.useState(false);
     const [locationError, setLocationError] = React.useState<string | null>(null);
+    const [currentBortle, setCurrentBortle] = React.useState<number | null>(null);
 
+    const PRESET_LOCATIONS = {
+        saintEtienne: { lat: 43.79, lon: 4.72, name: "Saint-Étienne-du-Grès (13103)", bortle: 4 },
+        pradelles: { lat: 44.77, lon: 3.88, name: "Pradelles (43420)", bortle: 2 }
+    };
+
+    // Sync local location when the parent bandeau changes the default location
+    React.useEffect(() => {
+        if (defaultLocation && defaultLocation !== locationSource) {
+            setLocationSource(defaultLocation as typeof locationSource);
+            if (defaultLocation === 'saintEtienne') {
+                setCoordinates(PRESET_LOCATIONS.saintEtienne);
+                setCurrentBortle(PRESET_LOCATIONS.saintEtienne.bortle);
+            } else if (defaultLocation === 'pradelles') {
+                setCoordinates(PRESET_LOCATIONS.pradelles);
+                setCurrentBortle(PRESET_LOCATIONS.pradelles.bortle);
+            }
+            setLocationError(null);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [defaultLocation]);
+
+    // (selectedDate moved up — was between old state declarations)
     const [selectedDate, setSelectedDate] = React.useState(new Date());
 
+    // (state declarations continued)
     const [mappedAstroData, setMappedAstroData] = React.useState<MappedAstronomyData | null>(null);
     const [isLoadingAstronomy, setIsLoadingAstronomy] = React.useState(false);
     const [astronomyError, setAstronomyError] = React.useState<string | null>(null);
@@ -43,13 +67,6 @@ const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLo
     const [nightlyForecast, setNightlyForecast] = React.useState<NightlyForecast[] | null>(null);
     const [isLoadingNightly, setIsLoadingNightly] = React.useState(false);
     const [nightlyError, setNightlyError] = React.useState<string | null>(null);
-
-    const [currentBortle, setCurrentBortle] = React.useState<number | null>(null);
-
-    const PRESET_LOCATIONS = {
-        saintEtienne: { lat: 43.79, lon: 4.72, name: "Saint-Étienne-du-Grès (13103)", bortle: 4 },
-        pradelles: { lat: 44.77, lon: 3.88, name: "Pradelles (43420)", bortle: 2 }
-    };
 
     React.useEffect(() => {
         if (coordinates) {
