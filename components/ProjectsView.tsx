@@ -46,6 +46,7 @@ import {
   Activity, Award, AlertTriangle, TrendingUp, Download,
 } from 'lucide-react';
 import { exportNinaTargetFile, generateNinaFileName } from '../src/services/nina/ninaTargetExport';
+import { ProjectPlannerPanel } from './ProjectPlannerPanel';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
   planning: { label: 'Planning', icon: '📋', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30' },
@@ -1636,6 +1637,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
           ))}
         </div>
       </div>
+
+      {/* Planner — altitude curve, imaging windows, weather */}
+      <ProjectPlannerPanel project={project} />
 
       {/* NINA Export */}
       <div className="bg-surface border border-border rounded-xl p-5">
