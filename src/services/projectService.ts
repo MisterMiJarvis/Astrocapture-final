@@ -3,7 +3,7 @@
 // API-first with localStorage fallback
 // ============================================================================
 
-import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan, SNRTarget } from '../types/project';
+import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan, ExposureFormulaSnapshot, SNRTarget } from '../types/project';
 import { AstroFilter } from './filterService';
 import { fetchFilters, getFilterExposureFactor, getMoonBenefitFactor } from './filterService';
 
@@ -200,6 +200,35 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
   const tauSignal = filterProfile.transmission;
   const tauSky = filterProfile.transmission * (1 - filterProfile.skySuppression);
 
+  // ─── Exposure Tracking Snapshot (Point 1) ────────────────────────────
+  const formulaSnapshot: ExposureFormulaSnapshot = {
+    formulaVersion: 'V9',
+    inputs: {
+      sqm: sqmBase,
+      bortle,
+      moonIllumination: moonIllumination ?? 0,
+      moonAltitudeDeg,
+      moonPhaseFactor,
+      filter,
+      aperture,
+      focalLength,
+      pixelSize,
+      readNoise,
+      quantumEfficiency,
+      objectType: params.targetType ?? 'unknown',
+      objectSurfaceBrightness: sbObj,
+      objectDiameterArcmin: targetSizeArcmin ?? 0,
+      isEmissionNebula,
+    },
+    formulaOutput: {
+      subExposure: result.subExposureTime,
+      subCount: result.totalSubsForSNR,
+      totalExposureTime,
+      snrValue: actualSNR,
+      snrEstimate: `${snrLabel} (SNR ~${actualSNR.toFixed(1)})`,
+    },
+  };
+
   return [{
     filter,
     subExposure: result.subExposureTime,
@@ -216,6 +245,7 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
     darkCurrent: 0.0005,
     tauSignal,
     tauSky,
+    formulaSnapshot,
   }];
 }
 

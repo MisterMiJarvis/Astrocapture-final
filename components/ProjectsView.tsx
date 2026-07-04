@@ -487,12 +487,21 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           if (!ov) return plan;
           const subExposure = ov.subExposure ?? plan.subExposure;
           const subCount = ov.subCount ?? plan.subCount;
+          const formulaSnapshot = plan.formulaSnapshot ? {
+            ...plan.formulaSnapshot,
+            adjustedOutput: {
+              subExposure,
+              subCount,
+              adjustedAt: new Date().toISOString(),
+            },
+          } : undefined;
           return {
             ...plan,
             subExposure,
             subCount,
             totalExposureTime: subExposure * subCount,
             totalWithOverhead: Math.round(subExposure * subCount * 1.15),
+            formulaSnapshot,
           };
         });
         const totalPlannedHours = overriddenPlan.reduce((sum, p) => sum + p.totalExposureTime, 0) / 3600;
@@ -1157,12 +1166,22 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         if (!ov) return plan;
         const subExposure = ov.subExposure ?? plan.subExposure;
         const subCount = ov.subCount ?? plan.subCount;
+        // Track the adjustment in formulaSnapshot
+        const formulaSnapshot = plan.formulaSnapshot ? {
+          ...plan.formulaSnapshot,
+          adjustedOutput: {
+            subExposure,
+            subCount,
+            adjustedAt: new Date().toISOString(),
+          },
+        } : undefined;
         return {
           ...plan,
           subExposure,
           subCount,
           totalExposureTime: subExposure * subCount,
           totalWithOverhead: Math.round(subExposure * subCount * 1.15),
+          formulaSnapshot,
         };
       });
       updates.exposurePlan = overriddenPlan;

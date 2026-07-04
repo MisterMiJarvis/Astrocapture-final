@@ -51,6 +51,53 @@ export interface ProjectExposurePlan {
   darkCurrent: number;         // e-/px/s
   tauSignal: number;            // filter transmission for object signal
   tauSky: number;               // filter transmission for sky background
+
+  // ─── Exposure Tracking (Point 1) ─────────────────────────────────────
+  // Snapshot of what the formula initially calculated vs what the user set.
+  // Populated at project creation/edit; used to refine the formula over time.
+  formulaSnapshot?: ExposureFormulaSnapshot;
+}
+
+/**
+ * Snapshot of the formula calculation at the time the project was created/edited.
+ * Stores both the formula inputs (for correlation) and outputs (for comparison).
+ */
+export interface ExposureFormulaSnapshot {
+  formulaVersion: string;        // e.g. "V9"
+  // Inputs that fed the formula
+  inputs: {
+    sqm: number;
+    bortle: number;
+    moonIllumination: number;
+    moonAltitudeDeg: number;
+    moonPhaseFactor: number;
+    filter: string;
+    aperture: number;
+    focalLength: number;
+    pixelSize: number;
+    readNoise: number;
+    quantumEfficiency: number;
+    objectType: string;
+    objectSurfaceBrightness: number;
+    objectDiameterArcmin: number;
+    isEmissionNebula: boolean;
+  };
+  // What the formula calculated
+  formulaOutput: {
+    subExposure: number;         // tSub (seconds)
+    subCount: number;            // nSubs
+    totalExposureTime: number;   // seconds
+    snrValue: number;
+    snrEstimate: string;
+  };
+  // What the user actually set (if different from formula)
+  adjustedOutput?: {
+    subExposure: number;
+    subCount: number;
+    adjustedAt: string;          // ISO timestamp
+    reason?: string;             // why the adjustment (optional)
+    skyToolsReference?: string;  // what SkyTools said (optional)
+  };
 }
 
 export interface Project {
