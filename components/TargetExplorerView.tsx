@@ -203,13 +203,24 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
     }
   }, [coords.lat, coords.lon, minAlt, priorityIds]);
 
-  // Load best targets on mount
+  // Load best targets on mount — wait for priorityIds to be loaded first
+  // If priorityIds fails to load (empty), still fetch after a short delay
   useEffect(() => {
-    if (!bestLoadedRef.current) {
+    if (bestLoadedRef.current) return;
+    if (priorityIds.size > 0) {
       loadBestTargets();
       bestLoadedRef.current = true;
+    } else {
+      // Fallback: if priorities haven't loaded after 3s, fetch anyway
+      const timer = setTimeout(() => {
+        if (!bestLoadedRef.current) {
+          loadBestTargets();
+          bestLoadedRef.current = true;
+        }
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [loadBestTargets]);
+  }, [loadBestTargets, priorityIds]);
 
   // Search tab
   const handleSearch = useCallback(async () => {
