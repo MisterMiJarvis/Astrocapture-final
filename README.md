@@ -16,8 +16,7 @@
 
 **AstroCapture** is a full-stack astrophotography platform combining a public portfolio/blog with a complete imaging planning suite (AstroSuite). It features target discovery, exposure calculation, project tracking, gear management, PHD2 log analysis, and real-time weather/astronomy data.
 
-**Live site:** [https://astrocapture.org](https://astrocapture.org)  
-**Beta:** [https://beta.astrocapture.org](https://beta.astrocapture.org)
+**Live site:** [https://astrocapture.org](https://astrocapture.org)
 
 ---
 
@@ -32,14 +31,21 @@
 - **About** — Photographer profile
 
 ### AstroSuite (Planning Tools)
-- **Module 1 — Targets** — Best targets tonight, NovaRank scoring, Telescopius integration, imaging windows
+- **Module 1 — Targets** — Best targets tonight, NovaRank scoring, Telescopius integration, imaging windows, **Priority Targets system** with ⭐ badges and dedicated tab
 - **Module 2 — Rigs** — Telescope/camera/filter profile management, FOV calculator, sampling calculator
 - **Module 3 — Framing** — Aladin Lite integration, real-time framing preview, sensor overlay
 - **Module 4 — Filters** — Filter management, transmission curves, exposure impact analysis
 - **Module 5 — Exposure Calculator** — SB-based exposure calculator v4 (calibrated against SkyTools), emission/continuum object handling, continuous SNR targeting, dark current, size weighting, editable sub-exposure/sub-count overrides
-- **Module 6 — Projects** — Project management with exposure plans, observation tracking, cumulative KPIs (total subs, captured/planned hours, sessions, overall progress), status-based sorting
+- **Module 6 — Projects** — Project management with exposure plans, observation tracking, cumulative KPIs (total subs, captured/planned hours, sessions, overall progress), status-based sorting, NINA Advanced Sequencer export
 - **PHD2 Analysis** — Guiding log analyzer with RMS graphs, drift detection, star loss tracking
-- **Weather** — Astronomy forecast, seeing, moon phase, imaging windows (Open-Meteo)
+- **Weather** — Astronomy forecast, seeing, moon phase, imaging windows (Open-Meteo), loads on tab open without location change
+- **Journal** — Session journal with conditions tracking (seeing, transparency, temperature, moon illumination)
+- **Target Explorer** — Telescopius-powered deep-sky search with Best Tonight, Priority tab, and Search modes, band filter recommendations, framing analysis, rig-aware scoring
+- **Observation Planner** — Multi-night planning with weather integration, imaging window snapshots, exposure capping
+- **Session Planner** — Session-level planning with horizon mask support
+- **Equipment Tracker v2** — Enhanced equipment management with rig profiles, guiding setup, dithering calculator, equipment calculator with exposure estimation
+- **Gear Reviews** — Equipment reviews and ratings with visitor stats
+- **Admin** — User management, visitor statistics, security audit
 
 ### Technical
 - ⚡ **Vite 6** for fast development and optimized builds
@@ -311,6 +317,7 @@ See `design-system/DESIGN_SYSTEM.md` for full documentation.
 
 ## Roadmap
 
+### Done
 - [x] Gallery with tag filtering
 - [x] Processing articles with markdown
 - [x] Astro Weather dashboard
@@ -324,11 +331,56 @@ See `design-system/DESIGN_SYSTEM.md` for full documentation.
 - [x] Exposure Calculator v4 (SB-based, SkyTools-calibrated)
 - [x] PHD2 log analysis
 - [x] Project tracking with KPIs
+- [x] NINA Advanced Sequencer target export
+- [x] Wind speed in planner KPIs and window cards
+- [x] Wind >10 km/h hard no-go (score capped at Poor)
+- [x] Imaging windows capped to remaining exposure time
+- [x] Priority Targets system (v2.5.0)
+- [x] UI labels translated to English
+- [x] Weather tab auto-loads on first open
+
+### Planned
 - [ ] Multi-language support
 - [ ] Advanced search with filters
 - [ ] Image upload optimization
 - [ ] RSS feed
 - [ ] Community features
+
+---
+
+## Changelog
+
+### v2.5.0 — Priority Targets System + UI Improvements (2026-07-06)
+
+#### New Features
+- **Priority Targets config** (`public/priority-targets.json`) — 206 deduplicated targets from 4 source lists (Messier, best NGC, best 100, great imaging targets). Editable file, no code changes needed.
+- **⭐ Priority badges in Best Tonight** — Targets from the priority list show a ⭐ badge and are sorted to the top of Best Tonight results.
+- **Priority Tab** — New tab between Best Tonight and Search. Shows only your priority targets, checks visibility via Telescopius highlights (500 results) + search fallback for missing targets. Filters by min altitude and band. Sorted by imaging hours.
+
+#### Fixes
+- **Priority matching** — Space normalization so `M13` matches `M 13` from Telescopius API
+- **Page load timing** — Priority IDs loaded before first Best Tonight fetch so ⭐ badges appear immediately
+- **Weather tab** — Fixed bug where weather data didn't load on first tab open (coordinates now initialize from `defaultLocation` prop)
+- **French → English labels** — Translated visible French labels to English across Projects, Journal, Planner, Equipment views
+
+#### Performance
+- Priority tab: hybrid loading (highlights 500 + batch search 20-parallel fallback) — 5s instead of 30s+
+
+### v2.4.x — Wind & Imaging Window Improvements (2026-06)
+
+- Wind speed added to planner KPIs and window cards
+- Wind >10 km/h = hard no-go (score capped at Poor, red indicator)
+- Imaging windows capped to remaining exposure time
+- NINA export refactored — minimalist target + exposures only
+
+### v2.4 — AstroSuite v2 + Exposure Calculator v4 (2026-05)
+
+- Full AstroSuite v2 with 6 modules
+- SB-based exposure calculator v4 calibrated against SkyTools
+- Project tracking with cumulative KPIs
+- PHD2 log analysis
+- Admin dashboard with user management and visitor stats
+- PWA support
 
 ---
 
