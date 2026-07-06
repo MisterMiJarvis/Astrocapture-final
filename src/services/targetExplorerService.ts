@@ -94,17 +94,18 @@ export interface TelescopiusTarget {
 
 /**
  * Load priority targets from public config file.
- * Returns a Set of uppercase IDs for fast matching.
+ * Returns a Set of normalized IDs for fast matching, and the raw list.
  */
-export async function loadPriorityTargets(): Promise<Set<string>> {
+export async function loadPriorityTargets(): Promise<{ ids: Set<string>; raw: string[] }> {
   try {
     const res = await fetch('/priority-targets.json');
-    if (!res.ok) return new Set();
+    if (!res.ok) return { ids: new Set(), raw: [] };
     const data = await res.json();
-    const ids: string[] = (data.targets || []).map((s: string) => s.toUpperCase().trim().replace(/\s+/g, ' '));
-    return new Set(ids);
+    const raw: string[] = (data.targets || []);
+    const ids: string[] = raw.map((s: string) => s.toUpperCase().trim().replace(/\s+/g, ' '));
+    return { ids: new Set(ids), raw };
   } catch {
-    return new Set();
+    return { ids: new Set(), raw: [] };
   }
 }
 

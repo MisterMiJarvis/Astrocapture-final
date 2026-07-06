@@ -85,7 +85,7 @@ const FIT_LABELS: Record<string, string> = {
   perfect: '✅ Perfect', good: '👍 Good', tight: '⚠️ Tight', too_large: '❌ Mosaic', unknown: '❓ Unknown',
 };
 
-type TabView = 'bestTonight' | 'search';
+type TabView = 'bestTonight' | 'priority' | 'search';
 
 export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSource, onLocationChange, onStartProject }) => {
   const [activeTab, setActiveTab] = useState<TabView>('bestTonight');
@@ -100,6 +100,11 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
   const [bestTargets, setBestTargets] = useState<TelescopiusTarget[]>([]);
   const [bestLoading, setBestLoading] = useState(false);
   const [bestError, setBestError] = useState<string | null>(null);
+  const [priorityTargets, setPriorityTargets] = useState<TelescopiusTarget[]>([]);
+  const [priorityLoading, setPriorityLoading] = useState(false);
+  const [priorityError, setPriorityError] = useState<string | null>(null);
+  const priorityLoadedRef = useRef(false);
+  const [priorityRawIds, setPriorityRawIds] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType | 'all'>('all');
   const [minAlt, setMinAlt] = useState(30);
   const [userFilters, setUserFilters] = useState<UserFilterInfo[]>([]);
@@ -117,7 +122,10 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
 
   // Load priority targets config
   useEffect(() => {
-    loadPriorityTargets().then(setPriorityIds).catch(() => {});
+    loadPriorityTargets().then(({ ids, raw }) => {
+      setPriorityIds(ids);
+      setPriorityRawIds(raw);
+    }).catch(() => {});
   }, []);
 
   const coords = LOCATION_COORDS[locationSource] || LOCATION_COORDS.saintEtienne;
@@ -222,6 +230,77 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
     }
   }, [loadBestTargets, priorityIds]);
 
+  // Load priority targets visibility — fetch each priority target from Telescopius and filter by altitude
+  const loadPriorityVisibility = useCallback(async () => {
+    if (priorityRawIds.length === 0) return;
+    setPriorityLoading(true);
+    setPriorityError(null);
+    try {
+      // Batch search: Telescopius search supports name filter, but we need individual lookups
+      // to get visibility data for each target. We batch them in parallel (5 at a time to avoid rate limits).
+      const BATCH_SIZE = 5;
+      const allResults: TelescopiusTarget[] = [];
+      
+      for (let i = 0; i < priorityRawIds.length; i += BATCH_SIZE) {
+        const batch = priorityRawIds.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (name) => {
+            try {
+              const params = new URLSearchParams({
+                lat: coords.lat.toString(),
+                lon: coords.lon.toString(),
+                timezone: 'Europe/Paris',
+                name: name,
+                results_per_page: '1',
+                min_alt: '0', // We filter altitude client-side
+              });
+              const res = await fetch(`/api/telescopius/search?${params.toString()}`, {
+                headers: telescopiusAuthHeaders(),
+              });
+              if (!res.ok) return null;
+              const data = await res.json();
+              const targets: TelescopiusTarget[] = (data.targets || []).map(mapApiTarget);
+              return targets[0] || null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        for (const t of batchResults) {
+          if (t) allResults.push(t);
+        }
+      }
+      
+      // Filter by min altitude
+      const visible = allResults.filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt);
+      // Mark all as priority
+      visible.forEach(t => { t.isPriority = true; });
+      // Sort by max altitude descending (highest first)
+      visible.sort((a, b) => (b.altitudeMax ?? 0) - (a.altitudeMax ?? 0));
+      
+      if (visible.length === 0) {
+        setPriorityError('None of your priority targets are visible tonight. Try lowering the altitude filter.');
+      }
+      setPriorityTargets(visible);
+    } catch (err) {
+      console.error('Priority targets load error:', err);
+      setPriorityError(`Failed to load priority targets: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setPriorityLoading(false);
+    }
+  }, [coords.lat, coords.lon, minAlt, priorityRawIds]);
+
+  // Load priority visibility when tab is first opened or when priorityRawIds change
+  useEffect(() => {
+    if (priorityLoadedRef.current) return;
+    if (priorityRawIds.length > 0) {
+      priorityLoadedRef.current = true;
+      // Don't auto-load — wait for tab click. But preload in background if user is likely to click.
+      // Actually, let's preload so the tab feels instant.
+      loadPriorityVisibility();
+    }
+  }, [loadPriorityVisibility, priorityRawIds]);
+
   // Search tab
   const handleSearch = useCallback(async () => {
     setIsLoading(true);
@@ -253,7 +332,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
 
   // Recalculate framing when targets or rig change
   useEffect(() => {
-    const currentTargets = activeTab === 'bestTonight' ? bestTargets : (results?.targets || []);
+    const currentTargets = activeTab === 'bestTonight' ? bestTargets : activeTab === 'priority' ? priorityTargets : (results?.targets || []);
     if (!defaultRig || currentTargets.length === 0) return;
     const map: Record<string, FramingAnalysis> = {};
     for (const t of currentTargets) {
@@ -272,17 +351,20 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
   ).length;
 
   // Apply filter to best targets — use coverage map so L_Ultimate matches Ha/OIII targets
-  const filteredBestTargets = activeFilter === 'all'
-    ? bestTargets
-    : bestTargets.filter(t => {
-        const types = t.type ? t.type.split(',') : [];
-        const recommended = recommendFiltersForTypes(types);
-        // Check if any recommended filter is covered by the active filter
-        const activeFilterCovers = FILTER_TYPE_COVERAGE[activeFilter as FilterType] || [activeFilter];
-        return recommended.some(r => activeFilterCovers.includes(r));
-      });
+  const filterByBand = (targets: TelescopiusTarget[]) => {
+    if (activeFilter === 'all') return targets;
+    return targets.filter(t => {
+      const types = t.type ? t.type.split(',') : [];
+      const recommended = recommendFiltersForTypes(types);
+      const activeFilterCovers = FILTER_TYPE_COVERAGE[activeFilter as FilterType] || [activeFilter];
+      return recommended.some(r => activeFilterCovers.includes(r));
+    });
+  };
 
-  const displayTargets = activeTab === 'bestTonight' ? filteredBestTargets : (results?.targets || []);
+  const filteredBestTargets = filterByBand(bestTargets);
+  const filteredPriorityTargets = filterByBand(priorityTargets);
+
+  const displayTargets = activeTab === 'bestTonight' ? filteredBestTargets : activeTab === 'priority' ? filteredPriorityTargets : (results?.targets || []);
 
   // Render target card (shared between both tabs)
   const renderTargetCard = (target: TelescopiusTarget) => {
@@ -475,6 +557,16 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           <Sparkles size={16} /> Best Tonight
         </button>
         <button
+          onClick={() => setActiveTab('priority')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'priority'
+              ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+              : 'bg-surface-secondary text-text-secondary hover:text-text border border-border'
+          }`}
+        >
+          <Star size={16} /> Priority
+        </button>
+        <button
           onClick={() => setActiveTab('search')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'search'
@@ -576,6 +668,103 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredBestTargets.map(renderTargetCard)}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ===== PRIORITY TAB ===== */}
+      {activeTab === 'priority' && (
+        <div className="space-y-4">
+          {/* Filter bar — same as Best Tonight */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex items-center gap-2 mr-2">
+              <Eye size={14} className="text-text-secondary" />
+              <span className="text-xs text-text-secondary">Alt min:</span>
+              <input
+                type="range" min="0" max="80" value={minAlt}
+                onChange={e => { setMinAlt(Number(e.target.value)); }}
+                className="w-24 accent-yellow-500"
+              />
+              <span className="text-xs text-text-secondary font-mono w-6">{minAlt}°</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              <button
+                onClick={() => setActiveFilter('all')}
+                className={`text-[10px] px-2 py-1 rounded-full transition-colors ${
+                  activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-surface-secondary text-text-secondary hover:text-text'
+                }`}
+              >
+                All
+              </button>
+              {ownedFilterTypes.map(f => (
+                <button
+                  key={f}
+                  onClick={() => setActiveFilter(f)}
+                  className={`text-[10px] px-2 py-1 rounded-full transition-colors ${
+                    activeFilter === f ? FILTER_COLORS[f] + ' ring-1 ring-current' : 'bg-surface-secondary text-text-secondary hover:text-text'
+                  }`}
+                >
+                  {FILTER_TYPE_LABELS[f] || f.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={loadPriorityVisibility}
+              disabled={priorityLoading}
+              className="ml-auto px-3 py-1.5 text-sm rounded-lg bg-yellow-500/20 text-yellow-300 border border-yellow-500/50 hover:bg-yellow-500/30 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <RotateCw size={14} className={priorityLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+
+          {/* Rig info */}
+          {defaultRig && (
+            <div className="text-xs text-text-secondary flex items-center gap-3">
+              <span>📐 FOV: {defaultRig.sensorWidth && defaultRig.focalLength ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.focalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.focalLength).toFixed(1)}'` : '—'}</span>
+              <span>|</span>
+              <span>📏 Scale: {defaultRig.pixelSize && defaultRig.focalLength ? `${((defaultRig.pixelSize * 206.265) / defaultRig.focalLength).toFixed(2)}"/px` : '—'}</span>
+              <span>|</span>
+              <span>🔭 {defaultRig.focalLength}mm f/{defaultRig.fRatio}</span>
+            </div>
+          )}
+
+          {/* Error */}
+          {priorityError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-300">
+              {priorityError}
+            </div>
+          )}
+
+          {/* Loading */}
+          {priorityLoading && (
+            <div className="flex flex-col items-center justify-center py-20">
+              <RotateCw className="w-8 h-8 text-yellow-500 animate-spin" />
+              <p className="text-sm text-text-secondary mt-3">Checking visibility for {priorityRawIds.length} priority targets…</p>
+            </div>
+          )}
+
+          {/* Targets grid */}
+          {!priorityLoading && filteredPriorityTargets.length === 0 && (
+            <div className="text-center py-16 text-text-secondary">
+              <Star className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-lg">No priority targets visible tonight</p>
+              <p className="text-sm mt-1">Try adjusting altitude or filter settings</p>
+            </div>
+          )}
+
+          {!priorityLoading && filteredPriorityTargets.length > 0 && (
+            <>
+              <div className="text-sm text-text-secondary">
+                {filteredPriorityTargets.length} priority target{filteredPriorityTargets.length !== 1 ? 's' : ''} visible tonight
+                {activeFilter !== 'all' && ` · Filtered: ${activeFilter.replace(/_/g, ' ')}`}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredPriorityTargets.map(renderTargetCard)}
               </div>
             </>
           )}
