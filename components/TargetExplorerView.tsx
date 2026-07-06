@@ -237,44 +237,44 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
     setPriorityLoading(true);
     setPriorityError(null);
     try {
-      // Batch search: Telescopius search supports name filter, but we need individual lookups
-      // to get visibility data for each target. We batch them in parallel (5 at a time to avoid rate limits).
-      const BATCH_SIZE = 20;
-      const allResults: TelescopiusTarget[] = [];
-      
-      for (let i = 0; i < priorityRawIds.length; i += BATCH_SIZE) {
-        const batch = priorityRawIds.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (name) => {
-            try {
-              const params = new URLSearchParams({
-                lat: coords.lat.toString(),
-                lon: coords.lon.toString(),
-                timezone: 'Europe/Paris',
-                name: name,
-                results_per_page: '1',
-                min_alt: '0', // We filter altitude client-side
-              });
-              const res = await fetch(`/api/telescopius/search?${params.toString()}`, {
-                headers: telescopiusAuthHeaders(),
-              });
-              if (!res.ok) return null;
-              const data = await res.json();
-              const targets: TelescopiusTarget[] = (data.targets || []).map(mapApiTarget);
-              return targets[0] || null;
-            } catch {
-              return null;
-            }
-          })
-        );
-        for (const t of batchResults) {
-          if (t) allResults.push(t);
+      // Single highlights call with 500 results — much faster than 206 individual searches
+      const params = new URLSearchParams({
+        lat: coords.lat.toString(),
+        lon: coords.lon.toString(),
+        timezone: 'Europe/Paris',
+        min_alt: '0', // We filter altitude client-side
+        results_per_page: '500',
+      });
+      const res = await fetch(`/api/telescopius/highlights?${params.toString()}`, {
+        headers: telescopiusAuthHeaders(),
+      });
+      if (!res.ok) throw new Error(`Highlights failed: ${res.status}`);
+      const data = await res.json();
+      const allTargets: TelescopiusTarget[] = (data.targets || []).map(mapApiTarget);
+
+      // Build a normalized lookup map from highlights results
+      const norm = (s: string) => s.toUpperCase().replace(/\s+/g, '');
+      const lookup = new Map<string, TelescopiusTarget>();
+      for (const t of allTargets) {
+        lookup.set(norm(t.mainId), t);
+        lookup.set(norm(t.mainName), t);
+      }
+
+      // Match our priority list against highlights results
+      const matched: TelescopiusTarget[] = [];
+      let notFoundCount = 0;
+      for (const rawId of priorityRawIds) {
+        const t = lookup.get(norm(rawId));
+        if (t) {
+          matched.push(t);
+        } else {
+          notFoundCount++;
         }
       }
-      
-      // Filter by min altitude AND has at least some visibility data (imaging windows or transit time)
-      const visible = allResults.filter(t => 
-        t.altitudeMax != null && 
+
+      // Filter by min altitude AND has at least some visibility data
+      const visible = matched.filter(t =>
+        t.altitudeMax != null &&
         t.altitudeMax >= minAlt &&
         (t.imagingWindows.length > 0 || t.totalImagingHours > 0 || t.transitTime != null)
       );
@@ -282,11 +282,10 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
       visible.forEach(t => { t.isPriority = true; });
       // Sort by total imaging hours descending (most imaging time first)
       visible.sort((a, b) => (b.totalImagingHours ?? 0) - (a.totalImagingHours ?? 0));
-      
-      const notFoundCount = priorityRawIds.length - allResults.length;
-      const noWindowCount = allResults.length - visible.length;
-      setPriorityStats({ found: allResults.length, visible: visible.length, notFound: notFoundCount, noWindow: noWindowCount });
-      
+
+      const noWindowCount = matched.length - visible.length;
+      setPriorityStats({ found: matched.length, visible: visible.length, notFound: notFoundCount, noWindow: noWindowCount });
+
       if (visible.length === 0) {
         setPriorityError('None of your priority targets have imaging windows tonight. Try lowering the altitude filter.');
       }
@@ -753,8 +752,8 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           {priorityLoading && (
             <div className="flex flex-col items-center justify-center py-20">
               <RotateCw className="w-8 h-8 text-yellow-500 animate-spin" />
-              <p className="text-sm text-text-secondary mt-3">Checking visibility for {priorityRawIds.length} priority targets (batch of 20)…</p>
-              <p className="text-xs text-text-secondary mt-1">~10-30 seconds</p>
+              <p className="text-sm text-text-secondary mt-3">Checking visibility for {priorityRawIds.length} priority targets…</p>
+              <p className="text-xs text-text-secondary mt-1">~3-5 seconds</p>
             </div>
           )}
 
