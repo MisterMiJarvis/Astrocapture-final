@@ -1,0 +1,17 @@
+{
+  "_comment": "Liste de targets prioritaires. Elles apparaissent en haut du 'Best Tonight' avec un badge ⭐. Edit this file to add/remove priorities. Format: object identifier (Messier, NGC, IC, etc.)",
+  "targets": [
+    "M31",
+    "M42",
+    "M45",
+    "M51",
+    "M81",
+    "M82",
+    "NGC 7000",
+    "IC 434",
+    "NGC 281",
+    "M33",
+    "NGC 6992",
+    "M27"
+  ]
+}

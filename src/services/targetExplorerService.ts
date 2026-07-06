@@ -89,6 +89,23 @@ export interface TelescopiusTarget {
   setTime: string | null;
   imagingWindows: ImagingWindow[];
   totalImagingHours: number;
+  isPriority?: boolean;
+}
+
+/**
+ * Load priority targets from public config file.
+ * Returns a Set of uppercase IDs for fast matching.
+ */
+export async function loadPriorityTargets(): Promise<Set<string>> {
+  try {
+    const res = await fetch('/priority-targets.json');
+    if (!res.ok) return new Set();
+    const data = await res.json();
+    const ids: string[] = (data.targets || []).map((s: string) => s.toUpperCase().trim());
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
 }
 
 export interface TargetSearchResult {

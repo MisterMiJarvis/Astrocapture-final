@@ -19,6 +19,7 @@ import {
   recommendFiltersForTypes,
   mapApiTarget,
   authHeaders as telescopiusAuthHeaders,
+  loadPriorityTargets,
 } from '../src/services/targetExplorerService';
 import { FilterType } from '../types/module5';
 import { RigProfile } from '../types/module2';
@@ -104,6 +105,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
   const [userFilters, setUserFilters] = useState<UserFilterInfo[]>([]);
   const [ownedFilterTypes, setOwnedFilterTypes] = useState<FilterType[]>([]);
   const bestLoadedRef = useRef(false);
+  const [priorityIds, setPriorityIds] = useState<Set<string>>(new Set());
 
   // Load user's owned filters
   useEffect(() => {
@@ -111,6 +113,11 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
       setUserFilters(uf);
       setOwnedFilterTypes(uf.map(f => f.filterType).filter((v, i, a) => a.indexOf(v) === i));
     }).catch(() => {});
+  }, []);
+
+  // Load priority targets config
+  useEffect(() => {
+    loadPriorityTargets().then(setPriorityIds).catch(() => {});
   }, []);
 
   const coords = LOCATION_COORDS[locationSource] || LOCATION_COORDS.saintEtienne;
@@ -176,17 +183,23 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
         }
       }
 
-      if (merged.length === 0) {
+      // Mark priority targets and move them to top
+      const priorityTargets = merged.filter(t => priorityIds.has(t.mainId.toUpperCase()) || priorityIds.has(t.mainName.toUpperCase()));
+      const normalTargets = merged.filter(t => !priorityIds.has(t.mainId.toUpperCase()) && !priorityIds.has(t.mainName.toUpperCase()));
+      priorityTargets.forEach(t => { t.isPriority = true; });
+      const finalTargets = [...priorityTargets, ...normalTargets];
+
+      if (finalTargets.length === 0) {
         setBestError('No targets visible tonight. Try lowering the altitude filter.');
       }
-      setBestTargets(merged);
+      setBestTargets(finalTargets);
     } catch (err) {
       console.error('Best targets load error:', err);
       setBestError(`Failed to load best targets: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setBestLoading(false);
     }
-  }, [coords.lat, coords.lon, minAlt]);
+  }, [coords.lat, coords.lon, minAlt, priorityIds]);
 
   // Load best targets on mount
   useEffect(() => {
@@ -301,7 +314,10 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
 
         {/* Info */}
         <div className="p-3">
-          <div className="font-semibold text-sm text-text truncate">{target.mainName}</div>
+          <div className="font-semibold text-sm text-text truncate flex items-center gap-1">
+            {target.isPriority && <span title="Priority target" className="text-yellow-400">⭐</span>}
+            {target.mainName}
+          </div>
           {target.mainId !== target.mainName && (
             <div className="text-xs text-text-secondary truncate">{target.mainId}</div>
           )}
