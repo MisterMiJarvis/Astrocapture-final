@@ -184,8 +184,10 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
       }
 
       // Mark priority targets and move them to top
-      const priorityTargets = merged.filter(t => priorityIds.has(t.mainId.toUpperCase()) || priorityIds.has(t.mainName.toUpperCase()));
-      const normalTargets = merged.filter(t => !priorityIds.has(t.mainId.toUpperCase()) && !priorityIds.has(t.mainName.toUpperCase()));
+      // Match priority targets — normalize by removing spaces (M13 == M 13)
+      const norm = (s: string) => s.toUpperCase().replace(/\s+/g, '');
+      const priorityTargets = merged.filter(t => priorityIds.has(norm(t.mainId)) || priorityIds.has(norm(t.mainName)) || priorityIds.has(t.mainId.toUpperCase().trim()) || priorityIds.has(t.mainName.toUpperCase().trim()));
+      const normalTargets = merged.filter(t => !priorityIds.has(norm(t.mainId)) && !priorityIds.has(norm(t.mainName)) && !priorityIds.has(t.mainId.toUpperCase().trim()) && !priorityIds.has(t.mainName.toUpperCase().trim()));
       priorityTargets.forEach(t => { t.isPriority = true; });
       const finalTargets = [...priorityTargets, ...normalTargets];
 

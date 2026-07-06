@@ -101,7 +101,7 @@ export async function loadPriorityTargets(): Promise<Set<string>> {
     const res = await fetch('/priority-targets.json');
     if (!res.ok) return new Set();
     const data = await res.json();
-    const ids: string[] = (data.targets || []).map((s: string) => s.toUpperCase().trim());
+    const ids: string[] = (data.targets || []).map((s: string) => s.toUpperCase().trim().replace(/\s+/g, ' '));
     return new Set(ids);
   } catch {
     return new Set();
