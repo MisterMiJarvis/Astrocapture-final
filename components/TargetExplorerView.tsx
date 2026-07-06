@@ -238,7 +238,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
     try {
       // Batch search: Telescopius search supports name filter, but we need individual lookups
       // to get visibility data for each target. We batch them in parallel (5 at a time to avoid rate limits).
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 20;
       const allResults: TelescopiusTarget[] = [];
       
       for (let i = 0; i < priorityRawIds.length; i += BATCH_SIZE) {
@@ -744,7 +744,8 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           {priorityLoading && (
             <div className="flex flex-col items-center justify-center py-20">
               <RotateCw className="w-8 h-8 text-yellow-500 animate-spin" />
-              <p className="text-sm text-text-secondary mt-3">Checking visibility for {priorityRawIds.length} priority targets…</p>
+              <p className="text-sm text-text-secondary mt-3">Checking visibility for {priorityRawIds.length} priority targets (batch of 20)…</p>
+              <p className="text-xs text-text-secondary mt-1">~10-30 seconds</p>
             </div>
           )}
 
