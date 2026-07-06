@@ -82,7 +82,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
             <Calendar size={16} /> Planning d'observation
           </h3>
           <p className="text-xs text-text-secondary mt-1">
-            Fenêtres d'imagerie, altitude cible et conditions météo
+            Imaging windows, target altitude and weather conditions
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -162,14 +162,14 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                 {planner.totalObservableHours.toFixed(1)}h
               </div>
               <div className="text-[10px] text-text-secondary">
-                {planner.windows.length} fenêtre{planner.windows.length > 1 ? 's' : ''}
+                {planner.windows.length} window{planner.windows.length > 1 ? 's' : ''}
               </div>
             </div>
             {planner.bestWindow && (
               <>
                 <div className="bg-background p-3 rounded-lg border border-border">
                   <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-                    <TrendingUp size={12} /> Meilleure fenêtre
+                    <TrendingUp size={12} /> Best window
                   </div>
                   <div className={`font-bold text-lg ${QUALITY_COLORS[planner.bestWindow.qualityLabel].text}`}>
                     {planner.bestWindow.qualityScore}/100
@@ -217,7 +217,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                 {(planner.remainingExposureMinutes / 60).toFixed(1)}h
               </span>
               {planner.totalObservableHours * 60 >= planner.remainingExposureMinutes ? (
-                <span className="text-emerald-400">✅ Fenêtres suffisent</span>
+                <span className="text-emerald-400">✅ Windows sufficient</span>
               ) : (
                 <span className="text-orange-400">⚠️ Pas assez de temps de nuit</span>
               )}
@@ -247,7 +247,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
 
           {/* Imaging windows */}
           <div className="space-y-2">
-            <h4 className="text-sm font-semibold text-text">Fenêtres d'imagerie</h4>
+            <h4 className="text-sm font-semibold text-text">Imaging windows</h4>
             {planner.windows.map((w, i) => (
               <WindowSlotCard key={i} slot={w} />
             ))}
@@ -444,12 +444,12 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
       {cappedEndStr && slot.cappedDurationMinutes > 0 && (
         <div className="flex items-center gap-2 mt-1.5 text-[10px] text-primary bg-primary/10 px-2 py-1 rounded">
           <Camera size={10} />
-          <span>Limité à l'exposition: {startStr} → {cappedEndStr} ({cappedDurStr})</span>
+          <span>Capped to exposure: {startStr} → {cappedEndStr} ({cappedDurStr})</span>
         </div>
       )}
       {slot.cappedDurationMinutes === 0 && (
         <div className="flex items-center gap-2 mt-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-          <span>✅ Exposition déjà acquise — fenêtre en surplus</span>
+          <span>✅ Exposure already acquired — surplus window</span>
         </div>
       )}
       <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">
@@ -492,7 +492,7 @@ const WeatherSnapshotCard: React.FC<{ weather: WeatherSnapshot }> = ({ weather }
   return (
     <div className="bg-background rounded-lg border border-border p-3">
       <h4 className="text-sm font-semibold text-text mb-2 flex items-center gap-1">
-        <Cloud size={14} /> Snapshot météo (fenêtre optimale)
+        <Cloud size={14} /> Weather snapshot (optimal window)
       </h4>
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         <div className="text-center">

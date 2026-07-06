@@ -1277,7 +1277,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
               <h1 className="text-2xl font-display font-bold flex items-center gap-2">
                 ✏️ Modifier le projet
               </h1>
-              <p className="text-sm text-text-secondary">Modifiez les paramètres du projet</p>
+              <p className="text-sm text-text-secondary">Edit project settings</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1359,7 +1359,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
                   ))}
                 </select>
               ) : (
-                <div className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-secondary">Aucun rig configuré</div>
+                <div className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-secondary">No rig configured</div>
               )}
               {activeRig && (
                 <div className="text-[10px] text-text-secondary mt-1 font-mono">
@@ -1479,7 +1479,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         {editExposurePreview && editExposurePreview.length > 0 && (
           <div className="bg-surface border border-emerald-500/30 rounded-xl p-5 space-y-3">
             <h3 className="font-semibold text-text flex items-center gap-2">
-              <span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm">📸</span> Plan d'exposition recalculé
+              <span className="bg-emerald-500/20 text-emerald-300 rounded-full w-6 h-6 flex items-center justify-center text-sm">📸</span> Exposure plan recalculated
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {editExposurePreview.map((plan: any, i: number) => {
@@ -1646,7 +1646,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-text flex items-center gap-2"><Download size={16} /> Export NINA</h3>
-            <p className="text-xs text-text-secondary mt-1">Génère un fichier target pour NINA Advanced Sequencer (JSON)</p>
+            <p className="text-xs text-text-secondary mt-1">Generates a target file for NINA Advanced Sequencer (JSON)</p>
           </div>
           <button
             onClick={() => {
@@ -1661,7 +1661,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
             }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
-            <Download size={16} /> Télécharger le target file
+            <Download size={16} /> Download target file
           </button>
         </div>
       </div>
@@ -1814,7 +1814,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
           </div>
           <div className="bg-background p-3 rounded-lg border border-border">
             <span className="text-text-secondary text-xs block mb-1">Rig</span>
-            <span className="font-semibold text-text">{project.rigName || 'Non assigné'}</span>
+            <span className="font-semibold text-text">{project.rigName || 'Not assigned'}</span>
           </div>
         </div>
       </div>
@@ -1857,7 +1857,7 @@ const FramingPreview: React.FC<FramingPreviewProps> = ({
         <span className="font-mono font-bold text-text">{fovWidth.toFixed(1)}' × {fovHeight.toFixed(1)}'</span>
       </div>
       <div className="bg-background p-3 rounded-lg border border-border">
-        <span className="text-text-secondary text-xs block mb-1">Résolution</span>
+        <span className="text-text-secondary text-xs block mb-1">Resolution</span>
         <span className="font-mono font-bold text-text">{resolution.toFixed(2)}"/px</span>
       </div>
       <div className="bg-background p-3 rounded-lg border border-border">

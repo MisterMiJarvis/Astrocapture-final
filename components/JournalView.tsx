@@ -82,12 +82,12 @@ const SAMPLE_ENTRIES: JournalEntry[] = [
     targetName: 'M42',
     equipmentUsed: ['RedCat 51', 'ASI2600MM Pro', 'EQ6-R Pro'],
     totalIntegrationTime: 180,
-    conditions: { seeing: 3, transparency: 4, temperature: 12, notes: 'Bonne nuit, lune à 25%' },
+    conditions: { seeing: 3, transparency: 4, temperature: 12, notes: 'Good night, moon at 25%' },
     acquisitionNotes: '120× 90s en Ha',
     processingNotes: 'PixInsight : DBE, Histogram, Curves',
     overallRating: 4,
     images: [],
-    tags: ['Ha', 'Nébuleuse'],
+    tags: ['Ha', 'Nebula'],
     projectId: '1',
     guidingRMS: 0.8,
   },
@@ -103,7 +103,7 @@ const SAMPLE_ENTRIES: JournalEntry[] = [
     processingNotes: 'En attente de traitement',
     overallRating: 3,
     images: [],
-    tags: ['OIII', 'Nébuleuse'],
+    tags: ['OIII', 'Nebula'],
     projectId: '1',
     guidingRMS: 1.2,
   },
@@ -125,7 +125,7 @@ const JournalView: React.FC = () => {
     : entries;
 
   const handleDelete = (id: string) => {
-    if (confirm('Supprimer cette entrée du journal ?')) {
+    if (confirm('Delete this journal entry?')) {
       setEntries(prev => prev.filter(e => e.id !== id));
     }
   };
@@ -234,7 +234,7 @@ const JournalView: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => alert('Édition à venir')} className="p-1.5 rounded-md text-[#8e9aaf] hover:text-[#e8eaf6] transition-colors">
+                      <button onClick={() => alert('Editing coming soon')} className="p-1.5 rounded-md text-[#8e9aaf] hover:text-[#e8eaf6] transition-colors">
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button onClick={() => handleDelete(entry.id)} className="p-1.5 rounded-md text-[#8e9aaf] hover:text-[#EF4444] transition-colors">
@@ -281,7 +281,7 @@ const JournalView: React.FC = () => {
             {filtered.length === 0 && (
               <div className="text-center py-16 text-[#8e9aaf]">
                 <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Aucune entrée dans le journal</p>
+                <p>No journal entries</p>
               </div>
             )}
           </div>

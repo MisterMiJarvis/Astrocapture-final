@@ -37,17 +37,23 @@ const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLo
     };
 
     // Sync local location when the parent bandeau changes the default location
+    // Also initialize on mount if coordinates are still null
     React.useEffect(() => {
-        if (defaultLocation && defaultLocation !== locationSource) {
-            setLocationSource(defaultLocation as typeof locationSource);
-            if (defaultLocation === 'saintEtienne') {
-                setCoordinates(PRESET_LOCATIONS.saintEtienne);
-                setCurrentBortle(PRESET_LOCATIONS.saintEtienne.bortle);
-            } else if (defaultLocation === 'pradelles') {
-                setCoordinates(PRESET_LOCATIONS.pradelles);
-                setCurrentBortle(PRESET_LOCATIONS.pradelles.bortle);
+        if (defaultLocation) {
+            if (defaultLocation !== locationSource) {
+                setLocationSource(defaultLocation as typeof locationSource);
             }
-            setLocationError(null);
+            // Always set coordinates if they're null and we have a default location
+            if (!coordinates) {
+                if (defaultLocation === 'saintEtienne') {
+                    setCoordinates(PRESET_LOCATIONS.saintEtienne);
+                    setCurrentBortle(PRESET_LOCATIONS.saintEtienne.bortle);
+                } else if (defaultLocation === 'pradelles') {
+                    setCoordinates(PRESET_LOCATIONS.pradelles);
+                    setCurrentBortle(PRESET_LOCATIONS.pradelles.bortle);
+                }
+                setLocationError(null);
+            }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [defaultLocation]);
