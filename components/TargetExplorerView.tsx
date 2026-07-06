@@ -103,6 +103,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
   const [priorityTargets, setPriorityTargets] = useState<TelescopiusTarget[]>([]);
   const [priorityLoading, setPriorityLoading] = useState(false);
   const [priorityError, setPriorityError] = useState<string | null>(null);
+  const [priorityStats, setPriorityStats] = useState<{ found: number; visible: number; notFound: number; noWindow: number }>({ found: 0, visible: 0, notFound: 0, noWindow: 0 });
   const priorityLoadedRef = useRef(false);
   const [priorityRawIds, setPriorityRawIds] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType | 'all'>('all');
@@ -271,15 +272,23 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
         }
       }
       
-      // Filter by min altitude
-      const visible = allResults.filter(t => t.altitudeMax != null && t.altitudeMax >= minAlt);
+      // Filter by min altitude AND has at least some visibility data (imaging windows or transit time)
+      const visible = allResults.filter(t => 
+        t.altitudeMax != null && 
+        t.altitudeMax >= minAlt &&
+        (t.imagingWindows.length > 0 || t.totalImagingHours > 0 || t.transitTime != null)
+      );
       // Mark all as priority
       visible.forEach(t => { t.isPriority = true; });
-      // Sort by max altitude descending (highest first)
-      visible.sort((a, b) => (b.altitudeMax ?? 0) - (a.altitudeMax ?? 0));
+      // Sort by total imaging hours descending (most imaging time first)
+      visible.sort((a, b) => (b.totalImagingHours ?? 0) - (a.totalImagingHours ?? 0));
+      
+      const notFoundCount = priorityRawIds.length - allResults.length;
+      const noWindowCount = allResults.length - visible.length;
+      setPriorityStats({ found: allResults.length, visible: visible.length, notFound: notFoundCount, noWindow: noWindowCount });
       
       if (visible.length === 0) {
-        setPriorityError('None of your priority targets are visible tonight. Try lowering the altitude filter.');
+        setPriorityError('None of your priority targets have imaging windows tonight. Try lowering the altitude filter.');
       }
       setPriorityTargets(visible);
     } catch (err) {
@@ -763,6 +772,8 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
               <div className="text-sm text-text-secondary">
                 {filteredPriorityTargets.length} priority target{filteredPriorityTargets.length !== 1 ? 's' : ''} visible tonight
                 {activeFilter !== 'all' && ` · Filtered: ${activeFilter.replace(/_/g, ' ')}`}
+                {priorityStats.notFound > 0 && ` · ${priorityStats.notFound} not found in catalog`}
+                {priorityStats.noWindow > 0 && ` · ${priorityStats.noWindow} no imaging window`}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredPriorityTargets.map(renderTargetCard)}
