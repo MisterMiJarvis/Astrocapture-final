@@ -11,17 +11,17 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
+    "@types/pg": "^8.20.0",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.9.1",
     "cloudscraper": "^4.6.0",
     "hono": "^4.7.9",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.22.0",
     "playwright": "^1.60.0",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/jsonwebtoken": "^9.0.9",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"

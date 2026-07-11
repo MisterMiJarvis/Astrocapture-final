@@ -18,7 +18,7 @@ if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // CORS
 app.use('/*', cors({
-  origin: ['https://astrocapture.org', 'https://beta.astrocapture.org', 'http://localhost:5173', 'http://localhost:3000'],
+  origin: ['https://astrocapture.org', 'https://www.astrocapture.org', 'https://beta.astrocapture.org', 'http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
 }));
 
@@ -44,7 +44,7 @@ const auth = async (c: any, next: any) => {
 
 app.post('/api/auth/login', async (c) => {
   const { email, password } = await c.req.json();
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
@@ -59,7 +59,7 @@ app.get('/api/auth/me', async (c) => {
   }
   try {
     const payload = await Jwt.verify(header.slice(7), JWT_SECRET, 'HS256') as any;
-    const user = db.prepare('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?').get(payload.id) as any;
+    const user = await db.prepare('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?').get(payload.id) as any;
     if (!user) return c.json({ error: 'User not found' }, 404);
     return c.json({ user: { id: user.id, email: user.email, firstName: user.first_name || '', lastName: user.last_name || '', isAdmin: !!user.is_admin } });
   } catch {
@@ -68,7 +68,7 @@ app.get('/api/auth/me', async (c) => {
 });
 
 app.post('/api/auth/setup', async (c) => {
-  const userCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
+  const userCount = (await db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
   if (userCount > 0) return c.json({ error: 'Admin already exists' }, 400);
   const { email, password } = await c.req.json();
   if (!email || !password || password.length < 6) {
@@ -76,14 +76,14 @@ app.post('/api/auth/setup', async (c) => {
   }
   const id = crypto.randomUUID();
   const hash = await bcrypt.hash(password, 10);
-  db.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)').run(id, email, hash);
+  await db.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)').run(id, email, hash);
   const token = await Jwt.sign({ id, email }, JWT_SECRET);
   return c.json({ token, user: { id, email } });
 });
 
 app.post('/api/auth/astro-login', async (c) => {
   const { email, password } = await c.req.json();
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
@@ -107,7 +107,7 @@ app.post('/api/auth/astro-login', async (c) => {
 app.get('/api/users', auth, async (c) => {
   const authUser = c.get('user') as AuthUser;
   if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
-  const rows = db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users ORDER BY created_at DESC').all();
+  const rows = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users ORDER BY created_at DESC').all();
   const users = (rows as any[]).map(row => ({
     id: row.id,
     email: row.email,
@@ -126,13 +126,13 @@ app.post('/api/users', auth, async (c) => {
   if (!email || !password || password.length < 6) {
     return c.json({ error: 'Email and password (min 6 chars) required' }, 400);
   }
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (existing) return c.json({ error: 'Email already exists' }, 409);
   const id = crypto.randomUUID();
   const hash = await bcrypt.hash(password, 10);
-  db.prepare('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin) VALUES (?, ?, ?, ?, ?, ?)')
+  await db.prepare('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin) VALUES (?, ?, ?, ?, ?, ?)')
     .run(id, email, hash, firstName || '', lastName || '', isAdmin ? 1 : 0);
-  const user = db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
+  const user = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
   return c.json({
     user: {
       id: user.id,
@@ -150,7 +150,7 @@ app.put('/api/users/:id', auth, async (c) => {
   if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
   const { email, firstName, lastName, password, isAdmin } = await c.req.json();
   const id = c.req.param('id');
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
   if (!user) return c.json({ error: 'User not found' }, 404);
 
   let updates: string[] = [];
@@ -166,9 +166,9 @@ app.put('/api/users/:id', auth, async (c) => {
   }
   if (updates.length === 0) return c.json({ error: 'No fields to update' }, 400);
   params.push(id);
-  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
-  const updated = db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
+  const updated = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
   return c.json({
     user: {
       id: updated.id,
@@ -181,12 +181,12 @@ app.put('/api/users/:id', auth, async (c) => {
   });
 });
 
-app.delete('/api/users/:id', auth, (c) => {
+app.delete('/api/users/:id', auth, async (c) => {
   const authUser = c.get('user') as AuthUser;
   if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
   const id = c.req.param('id');
   if (id === authUser.id) return c.json({ error: 'Cannot delete yourself' }, 400);
-  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  await db.prepare('DELETE FROM users WHERE id = ?').run(id);
   return c.json({ ok: true });
 });
 
@@ -267,8 +267,8 @@ app.get('/api/telescopius/search', async (c) => {
     if (result.error) {
       // Fallback to local DSO database
       const q = c.req.query('name') || c.req.query('q') || '';
-      const stmt = db.prepare('SELECT * FROM dso_cache WHERE id LIKE ? OR data LIKE ? LIMIT 20');
-      const rows = stmt.all(`%${q}%`, `%${q}%`) as any[];
+      const stmt = await db.prepare('SELECT * FROM dso_cache WHERE id LIKE ? OR data LIKE ? LIMIT 20');
+      const rows = await stmt.all(`%${q}%`, `%${q}%`) as any[];
       const targets = rows.map(row => {
         const data = JSON.parse(row.data || '{}');
         return {
@@ -527,7 +527,7 @@ app.post('/api/logs/analyze', async (c) => {
 // POSTS (Astrophotography posts)
 // =====================
 
-function parsePost(row: any) {
+async function parsePost(row: any) {
   return {
     id: row.id,
     title: row.title,
@@ -542,13 +542,13 @@ function parsePost(row: any) {
     totalIntegrationTime: row.total_integration_time,
     showOnWall: Boolean(row.show_on_wall),
     updatedAt: row.updated_at,
-    acquisitionLogs: row.id ? db.prepare('SELECT * FROM acquisition_logs WHERE post_id = ? ORDER BY date ASC').all(row.id).map((r: any) => ({
+    acquisitionLogs: row.id ? (await db.prepare('SELECT * FROM acquisition_logs WHERE post_id = ? ORDER BY date ASC').all(row.id)).map((r: any) => ({
       id: r.id, date: r.date, filter: r.filter, exposureCount: r.exposure_count, exposureLength: r.exposure_length,
     })) : [],
   };
 }
 
-app.get('/api/posts', (c) => {
+app.get('/api/posts', async (c) => {
   const { tag, wall } = c.req.query();
   let query = 'SELECT * FROM posts';
   const conditions: string[] = [];
@@ -557,13 +557,13 @@ app.get('/api/posts', (c) => {
   if (wall === 'true') { conditions.push('show_on_wall = 1'); }
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY capture_date DESC';
-  return c.json(db.prepare(query).all(...params).map(parsePost));
+  return c.json(await Promise.all((await db.prepare(query).all(...params)).map(parsePost)));
 });
 
-app.get('/api/posts/:id', (c) => {
-  const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(c.req.param('id'));
+app.get('/api/posts/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM posts WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
-  return c.json(parsePost(row));
+  return c.json(await parsePost(row));
 });
 
 app.post('/api/posts', auth, async (c) => {
@@ -571,7 +571,7 @@ app.post('/api/posts', auth, async (c) => {
   
   const id = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO posts (id, title, image_url, object_name, capture_date, equipment, description, tags, astrobin_url, raw_data_url, total_integration_time, show_on_wall, updated_at)
+  await db.prepare(`INSERT INTO posts (id, title, image_url, object_name, capture_date, equipment, description, tags, astrobin_url, raw_data_url, total_integration_time, show_on_wall, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.title || '', body.imageUrl || '', body.objectName || '', body.captureDate || '',
     body.equipment || '', body.description || '', JSON.stringify(body.tags || []),
@@ -582,22 +582,22 @@ app.post('/api/posts', auth, async (c) => {
   if (body.acquisitionLogs?.length) {
     for (const log of body.acquisitionLogs) {
       const logId = log.id || crypto.randomUUID();
-      db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
+      await db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
         VALUES (?, ?, ?, ?, ?, ?)`).run(
         logId, id, log.date || '', log.filter || '', log.exposureCount || 0, log.exposureLength || 0
       );
     }
   }
-  return c.json(parsePost(db.prepare('SELECT * FROM posts WHERE id = ?').get(id)));
+  return c.json(await parsePost(await db.prepare('SELECT * FROM posts WHERE id = ?').get(id)));
 });
 
 app.put('/api/posts/:id', auth, async (c) => {
   const id = c.req.param('id');
-  const existing = db.prepare('SELECT id FROM posts WHERE id = ?').get(id);
+  const existing = await db.prepare('SELECT id FROM posts WHERE id = ?').get(id);
   if (!existing) return c.json({ error: 'Post not found' }, 404);
   const body = await c.req.json();
   const now = new Date().toISOString();
-  db.prepare(`UPDATE posts SET
+  await db.prepare(`UPDATE posts SET
     title = ?, image_url = ?, object_name = ?, capture_date = ?, equipment = ?,
     description = ?, tags = ?, astrobin_url = ?, raw_data_url = ?,
     total_integration_time = ?, show_on_wall = ?, updated_at = ?
@@ -609,22 +609,22 @@ app.put('/api/posts/:id', auth, async (c) => {
   );
   // Update acquisition logs: delete old, insert new
   if (body.acquisitionLogs !== undefined) {
-    db.prepare('DELETE FROM acquisition_logs WHERE post_id = ?').run(id);
+    await db.prepare('DELETE FROM acquisition_logs WHERE post_id = ?').run(id);
     if (body.acquisitionLogs?.length) {
       for (const log of body.acquisitionLogs) {
         const logId = log.id || crypto.randomUUID();
-        db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
+        await db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
           VALUES (?, ?, ?, ?, ?, ?)`).run(
           logId, id, log.date || '', log.filter || '', log.exposureCount || 0, log.exposureLength || 0
         );
       }
     }
   }
-  return c.json(parsePost(db.prepare('SELECT * FROM posts WHERE id = ?').get(id)));
+  return c.json(await parsePost(await db.prepare('SELECT * FROM posts WHERE id = ?').get(id)));
 });
 
-app.delete('/api/posts/:id', auth, (c) => {
-  db.prepare('DELETE FROM posts WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/posts/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM posts WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -632,8 +632,9 @@ app.delete('/api/posts/:id', auth, (c) => {
 // ACQUISITION LOGS
 // =====================
 
-app.get('/api/posts/:postId/acquisition-logs', (c) => {
-  return c.json(db.prepare('SELECT * FROM acquisition_logs WHERE post_id = ? ORDER BY date ASC').all(c.req.param('postId')).map((r: any) => ({
+app.get('/api/posts/:postId/acquisition-logs', async (c) => {
+  const logs = await db.prepare('SELECT * FROM acquisition_logs WHERE post_id = ? ORDER BY date ASC').all(c.req.param('postId'));
+  return c.json(logs.map((r: any) => ({
     id: r.id, date: r.date, filter: r.filter, exposureCount: r.exposure_count, exposureLength: r.exposure_length,
   })));
 });
@@ -641,13 +642,13 @@ app.get('/api/posts/:postId/acquisition-logs', (c) => {
 app.post('/api/posts/:postId/acquisition-logs', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
+  await db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
     VALUES (?, ?, ?, ?, ?, ?)`).run(id, c.req.param('postId'), body.date || '', body.filter || '', body.exposureCount || 0, body.exposureLength || 0);
   return c.json({ id, postId: c.req.param('postId'), ...body });
 });
 
-app.delete('/api/acquisition-logs/:id', auth, (c) => {
-  db.prepare('DELETE FROM acquisition_logs WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/acquisition-logs/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM acquisition_logs WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -674,21 +675,13 @@ function parseProcessingPost(row: any, includeGallery: boolean = false) {
     updatedAt: row.updated_at,
   };
   if (includeGallery) {
-    const galleryRows = db.prepare('SELECT * FROM processing_gallery_images WHERE post_id = ? ORDER BY id').all(row.id) as any[];
-    return {
-      ...base,
-      galleryImages: galleryRows.map((r: any) => ({
-        id: r.id,
-        imageUrl: r.image_url,
-        caption: r.caption,
-        showOnWall: Boolean(r.show_on_wall),
-      })),
-    };
+    // Note: galleryImages should be fetched by the caller and attached separately
+    return { ...base, galleryImages: (row as any)._galleryImages || [] };
   }
   return base;
 }
 
-app.get('/api/processing-posts', (c) => {
+app.get('/api/processing-posts', async (c) => {
   const { type, wall } = c.req.query();
   let query = 'SELECT * FROM processing_posts';
   const conditions: string[] = [];
@@ -698,14 +691,14 @@ app.get('/api/processing-posts', (c) => {
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY capture_date DESC';
 
-  const posts = db.prepare(query).all(...params);
+  const posts = await db.prepare(query).all(...params);
   const postIds = (posts as any[]).map((p: any) => p.id);
 
   // Fetch all gallery images in one query
   let imagesByPostId: Record<string, any[]> = {};
   if (postIds.length > 0) {
     const placeholders = postIds.map(() => '?').join(',');
-    const images = db.prepare(`SELECT * FROM processing_gallery_images WHERE post_id IN (${placeholders}) ORDER BY id`).all(...postIds) as any[];
+    const images = await db.prepare(`SELECT * FROM processing_gallery_images WHERE post_id IN (${placeholders}) ORDER BY id`).all(...postIds) as any[];
     for (const img of images) {
       if (!imagesByPostId[img.post_id]) imagesByPostId[img.post_id] = [];
       imagesByPostId[img.post_id].push({
@@ -723,9 +716,11 @@ app.get('/api/processing-posts', (c) => {
   })));
 });
 
-app.get('/api/processing-posts/:id', (c) => {
-  const row = db.prepare('SELECT * FROM processing_posts WHERE id = ?').get(c.req.param('id'));
+app.get('/api/processing-posts/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM processing_posts WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
+  const galleryRows = await db.prepare('SELECT * FROM processing_gallery_images WHERE post_id = ? ORDER BY id').all(c.req.param('id')) as any[];
+  (row as any)._galleryImages = galleryRows.map((r: any) => ({ id: r.id, imageUrl: r.image_url, caption: r.caption, showOnWall: Boolean(r.show_on_wall) }));
   return c.json(parseProcessingPost(row, true));
 });
 
@@ -736,7 +731,7 @@ app.post('/api/processing-posts', auth, async (c) => {
   console.log('POST /api/processing-posts — galleryImages:', JSON.stringify(body.galleryImages));
   const id = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO processing_posts (id, title, description, tags, capture_date, post_type, before_image_url, after_image_url, featured_image_url, attached_audio_url, attached_document_url, show_before_on_wall, show_after_on_wall, show_featured_on_wall, updated_at)
+  await db.prepare(`INSERT INTO processing_posts (id, title, description, tags, capture_date, post_type, before_image_url, after_image_url, featured_image_url, attached_audio_url, attached_document_url, show_before_on_wall, show_after_on_wall, show_featured_on_wall, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.title || '', body.description || '', JSON.stringify(body.tags || []),
     body.captureDate || '', body.postType || 'gallery',
@@ -747,30 +742,33 @@ app.post('/api/processing-posts', auth, async (c) => {
   // Sync gallery images if provided
   if (body.galleryImages && Array.isArray(body.galleryImages)) {
     console.log('POST — syncing', body.galleryImages.length, 'gallery images');
-    db.prepare('DELETE FROM processing_gallery_images WHERE post_id = ?').run(id);
+    await db.prepare('DELETE FROM processing_gallery_images WHERE post_id = ?').run(id);
     for (const img of body.galleryImages) {
       if (img.imageUrl) {
         console.log('POST — inserting gallery image:', img.imageUrl);
-        db.prepare(`INSERT INTO processing_gallery_images (id, post_id, image_url, caption, show_on_wall)
+        await db.prepare(`INSERT INTO processing_gallery_images (id, post_id, image_url, caption, show_on_wall)
           VALUES (?, ?, ?, ?, ?)`).run(
           crypto.randomUUID(), id, img.imageUrl, img.caption || '', img.showOnWall ? 1 : 0
         );
       }
     }
   }
-  return c.json(parseProcessingPost(db.prepare('SELECT * FROM processing_posts WHERE id = ?').get(id), true));
+  const postRow = await db.prepare('SELECT * FROM processing_posts WHERE id = ?').get(id);
+  const galleryRows = await db.prepare('SELECT * FROM processing_gallery_images WHERE post_id = ? ORDER BY id').all(id) as any[];
+  postRow._galleryImages = galleryRows.map((r: any) => ({ id: r.id, imageUrl: r.image_url, caption: r.caption, showOnWall: Boolean(r.show_on_wall) }));
+  return c.json(parseProcessingPost(postRow, true));
 });
 
 app.put('/api/processing-posts/:id', auth, async (c) => {
   const id = c.req.param('id');
-  const existing = db.prepare('SELECT id FROM processing_posts WHERE id = ?').get(id);
+  const existing = await db.prepare('SELECT id FROM processing_posts WHERE id = ?').get(id);
   if (!existing) return c.json({ error: 'Processing post not found' }, 404);
   const body = await c.req.json();
   console.log('PUT /api/processing-posts/' + id + ' — body keys:', Object.keys(body));
   console.log('PUT processing-posts/' + id + ' — galleryImages count:', body.galleryImages?.length);
   console.log('PUT /api/processing-posts/' + id + ' — galleryImages:', JSON.stringify(body.galleryImages));
   const now = new Date().toISOString();
-  db.prepare(`UPDATE processing_posts SET
+  await db.prepare(`UPDATE processing_posts SET
     title = ?, description = ?, tags = ?, capture_date = ?, post_type = ?,
     before_image_url = ?, after_image_url = ?, featured_image_url = ?,
     attached_audio_url = ?, attached_document_url = ?,
@@ -785,27 +783,31 @@ app.put('/api/processing-posts/:id', auth, async (c) => {
   );
   // Sync gallery images if provided
   if (body.galleryImages && Array.isArray(body.galleryImages)) {
-    db.prepare('DELETE FROM processing_gallery_images WHERE post_id = ?').run(id);
+    await db.prepare('DELETE FROM processing_gallery_images WHERE post_id = ?').run(id);
     for (const img of body.galleryImages) {
       if (img.imageUrl) {
-        db.prepare(`INSERT INTO processing_gallery_images (id, post_id, image_url, caption, show_on_wall)
+        await db.prepare(`INSERT INTO processing_gallery_images (id, post_id, image_url, caption, show_on_wall)
           VALUES (?, ?, ?, ?, ?)`).run(
           crypto.randomUUID(), id, img.imageUrl, img.caption || '', img.showOnWall ? 1 : 0
         );
       }
     }
   }
-  return c.json(parseProcessingPost(db.prepare('SELECT * FROM processing_posts WHERE id = ?').get(id), true));
+  const postRow = await db.prepare('SELECT * FROM processing_posts WHERE id = ?').get(id);
+  const galleryRows = await db.prepare('SELECT * FROM processing_gallery_images WHERE post_id = ? ORDER BY id').all(id) as any[];
+  postRow._galleryImages = galleryRows.map((r: any) => ({ id: r.id, imageUrl: r.image_url, caption: r.caption, showOnWall: Boolean(r.show_on_wall) }));
+  return c.json(parseProcessingPost(postRow, true));
 });
 
-app.delete('/api/processing-posts/:id', auth, (c) => {
-  db.prepare('DELETE FROM processing_posts WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/processing-posts/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM processing_posts WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
 // Gallery images for a processing post
-app.get('/api/processing-posts/:postId/gallery', (c) => {
-  return c.json(db.prepare('SELECT * FROM processing_gallery_images WHERE post_id = ? ORDER BY id').all(c.req.param('postId')).map((r: any) => ({
+app.get('/api/processing-posts/:postId/gallery', async (c) => {
+  const images = await db.prepare('SELECT * FROM processing_gallery_images WHERE post_id = ? ORDER BY id').all(c.req.param('postId'));
+  return c.json(images.map((r: any) => ({
     id: r.id, postId: r.post_id, imageUrl: r.image_url, caption: r.caption, showOnWall: Boolean(r.show_on_wall),
   })));
 });
@@ -813,13 +815,13 @@ app.get('/api/processing-posts/:postId/gallery', (c) => {
 app.post('/api/processing-posts/:postId/gallery', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  db.prepare(`INSERT INTO processing_gallery_images (id, post_id, image_url, caption, show_on_wall)
+  await db.prepare(`INSERT INTO processing_gallery_images (id, post_id, image_url, caption, show_on_wall)
     VALUES (?, ?, ?, ?, ?)`).run(id, c.req.param('postId'), body.imageUrl || '', body.caption || '', body.showOnWall ? 1 : 0);
   return c.json({ id, postId: c.req.param('postId'), ...body });
 });
 
-app.delete('/api/processing-gallery/:id', auth, (c) => {
-  db.prepare('DELETE FROM processing_gallery_images WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/processing-gallery/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM processing_gallery_images WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -842,7 +844,7 @@ function parseEquipment(row: any) {
   };
 }
 
-app.get('/api/equipment', (c) => {
+app.get('/api/equipment', async (c) => {
   const { category, personal } = c.req.query();
   let query = 'SELECT * FROM equipment';
   const conditions: string[] = [];
@@ -850,11 +852,11 @@ app.get('/api/equipment', (c) => {
   if (category) { conditions.push('category = ?'); params.push(category); }
   if (personal === 'true') { conditions.push('is_personal = 1'); }
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  return c.json(db.prepare(query).all(...params).map(parseEquipment));
+  return c.json((await db.prepare(query).all(...params)).map(parseEquipment));
 });
 
-app.get('/api/equipment/:id', (c) => {
-  const row = db.prepare('SELECT * FROM equipment WHERE id = ?').get(c.req.param('id'));
+app.get('/api/equipment/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM equipment WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
   return c.json(parseEquipment(row));
 });
@@ -863,7 +865,7 @@ app.post('/api/equipment', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO equipment (id, name, category, image_url, specs, description, rating, is_personal, focal_length, aperture, f_ratio, telescope_type, sensor_width, sensor_height, pixel_size, resolution, camera_type, payload_capacity, mount_type, filter_type, bandwidth, updated_at)
+  await db.prepare(`INSERT INTO equipment (id, name, category, image_url, specs, description, rating, is_personal, focal_length, aperture, f_ratio, telescope_type, sensor_width, sensor_height, pixel_size, resolution, camera_type, payload_capacity, mount_type, filter_type, bandwidth, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.name || '', body.category || 'Other', body.imageUrl || '', body.specs || '',
     body.description || '', body.rating || 0, body.isPersonal ? 1 : 0,
@@ -872,7 +874,7 @@ app.post('/api/equipment', auth, async (c) => {
     body.cameraType ?? null, body.payloadCapacity ?? null, body.mountType ?? null,
     body.filterType ?? null, body.bandwidth ?? null, now
   );
-  return c.json(parseEquipment(db.prepare('SELECT * FROM equipment WHERE id = ?').get(id)));
+  return c.json(parseEquipment(await db.prepare('SELECT * FROM equipment WHERE id = ?').get(id)));
 });
 
 app.put('/api/equipment/:id', auth, async (c) => {
@@ -894,13 +896,13 @@ app.put('/api/equipment/:id', auth, async (c) => {
   if (sets.length) {
     sets.push('updated_at = ?'); params.push(now);
     params.push(c.req.param('id'));
-    db.prepare(`UPDATE equipment SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+    await db.prepare(`UPDATE equipment SET ${sets.join(', ')} WHERE id = ?`).run(...params);
   }
-  return c.json(parseEquipment(db.prepare('SELECT * FROM equipment WHERE id = ?').get(c.req.param('id'))));
+  return c.json(parseEquipment(await db.prepare('SELECT * FROM equipment WHERE id = ?').get(c.req.param('id'))));
 });
 
-app.delete('/api/equipment/:id', auth, (c) => {
-  db.prepare('DELETE FROM equipment WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/equipment/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM equipment WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -908,8 +910,8 @@ app.delete('/api/equipment/:id', auth, (c) => {
 // DSO CACHE
 // =====================
 
-app.get('/api/dso/:id', (c) => {
-  const row = db.prepare('SELECT * FROM dso_cache WHERE id = ?').get(c.req.param('id'));
+app.get('/api/dso/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM dso_cache WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
   return c.json({ id: (row as any).id, ...JSON.parse((row as any).data) });
 });
@@ -919,11 +921,18 @@ app.get('/api/dso/search/:name', async (c) => {
   const objectName = c.req.param('name');
   const docId = objectName.toUpperCase().replace(/\s+/g, '');
   
-  // 1. Check cache first
-  const cached = db.prepare('SELECT * FROM dso_cache WHERE id = ?').get(docId);
+  // 1. Check cache first (but skip empty/incomplete entries)
+  const cached = await db.prepare('SELECT * FROM dso_cache WHERE id = ?').get(docId);
   if (cached) {
-    console.log(`[DSO] Serving "${objectName}" from cache.`);
-    return c.json({ id: (cached as any).id, ...JSON.parse((cached as any).data) });
+    const cachedData = JSON.parse((cached as any).data);
+    // Only serve from cache if we have real data (objectType not null)
+    if (cachedData.objectType !== null && cachedData.objectType !== undefined) {
+      console.log(`[DSO] Serving "${objectName}" from cache.`);
+      return c.json({ id: (cached as any).id, ...cachedData });
+    }
+    // Cache entry is incomplete, delete it and continue to knownObjects/Ollama
+    console.log(`[DSO] Cache for "${objectName}" is incomplete, refreshing...`);
+    await db.prepare('DELETE FROM dso_cache WHERE id = ?').run(docId);
   }
   
   console.log(`[DSO] Cache miss for "${objectName}". Using Hal knowledge...`);
@@ -999,6 +1008,24 @@ app.get('/api/dso/search/:name', async (c) => {
       ageUnit: 'million years'
     },
     'M31': { _ref: 'ANDROMEDA' },
+    'M13': {
+      _aliases: ['NGC6205', 'NGC 6205', 'HERCULES'],
+      id: 'M13',
+      commonName: 'Great Globular Cluster',
+      objectType: 'Globular Cluster',
+      constellation: 'Hercules',
+      rightAscension: '16 41 41.24',
+      declination: '+36 27 35.5',
+      distance: 22200,
+      distanceUnit: 'ly',
+      magnitude: 5.8,
+      catalogDenominations: ['M13', 'NGC 6205'],
+      composition: ['Stars'],
+      age: 12,
+      ageUnit: 'billion years'
+    },
+    'NGC6205': { _ref: 'M13' },
+    'HERCULES': { _ref: 'M13' },
     'ROSETTE': {
       id: 'NGC2237',
       commonName: 'Rosette Nebula',
@@ -1306,7 +1333,7 @@ app.get('/api/dso/search/:name', async (c) => {
     
     // Save to cache
     const now = new Date().toISOString();
-    db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)`).run(
+    await db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)`).run(
       docId, JSON.stringify(cleanData), now
     );
     return c.json(cleanData);
@@ -1366,7 +1393,7 @@ app.get('/api/dso/search/:name', async (c) => {
     
     // Save to cache
     const now = new Date().toISOString();
-    db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)`).run(
+    await db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)`).run(
       docId, JSON.stringify(dsoData), now
     );
     console.log(`[DSO] Cached data for "${objectName}" from Ollama.`);
@@ -1392,7 +1419,7 @@ app.get('/api/dso/search/:name', async (c) => {
     };
     // Save fallback to cache to avoid repeated failures
     const now = new Date().toISOString();
-    db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)`).run(
+    await db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)`).run(
       docId, JSON.stringify(fallback), now
     );
     console.log(`[DSO] Saved fallback data for "${objectName}".`);
@@ -1405,9 +1432,9 @@ app.post('/api/dso', auth, async (c) => {
   const id = body.id || body.objectId;
   const now = new Date().toISOString();
   const { id: _id, ...data } = body;
-  db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET data = ?, updated_at = ?`).run(
-    id, JSON.stringify(data), now, JSON.stringify(data), now
+  await db.prepare(`INSERT INTO dso_cache (id, data, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at`).run(
+    id, JSON.stringify(data), now
   );
   return c.json({ id, ...data });
 });
@@ -1429,7 +1456,7 @@ function parseTarget(row: any) {
 
 }
 
-app.get('/api/targets', (c) => {
+app.get('/api/targets', async (c) => {
   const { completed, priority } = c.req.query();
   let query = 'SELECT * FROM observation_targets';
   const conditions: string[] = [];
@@ -1437,11 +1464,11 @@ app.get('/api/targets', (c) => {
   if (completed !== undefined) { conditions.push('completed = ?'); params.push(completed === 'true' ? 1 : 0); }
   if (priority) { conditions.push('priority = ?'); params.push(priority); }
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  return c.json(db.prepare(query).all(...params).map(parseTarget));
+  return c.json((await db.prepare(query).all(...params)).map(parseTarget));
 });
 
-app.get('/api/targets/:id', (c) => {
-  const row = db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(c.req.param('id'));
+app.get('/api/targets/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
   return c.json(parseTarget(row));
 });
@@ -1449,7 +1476,7 @@ app.get('/api/targets/:id', (c) => {
 app.post('/api/targets', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  db.prepare(`INSERT INTO observation_targets (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height, ra, dec, ra_deg, dec_deg, priority, notes, completed, completed_date, acquisition_hours, target_hours, image_url)
+  await db.prepare(`INSERT INTO observation_targets (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height, ra, dec, ra_deg, dec_deg, priority, notes, completed, completed_date, acquisition_hours, target_hours, image_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.objectId || '', body.commonName || '', body.objectType || '', body.constellation || '',
     body.magnitude ?? null, body.angularSizeArcmin?.width ?? 0, body.angularSizeArcmin?.height ?? 0,
@@ -1457,12 +1484,12 @@ app.post('/api/targets', auth, async (c) => {
     body.priority || 'medium', body.notes || '', body.completed ? 1 : 0, body.completedDate ?? null,
     body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null
   );
-  return c.json(parseTarget(db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(id)));
+  return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(id)));
 });
 
 app.put('/api/targets/:id', auth, async (c) => {
   const body = await c.req.json();
-  db.prepare(`UPDATE observation_targets SET
+  await db.prepare(`UPDATE observation_targets SET
     object_id = ?, common_name = ?, object_type = ?, constellation = ?, magnitude = ?,
     size_width = ?, size_height = ?, ra = ?, dec = ?, ra_deg = ?, dec_deg = ?,
     priority = ?, notes = ?, completed = ?,
@@ -1474,11 +1501,11 @@ app.put('/api/targets/:id', auth, async (c) => {
     body.priority ?? 'medium', body.notes ?? '', body.completed ? 1 : 0, body.completedDate ?? null,
     body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null, c.req.param('id')
   );
-  return c.json(parseTarget(db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(c.req.param('id'))));
+  return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(c.req.param('id'))));
 });
 
-app.delete('/api/targets/:id', auth, (c) => {
-  db.prepare('DELETE FROM observation_targets WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/targets/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM observation_targets WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -1499,7 +1526,7 @@ function parseSession(row: any) {
   };
 }
 
-app.get('/api/sessions', (c) => {
+app.get('/api/sessions', async (c) => {
   const { status, from, to } = c.req.query();
   let query = 'SELECT * FROM observation_sessions';
   const conditions: string[] = [];
@@ -1509,15 +1536,15 @@ app.get('/api/sessions', (c) => {
   if (to) { conditions.push('date <= ?'); params.push(to); }
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
   query += ' ORDER BY date DESC';
-  return c.json(db.prepare(query).all(...params).map(parseSession));
+  return c.json((await db.prepare(query).all(...params)).map(parseSession));
 });
 
-app.get('/api/sessions/:id', (c) => {
-  const row = db.prepare('SELECT * FROM observation_sessions WHERE id = ?').get(c.req.param('id'));
+app.get('/api/sessions/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM observation_sessions WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
   const session = parseSession(row);
   // Include targets
-  const targets = db.prepare(`SELECT t.* FROM observation_targets t
+  const targets = await db.prepare(`SELECT t.* FROM observation_targets t
     JOIN session_targets st ON t.id = st.target_id WHERE st.session_id = ?`).all(c.req.param('id'));
   return c.json({ ...session, targets: targets.map(parseTarget) });
 });
@@ -1525,7 +1552,7 @@ app.get('/api/sessions/:id', (c) => {
 app.post('/api/sessions', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  db.prepare(`INSERT INTO observation_sessions (id, date, loc_name, loc_lat, loc_lon, moon_illum, sunset_time, darkness_start, darkness_end, sunrise_time, status, weather_summary, notes, cloud_cover, seeing)
+  await db.prepare(`INSERT INTO observation_sessions (id, date, loc_name, loc_lat, loc_lon, moon_illum, sunset_time, darkness_start, darkness_end, sunrise_time, status, weather_summary, notes, cloud_cover, seeing)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.date || '', body.location?.name || '', body.location?.lat ?? 0, body.location?.lon ?? 0,
     body.moonIllumination ?? 0, body.sunsetTime || '', body.darknessStart || '', body.darknessEnd || '',
@@ -1536,15 +1563,15 @@ app.post('/api/sessions', auth, async (c) => {
   if (body.targets?.length) {
     for (const t of body.targets) {
       const tid = typeof t === 'string' ? t : t.id;
-      db.prepare('INSERT OR IGNORE INTO session_targets (session_id, target_id) VALUES (?, ?)').run(id, tid);
+      await db.prepare('INSERT INTO session_targets (session_id, target_id) VALUES (?, ?) ON CONFLICT DO NOTHING').run(id, tid);
     }
   }
-  return c.json(parseSession(db.prepare('SELECT * FROM observation_sessions WHERE id = ?').get(id)));
+  return c.json(parseSession(await db.prepare('SELECT * FROM observation_sessions WHERE id = ?').get(id)));
 });
 
 app.put('/api/sessions/:id', auth, async (c) => {
   const body = await c.req.json();
-  db.prepare(`UPDATE observation_sessions SET
+  await db.prepare(`UPDATE observation_sessions SET
     date = ?, loc_name = ?, loc_lat = ?, loc_lon = ?, moon_illum = ?,
     sunset_time = ?, darkness_start = ?, darkness_end = ?, sunrise_time = ?,
     status = ?, weather_summary = ?, notes = ?, cloud_cover = ?, seeing = ?, rig_id = ?
@@ -1557,17 +1584,17 @@ app.put('/api/sessions/:id', auth, async (c) => {
   );
   // Update targets if provided
   if (body.targets) {
-    db.prepare('DELETE FROM session_targets WHERE session_id = ?').run(c.req.param('id'));
+    await db.prepare('DELETE FROM session_targets WHERE session_id = ?').run(c.req.param('id'));
     for (const t of body.targets) {
       const tid = typeof t === 'string' ? t : t.id;
-      db.prepare('INSERT OR IGNORE INTO session_targets (session_id, target_id) VALUES (?, ?)').run(c.req.param('id'), tid);
+      await db.prepare('INSERT INTO session_targets (session_id, target_id) VALUES (?, ?) ON CONFLICT DO NOTHING').run(c.req.param('id'), tid);
     }
   }
-  return c.json(parseSession(db.prepare('SELECT * FROM observation_sessions WHERE id = ?').get(c.req.param('id'))));
+  return c.json(parseSession(await db.prepare('SELECT * FROM observation_sessions WHERE id = ?').get(c.req.param('id'))));
 });
 
-app.delete('/api/sessions/:id', auth, (c) => {
-  db.prepare('DELETE FROM observation_sessions WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/sessions/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM observation_sessions WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -1575,8 +1602,8 @@ app.delete('/api/sessions/:id', auth, (c) => {
 // SITE CONFIG (Settings)
 // =====================
 
-app.get('/api/config/:id', (c) => {
-  const row = db.prepare('SELECT * FROM site_config WHERE id = ?').get(c.req.param('id'));
+app.get('/api/config/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM site_config WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({});
   return c.json({ id: (row as any).id, ...JSON.parse((row as any).data) });
 });
@@ -1586,9 +1613,9 @@ app.put('/api/config/:id', auth, async (c) => {
   const now = new Date().toISOString();
   const data = { ...body };
   delete (data as any).id;
-  db.prepare(`INSERT INTO site_config (id, data, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET data = ?, updated_at = ?`).run(
-    c.req.param('id'), JSON.stringify(data), now, JSON.stringify(data), now
+  await db.prepare(`INSERT INTO site_config (id, data, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at`).run(
+    c.req.param('id'), JSON.stringify(data), now
   );
   return c.json({ id: c.req.param('id'), ...data });
 });
@@ -1666,15 +1693,15 @@ function getContentType(ext: string): string {
 // SEED STATUS
 // =====================
 
-app.get('/api/seed/status', (c) => {
-  const posts = (db.prepare('SELECT COUNT(*) as c FROM posts').get() as any).c;
-  const processing = (db.prepare('SELECT COUNT(*) as c FROM processing_posts').get() as any).c;
-  const equipment = (db.prepare('SELECT COUNT(*) as c FROM equipment').get() as any).c;
-  const targets = (db.prepare('SELECT COUNT(*) as c FROM observation_targets').get() as any).c;
-  const sessions = (db.prepare('SELECT COUNT(*) as c FROM observation_sessions').get() as any).c;
-  const configs = (db.prepare('SELECT COUNT(*) as c FROM site_config').get() as any).c;
-  const users = (db.prepare('SELECT COUNT(*) as c FROM users').get() as any).c;
-  const dso = (db.prepare('SELECT COUNT(*) as c FROM dso_cache').get() as any).c;
+app.get('/api/seed/status', async (c) => {
+  const posts = (await db.prepare('SELECT COUNT(*) as c FROM posts').get() as any).c;
+  const processing = (await db.prepare('SELECT COUNT(*) as c FROM processing_posts').get() as any).c;
+  const equipment = (await db.prepare('SELECT COUNT(*) as c FROM equipment').get() as any).c;
+  const targets = (await db.prepare('SELECT COUNT(*) as c FROM observation_targets').get() as any).c;
+  const sessions = (await db.prepare('SELECT COUNT(*) as c FROM observation_sessions').get() as any).c;
+  const configs = (await db.prepare('SELECT COUNT(*) as c FROM site_config').get() as any).c;
+  const users = (await db.prepare('SELECT COUNT(*) as c FROM users').get() as any).c;
+  const dso = (await db.prepare('SELECT COUNT(*) as c FROM dso_cache').get() as any).c;
   return c.json({ posts, processingPosts: processing, equipment, targets, sessions, configs, users, dsoCache: dso });
 });
 
@@ -1838,13 +1865,13 @@ function parseAplsRig(row: any) {
   };
 }
 
-app.get('/api/apls/rigs', (c) => {
-  const rows = db.prepare('SELECT * FROM apls_rig_profiles ORDER BY name ASC').all();
+app.get('/api/apls/rigs', async (c) => {
+  const rows = await db.prepare('SELECT * FROM apls_rig_profiles ORDER BY name ASC').all();
   return c.json((rows as any[]).map(parseAplsRig));
 });
 
-app.get('/api/apls/rigs/:id', (c) => {
-  const row = db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
+app.get('/api/apls/rigs/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Rig not found' }, 404);
   return c.json(parseAplsRig(row));
 });
@@ -1858,7 +1885,7 @@ app.post('/api/apls/rigs', auth, async (c) => {
   const effFocal = body.opticModifier?.effectiveFocalLength
     || (body.telescope?.focalLength || 0) * (body.opticModifier?.factor || 1.0);
 
-  db.prepare(`INSERT INTO apls_rig_profiles (
+  await db.prepare(`INSERT INTO apls_rig_profiles (
     id, name, is_default,
     telescope_name, telescope_focal_length, telescope_aperture, telescope_f_ratio, telescope_type,
     modifier_type, modifier_factor, effective_focal_length,
@@ -1887,7 +1914,7 @@ app.post('/api/apls/rigs', auth, async (c) => {
     now, now
   );
 
-  return c.json(parseAplsRig(db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(id)));
+  return c.json(parseAplsRig(await db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(id)));
 });
 
 app.put('/api/apls/rigs/:id', auth, async (c) => {
@@ -1898,7 +1925,7 @@ app.put('/api/apls/rigs/:id', auth, async (c) => {
   const effFocal = body.opticModifier?.effectiveFocalLength
     || (body.telescope?.focalLength || 0) * (body.opticModifier?.factor || 1.0);
 
-  db.prepare(`UPDATE apls_rig_profiles SET
+  await db.prepare(`UPDATE apls_rig_profiles SET
     name = ?, is_default = ?,
     telescope_name = ?, telescope_focal_length = ?, telescope_aperture = ?, telescope_f_ratio = ?, telescope_type = ?,
     modifier_type = ?, modifier_factor = ?, effective_focal_length = ?,
@@ -1928,17 +1955,17 @@ app.put('/api/apls/rigs/:id', auth, async (c) => {
     now, id
   );
 
-  return c.json(parseAplsRig(db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(id)));
+  return c.json(parseAplsRig(await db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(id)));
 });
 
-app.delete('/api/apls/rigs/:id', auth, (c) => {
-  db.prepare('DELETE FROM apls_rig_profiles WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/apls/rigs/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM apls_rig_profiles WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
 // Sampling calculation endpoint
 app.post('/api/apls/rigs/:id/calculate-sampling', async (c) => {
-  const rig = db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
+  const rig = await db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
   if (!rig) return c.json({ error: 'Rig not found' }, 404);
 
   const r = rig as any;
@@ -2000,7 +2027,7 @@ app.post('/api/apls/rigs/:id/calculate-sampling', async (c) => {
 
 // Guiding calculation endpoint
 app.post('/api/apls/rigs/:id/calculate-guiding', async (c) => {
-  const rig = db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
+  const rig = await db.prepare('SELECT * FROM apls_rig_profiles WHERE id = ?').get(c.req.param('id'));
   if (!rig) return c.json({ error: 'Rig not found' }, 404);
 
   const body = await c.req.json();
@@ -2045,13 +2072,13 @@ function parseHorizonMask(row: any) {
   };
 }
 
-app.get('/api/apls/horizons', (c) => {
-  const rows = db.prepare('SELECT * FROM apls_horizon_masks ORDER BY name ASC').all();
+app.get('/api/apls/horizons', async (c) => {
+  const rows = await db.prepare('SELECT * FROM apls_horizon_masks ORDER BY name ASC').all();
   return c.json((rows as any[]).map(parseHorizonMask));
 });
 
-app.get('/api/apls/horizons/:id', (c) => {
-  const row = db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'));
+app.get('/api/apls/horizons/:id', async (c) => {
+  const row = await db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Horizon mask not found' }, 404);
   return c.json(parseHorizonMask(row));
 });
@@ -2059,26 +2086,26 @@ app.get('/api/apls/horizons/:id', (c) => {
 app.post('/api/apls/horizons', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  db.prepare(`INSERT INTO apls_horizon_masks (id, name, location_id, format, points_json)
+  await db.prepare(`INSERT INTO apls_horizon_masks (id, name, location_id, format, points_json)
     VALUES (?, ?, ?, ?, ?)`).run(
     id, body.name || 'New Horizon', body.locationId || null, body.format || 'csv',
     JSON.stringify(body.points || [])
   );
-  return c.json(parseHorizonMask(db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(id)));
+  return c.json(parseHorizonMask(await db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(id)));
 });
 
 app.put('/api/apls/horizons/:id', auth, async (c) => {
   const body = await c.req.json();
-  db.prepare(`UPDATE apls_horizon_masks SET
+  await db.prepare(`UPDATE apls_horizon_masks SET
     name = ?, location_id = ?, format = ?, points_json = ? WHERE id = ?`).run(
     body.name || '', body.locationId || null, body.format || 'csv',
     JSON.stringify(body.points || []), c.req.param('id')
   );
-  return c.json(parseHorizonMask(db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'))));
+  return c.json(parseHorizonMask(await db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'))));
 });
 
-app.delete('/api/apls/horizons/:id', auth, (c) => {
-  db.prepare('DELETE FROM apls_horizon_masks WHERE id = ?').run(c.req.param('id'));
+app.delete('/api/apls/horizons/:id', auth, async (c) => {
+  await db.prepare('DELETE FROM apls_horizon_masks WHERE id = ?').run(c.req.param('id'));
   return c.json({ ok: true });
 });
 
@@ -2106,15 +2133,15 @@ app.post('/api/apls/horizons/:id/import', auth, async (c) => {
     }
   }
 
-  db.prepare(`UPDATE apls_horizon_masks SET points_json = ? WHERE id = ?`).run(
+  await db.prepare(`UPDATE apls_horizon_masks SET points_json = ? WHERE id = ?`).run(
     JSON.stringify(points), c.req.param('id')
   );
 
   return c.json({ points, count: points.length });
 });
 
-app.get('/api/apls/horizons/:id/export', (c) => {
-  const row = db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'));
+app.get('/api/apls/horizons/:id/export', async (c) => {
+  const row = await db.prepare('SELECT * FROM apls_horizon_masks WHERE id = ?').get(c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
   const points = JSON.parse((row as any).points_json || '[]');
   // Telescopius format: CSV with Azimuth,Altitude
@@ -2132,19 +2159,19 @@ app.get('/api/apls/horizons/:id/export', (c) => {
 // APLS DASHBOARD KPIs
 // =====================
 
-app.get('/api/apls/dashboard/kpis', (c) => {
+app.get('/api/apls/dashboard/kpis', async (c) => {
   // Aggregate from real DB data
-  const totalSessions = db.prepare('SELECT COUNT(*) as count FROM observation_sessions WHERE status = ?').get('completed') as any;
-  const activeProjects = db.prepare('SELECT COUNT(*) as count FROM observation_targets WHERE completed = 0').get() as any;
-  const completedProjects = db.prepare('SELECT COUNT(*) as count FROM observation_targets WHERE completed = 1').get() as any;
-  const totalIntegrationTime = db.prepare('SELECT COALESCE(SUM(acquisition_hours), 0) as total FROM observation_targets').get() as any;
+  const totalSessions = await db.prepare('SELECT COUNT(*) as count FROM observation_sessions WHERE status = ?').get('completed') as any;
+  const activeProjects = await db.prepare('SELECT COUNT(*) as count FROM observation_targets WHERE completed = 0').get() as any;
+  const completedProjects = await db.prepare('SELECT COUNT(*) as count FROM observation_targets WHERE completed = 1').get() as any;
+  const totalIntegrationTime = await db.prepare('SELECT COALESCE(SUM(acquisition_hours), 0) as total FROM observation_targets').get() as any;
   
   // Monthly trend (last 6 months)
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
   const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 7);
-  const monthlyData = db.prepare(`
-    SELECT strftime('%Y-%m', date) as month, COUNT(*) as sessions
+  const monthlyData = await db.prepare(`
+    SELECT TO_CHAR(date::text::date, 'YYYY-MM') as month, COUNT(*) as sessions
     FROM observation_sessions 
     WHERE date >= ? AND status = 'completed'
     GROUP BY month ORDER BY month
@@ -2156,7 +2183,7 @@ app.get('/api/apls/dashboard/kpis', (c) => {
   }));
 
   // Filter distribution from target types + acquisition hours
-  const targets = db.prepare('SELECT object_type, acquisition_hours FROM observation_targets WHERE acquisition_hours > 0').all() as any[];
+  const targets = await db.prepare('SELECT object_type, acquisition_hours FROM observation_targets WHERE acquisition_hours > 0').all() as any[];
   const filterMap: Record<string, number> = {};
   for (const t of targets) {
     const type = t.object_type || 'Unknown';
@@ -2245,15 +2272,15 @@ function parseFilter(row: any) {
   };
 }
 
-app.get('/api/apls/filters', auth, (c) => {
+app.get('/api/apls/filters', auth, async (c) => {
   const userId = c.get('user').id;
-  const rows = db.prepare('SELECT * FROM apls_filters WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+  const rows = await db.prepare('SELECT * FROM apls_filters WHERE user_id = ? ORDER BY created_at ASC').all(userId);
   return c.json(rows.map(parseFilter));
 });
 
-app.get('/api/apls/filters/:id', auth, (c) => {
+app.get('/api/apls/filters/:id', auth, async (c) => {
   const userId = c.get('user').id;
-  const row = db.prepare('SELECT * FROM apls_filters WHERE id = ? AND user_id = ?').get(c.req.param('id'), userId);
+  const row = await db.prepare('SELECT * FROM apls_filters WHERE id = ? AND user_id = ?').get(c.req.param('id'), userId);
   if (!row) return c.json({ error: 'Filter not found' }, 404);
   return c.json(parseFilter(row));
 });
@@ -2263,7 +2290,7 @@ app.post('/api/apls/filters', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO apls_filters (
+  await db.prepare(`INSERT INTO apls_filters (
     id, user_id, name, brand, category, bandwidth_nm, peak_transmission,
     center_wavelength_nm, sky_suppression, moon_compatible, color, description,
     use_cases, recommended_targets, owned, is_default, created_at, updated_at
@@ -2275,13 +2302,13 @@ app.post('/api/apls/filters', auth, async (c) => {
     JSON.stringify(body.recommendedTargets || []),
     body.owned ? 1 : 0, body.isDefault ? 1 : 0, now, now
   );
-  return c.json(parseFilter(db.prepare('SELECT * FROM apls_filters WHERE id = ?').get(id)), 201);
+  return c.json(parseFilter(await db.prepare('SELECT * FROM apls_filters WHERE id = ?').get(id)), 201);
 });
 
 app.patch('/api/apls/filters/:id', auth, async (c) => {
   const userId = c.get('user').id;
   const id = c.req.param('id');
-  const existing = db.prepare('SELECT id FROM apls_filters WHERE id = ? AND user_id = ?').get(id, userId);
+  const existing = await db.prepare('SELECT id FROM apls_filters WHERE id = ? AND user_id = ?').get(id, userId);
   if (!existing) return c.json({ error: 'Filter not found' }, 404);
   const body = await c.req.json();
   const now = new Date().toISOString();
@@ -2304,13 +2331,13 @@ app.patch('/api/apls/filters/:id', auth, async (c) => {
   const sets = Object.keys(fields).map(k => `${k} = ?`).join(', ');
   const values = Object.values(fields);
   values.push(id);
-  db.prepare(`UPDATE apls_filters SET ${sets} WHERE id = ?`).run(...values);
-  return c.json(parseFilter(db.prepare('SELECT * FROM apls_filters WHERE id = ?').get(id)));
+  await db.prepare(`UPDATE apls_filters SET ${sets} WHERE id = ?`).run(...values);
+  return c.json(parseFilter(await db.prepare('SELECT * FROM apls_filters WHERE id = ?').get(id)));
 });
 
-app.delete('/api/apls/filters/:id', auth, (c) => {
+app.delete('/api/apls/filters/:id', auth, async (c) => {
   const userId = c.get('user').id;
-  const result = db.prepare('DELETE FROM apls_filters WHERE id = ? AND user_id = ?').run(c.req.param('id'), userId);
+  const result = await db.prepare('DELETE FROM apls_filters WHERE id = ? AND user_id = ?').run(c.req.param('id'), userId);
   if (result.changes === 0) return c.json({ error: 'Filter not found' }, 404);
   return c.json({ ok: true });
 });
@@ -2371,15 +2398,15 @@ function parseObservation(row: any) {
   };
 }
 
-app.get('/api/apls/projects', auth, (c) => {
+app.get('/api/apls/projects', auth, async (c) => {
   const userId = c.get('user').id;
-  const rows = db.prepare('SELECT * FROM apls_projects WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  const rows = await db.prepare('SELECT * FROM apls_projects WHERE user_id = ? ORDER BY created_at DESC').all(userId);
   const projects = rows.map(parseProject);
   // Attach observations
   const projectIds = projects.map((p: any) => p.id);
   if (projectIds.length > 0) {
     const placeholders = projectIds.map(() => '?').join(',');
-    const obsRows = db.prepare(`SELECT * FROM apls_project_observations WHERE project_id IN (${placeholders}) ORDER BY created_at ASC`).all(...projectIds) as any[];
+    const obsRows = await db.prepare(`SELECT * FROM apls_project_observations WHERE project_id IN (${placeholders}) ORDER BY created_at ASC`).all(...projectIds) as any[];
     const obsByProject: Record<string, any[]> = {};
     for (const obs of obsRows) {
       if (!obsByProject[obs.project_id]) obsByProject[obs.project_id] = [];
@@ -2392,12 +2419,12 @@ app.get('/api/apls/projects', auth, (c) => {
   return c.json(projects);
 });
 
-app.get('/api/apls/projects/:id', auth, (c) => {
+app.get('/api/apls/projects/:id', auth, async (c) => {
   const userId = c.get('user').id;
-  const row = db.prepare('SELECT * FROM apls_projects WHERE id = ? AND user_id = ?').get(c.req.param('id'), userId);
+  const row = await db.prepare('SELECT * FROM apls_projects WHERE id = ? AND user_id = ?').get(c.req.param('id'), userId);
   if (!row) return c.json({ error: 'Project not found' }, 404);
   const project = parseProject(row);
-  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(c.req.param('id'));
+  const obsRows = await db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(c.req.param('id'));
   project.observations = (obsRows as any[]).map(parseObservation);
   return c.json(project);
 });
@@ -2407,7 +2434,7 @@ app.post('/api/apls/projects', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO apls_projects (
+  await db.prepare(`INSERT INTO apls_projects (
     id, user_id, title, status,
     target_id, target_name, target_type, target_ra, target_dec,
     target_magnitude, target_size_arcmin, surface_brightness, target_image_url,
@@ -2431,7 +2458,7 @@ app.post('/api/apls/projects', auth, async (c) => {
   const observations = body.observations || [];
   for (const obs of observations) {
     const obsId = obs.id || crypto.randomUUID();
-    db.prepare(`INSERT INTO apls_project_observations (
+    await db.prepare(`INSERT INTO apls_project_observations (
       id, project_id, date, exposures_taken, exposure_duration, filter,
       seeing, guiding_rms, moon_illumination, notes, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
@@ -2440,8 +2467,8 @@ app.post('/api/apls/projects', auth, async (c) => {
       obs.moonIllumination ?? null, obs.notes || '', obs.createdAt || now
     );
   }
-  const project = parseProject(db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(id));
-  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(id);
+  const project = parseProject(await db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(id));
+  const obsRows = await db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(id);
   project.observations = (obsRows as any[]).map(parseObservation);
   return c.json(project, 201);
 });
@@ -2449,7 +2476,7 @@ app.post('/api/apls/projects', auth, async (c) => {
 app.patch('/api/apls/projects/:id', auth, async (c) => {
   const userId = c.get('user').id;
   const id = c.req.param('id');
-  const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(id, userId);
+  const existing = await db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(id, userId);
   if (!existing) return c.json({ error: 'Project not found' }, 404);
   const body = await c.req.json();
   const now = new Date().toISOString();
@@ -2485,17 +2512,17 @@ app.patch('/api/apls/projects/:id', auth, async (c) => {
   const sets = Object.keys(fields).map(k => `${k} = ?`).join(', ');
   const values = Object.values(fields);
   values.push(id);
-  db.prepare(`UPDATE apls_projects SET ${sets} WHERE id = ?`).run(...values);
-  const project = parseProject(db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(id));
-  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(id);
+  await db.prepare(`UPDATE apls_projects SET ${sets} WHERE id = ?`).run(...values);
+  const project = parseProject(await db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(id));
+  const obsRows = await db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(id);
   project.observations = (obsRows as any[]).map(parseObservation);
   return c.json(project);
 });
 
-app.delete('/api/apls/projects/:id', auth, (c) => {
+app.delete('/api/apls/projects/:id', auth, async (c) => {
   const userId = c.get('user').id;
   // Observations are cascade-deleted by FK
-  const result = db.prepare('DELETE FROM apls_projects WHERE id = ? AND user_id = ?').run(c.req.param('id'), userId);
+  const result = await db.prepare('DELETE FROM apls_projects WHERE id = ? AND user_id = ?').run(c.req.param('id'), userId);
   if (result.changes === 0) return c.json({ error: 'Project not found' }, 404);
   return c.json({ ok: true });
 });
@@ -2503,12 +2530,12 @@ app.delete('/api/apls/projects/:id', auth, (c) => {
 app.post('/api/apls/projects/:id/observations', auth, async (c) => {
   const userId = c.get('user').id;
   const projectId = c.req.param('id');
-  const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+  const existing = await db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
   if (!existing) return c.json({ error: 'Project not found' }, 404);
   const body = await c.req.json();
   const obsId = body.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  db.prepare(`INSERT INTO apls_project_observations (
+  await db.prepare(`INSERT INTO apls_project_observations (
     id, project_id, date, exposures_taken, exposure_duration, filter,
     seeing, guiding_rms, moon_illumination, notes, created_at
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
@@ -2518,32 +2545,32 @@ app.post('/api/apls/projects/:id/observations', auth, async (c) => {
     body.moonIllumination ?? null, body.notes || '', now
   );
   // Recalculate project progress
-  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ?').all(projectId) as any[];
+  const obsRows = await db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ?').all(projectId) as any[];
   const totalExposureSeconds = obsRows.reduce((sum: number, o: any) => sum + (o.exposures_taken * o.exposure_duration), 0);
-  const project = db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(projectId) as any;
+  const project = await db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(projectId) as any;
   const plannedSeconds = (project.total_planned_hours || 0) * 3600;
   const completionPercent = plannedSeconds > 0 ? Math.min(100, Math.round(totalExposureSeconds / plannedSeconds * 100)) : 0;
-  db.prepare('UPDATE apls_projects SET total_exposure_seconds = ?, completion_percent = ?, updated_at = ? WHERE id = ?').run(
+  await db.prepare('UPDATE apls_projects SET total_exposure_seconds = ?, completion_percent = ?, updated_at = ? WHERE id = ?').run(
     totalExposureSeconds, completionPercent, now, projectId
   );
-  return c.json(parseObservation(db.prepare('SELECT * FROM apls_project_observations WHERE id = ?').get(obsId)));
+  return c.json(parseObservation(await db.prepare('SELECT * FROM apls_project_observations WHERE id = ?').get(obsId)));
 });
 
-app.delete('/api/apls/projects/:id/observations/:obsId', auth, (c) => {
+app.delete('/api/apls/projects/:id/observations/:obsId', auth, async (c) => {
   const userId = c.get('user').id;
   const projectId = c.req.param('id');
   const obsId = c.req.param('obsId');
-  const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+  const existing = await db.prepare('SELECT id FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
   if (!existing) return c.json({ error: 'Project not found' }, 404);
-  db.prepare('DELETE FROM apls_project_observations WHERE id = ? AND project_id = ?').run(obsId, projectId);
+  await db.prepare('DELETE FROM apls_project_observations WHERE id = ? AND project_id = ?').run(obsId, projectId);
   // Recalculate progress
   const now = new Date().toISOString();
-  const obsRows = db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ?').all(projectId) as any[];
+  const obsRows = await db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ?').all(projectId) as any[];
   const totalExposureSeconds = obsRows.reduce((sum: number, o: any) => sum + (o.exposures_taken * o.exposure_duration), 0);
-  const project = db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(projectId) as any;
+  const project = await db.prepare('SELECT * FROM apls_projects WHERE id = ?').get(projectId) as any;
   const plannedSeconds = (project.total_planned_hours || 0) * 3600;
   const completionPercent = plannedSeconds > 0 ? Math.min(100, Math.round(totalExposureSeconds / plannedSeconds * 100)) : 0;
-  db.prepare('UPDATE apls_projects SET total_exposure_seconds = ?, completion_percent = ?, updated_at = ? WHERE id = ?').run(
+  await db.prepare('UPDATE apls_projects SET total_exposure_seconds = ?, completion_percent = ?, updated_at = ? WHERE id = ?').run(
     totalExposureSeconds, completionPercent, now, projectId
   );
   return c.json({ ok: true });
@@ -2563,12 +2590,12 @@ app.post('/api/apls/sync', auth, async (c) => {
   if (body.filters && Array.isArray(body.filters)) {
     for (const filter of body.filters) {
       // Check if filter already exists by id
-      const existing = db.prepare('SELECT id FROM apls_filters WHERE id = ?').get(filter.id) as any;
+      const existing = await db.prepare('SELECT id FROM apls_filters WHERE id = ?').get(filter.id) as any;
       if (existing) {
         // Update only if server version is older
-        const serverFilter = db.prepare('SELECT updated_at FROM apls_filters WHERE id = ?').get(filter.id) as any;
+        const serverFilter = await db.prepare('SELECT updated_at FROM apls_filters WHERE id = ?').get(filter.id) as any;
         if (filter.updatedAt && filter.updatedAt > serverFilter.updated_at) {
-          db.prepare(`UPDATE apls_filters SET
+          await db.prepare(`UPDATE apls_filters SET
             name = ?, brand = ?, category = ?, bandwidth_nm = ?, peak_transmission = ?,
             center_wavelength_nm = ?, sky_suppression = ?, moon_compatible = ?, color = ?,
             description = ?, use_cases = ?, recommended_targets = ?, owned = ?, is_default = ?,
@@ -2585,7 +2612,7 @@ app.post('/api/apls/sync', auth, async (c) => {
         }
       } else {
         // Insert new filter
-        db.prepare(`INSERT INTO apls_filters (
+        await db.prepare(`INSERT INTO apls_filters (
           id, user_id, name, brand, category, bandwidth_nm, peak_transmission,
           center_wavelength_nm, sky_suppression, moon_compatible, color, description,
           use_cases, recommended_targets, owned, is_default, created_at, updated_at
@@ -2601,19 +2628,19 @@ app.post('/api/apls/sync', auth, async (c) => {
       }
     }
     // Return all user's filters
-    const rows = db.prepare('SELECT * FROM apls_filters WHERE user_id = ? ORDER BY created_at ASC').all(userId);
+    const rows = await db.prepare('SELECT * FROM apls_filters WHERE user_id = ? ORDER BY created_at ASC').all(userId);
     result.filters = rows.map(parseFilter);
   }
 
   // Sync projects
   if (body.projects && Array.isArray(body.projects)) {
     for (const project of body.projects) {
-      const existing = db.prepare('SELECT id FROM apls_projects WHERE id = ?').get(project.id) as any;
+      const existing = await db.prepare('SELECT id FROM apls_projects WHERE id = ?').get(project.id) as any;
       if (existing) {
         // Update if newer
-        const serverProject = db.prepare('SELECT updated_at FROM apls_projects WHERE id = ?').get(project.id) as any;
+        const serverProject = await db.prepare('SELECT updated_at FROM apls_projects WHERE id = ?').get(project.id) as any;
         if (project.updatedAt && project.updatedAt > serverProject.updated_at) {
-          db.prepare(`UPDATE apls_projects SET
+          await db.prepare(`UPDATE apls_projects SET
             title = ?, status = ?, target_id = ?, target_name = ?, target_type = ?,
             target_ra = ?, target_dec = ?, target_magnitude = ?, target_size_arcmin = ?,
             target_image_url = ?, location_source = ?, lat = ?, lon = ?,
@@ -2636,7 +2663,7 @@ app.post('/api/apls/sync', auth, async (c) => {
           );
         }
       } else {
-        db.prepare(`INSERT INTO apls_projects (
+        await db.prepare(`INSERT INTO apls_projects (
           id, user_id, title, status, target_id, target_name, target_type, target_ra, target_dec,
           target_magnitude, target_size_arcmin, surface_brightness, target_image_url,
           location_source, lat, lon, rig_id, rig_name, focal_length, aperture,
@@ -2660,9 +2687,9 @@ app.post('/api/apls/sync', auth, async (c) => {
       // Sync observations for this project
       if (project.observations && Array.isArray(project.observations)) {
         for (const obs of project.observations) {
-          const obsExisting = db.prepare('SELECT id FROM apls_project_observations WHERE id = ?').get(obs.id) as any;
+          const obsExisting = await db.prepare('SELECT id FROM apls_project_observations WHERE id = ?').get(obs.id) as any;
           if (!obsExisting) {
-            db.prepare(`INSERT INTO apls_project_observations (
+            await db.prepare(`INSERT INTO apls_project_observations (
               id, project_id, date, exposures_taken, exposure_duration, filter,
               seeing, guiding_rms, moon_illumination, notes, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
@@ -2676,12 +2703,12 @@ app.post('/api/apls/sync', auth, async (c) => {
       }
     }
     // Return all user's projects with observations
-    const projectRows = db.prepare('SELECT * FROM apls_projects WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    const projectRows = await db.prepare('SELECT * FROM apls_projects WHERE user_id = ? ORDER BY created_at DESC').all(userId);
     const projectIds = (projectRows as any[]).map((r: any) => r.id);
     const allObs: any[] = [];
     if (projectIds.length > 0) {
       const placeholders = projectIds.map(() => '?').join(',');
-      allObs.push(...db.prepare(`SELECT * FROM apls_project_observations WHERE project_id IN (${placeholders}) ORDER BY created_at ASC`).all(...projectIds) as any[]);
+      allObs.push(...(await db.prepare(`SELECT * FROM apls_project_observations WHERE project_id IN (${placeholders}) ORDER BY created_at ASC`).all(...projectIds)) as any[]);
     }
     const obsByProject: Record<string, any[]> = {};
     for (const obs of allObs) {
@@ -2706,8 +2733,8 @@ console.log(`🔭 AstroCapture API starting on port ${PORT}...`);
 
 // Seed default filters for existing users if they have none
 try {
-  const users = db.prepare('SELECT id FROM users').all() as any[];
-  const filterCount = (db.prepare('SELECT COUNT(*) as c FROM apls_filters').get() as any).c;
+  const users = await db.prepare('SELECT id FROM users').all() as any[];
+  const filterCount = (await db.prepare('SELECT COUNT(*) as c FROM apls_filters').get() as any).c;
   if (filterCount === 0 && users.length > 0) {
     const defaultFilters = [
       { id: 'filter_uv_ir_cut', name: 'UV/IR Cut', brand: 'ZWO', category: 'broadband', bandwidth_nm: 300, peak_transmission: 0.97, center_wavelength_nm: 560, sky_suppression: 0.0, moon_compatible: 0, color: '#4FC3F7', description: 'ZWO protection filter. Flat ~97% transmission from 420-700nm.', use_cases: JSON.stringify(['Nuits sans Lune', 'Pollution faible', 'Galaxies', 'Amas', 'Luminance']), recommended_targets: JSON.stringify(['Galaxies', 'Amas ouverts', 'Amas globulaires', 'Nébuleuses larges']), owned: 1, is_default: 1 },
@@ -2720,7 +2747,7 @@ try {
       { id: 'filter_luminance', name: 'Luminance', brand: 'Generic', category: 'broadband', bandwidth_nm: 400, peak_transmission: 0.95, center_wavelength_nm: 550, sky_suppression: 0.0, moon_compatible: 0, color: '#E0E0E0', description: 'Broadband luminance filter for LRGB imaging.', use_cases: JSON.stringify(['Luminance LRGB', 'Nuits sans Lune']), recommended_targets: JSON.stringify(['Galaxies', 'Amas', 'Nébuleuses larges']), owned: 0, is_default: 0 },
     ];
     const adminUser = users.find((u: any) => u.is_admin) || users[0];
-    const insertStmt = db.prepare('INSERT OR IGNORE INTO apls_filters (id, user_id, name, brand, category, bandwidth_nm, peak_transmission, center_wavelength_nm, sky_suppression, moon_compatible, color, description, use_cases, recommended_targets, owned, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const insertStmt = await db.prepare('INSERT INTO apls_filters (id, user_id, name, brand, category, bandwidth_nm, peak_transmission, center_wavelength_nm, sky_suppression, moon_compatible, color, description, use_cases, recommended_targets, owned, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING');
     for (const f of defaultFilters) {
       insertStmt.run(f.id, adminUser.id, f.name, f.brand, f.category, f.bandwidth_nm, f.peak_transmission, f.center_wavelength_nm, f.sky_suppression, f.moon_compatible, f.color, f.description, f.use_cases, f.recommended_targets, f.owned, f.is_default);
     }
@@ -2747,7 +2774,7 @@ app.post('/api/analytics/track', async (c) => {
   // Simple bot filter: skip common bots
   if (/bot|crawl|spider|slurp|mediapartners/i.test(ua)) return c.json({ ok: true, bot: true });
 
-  db.prepare(`INSERT INTO page_views (path, referrer, user_agent, session_id, created_at) VALUES (?, ?, ?, ?, datetime('now'))`)
+  await db.prepare(`INSERT INTO page_views (path, referrer, user_agent, session_id, created_at) VALUES (?, ?, ?, ?, NOW())`)
     .run(cleanPath, cleanReferrer, ua, cleanSession);
   return c.json({ ok: true });
 });
@@ -2760,33 +2787,33 @@ app.get('/api/analytics/stats', auth, async (c) => {
   const days = parseInt(c.req.query('days') || '30');
 
   // Total views, unique sessions, top pages
-  const totalViews = (db.prepare(`SELECT COUNT(*) as count FROM page_views WHERE created_at >= datetime('now', ?)`).get(`-${days} days`) as any).count;
-  const uniqueSessions = (db.prepare(`SELECT COUNT(DISTINCT session_id) as count FROM page_views WHERE created_at >= datetime('now', ?)`).get(`-${days} days`) as any).count;
-  const uniquePages = (db.prepare(`SELECT COUNT(DISTINCT path) as count FROM page_views WHERE created_at >= datetime('now', ?)`).get(`-${days} days`) as any).count;
+  const totalViews = (await db.prepare(`SELECT COUNT(*) as count FROM page_views WHERE created_at >= NOW() - ?::interval`).get(`${days} days`) as any).count;
+  const uniqueSessions = (await db.prepare(`SELECT COUNT(DISTINCT session_id) as count FROM page_views WHERE created_at >= NOW() - ?::interval`).get(`${days} days`) as any).count;
+  const uniquePages = (await db.prepare(`SELECT COUNT(DISTINCT path) as count FROM page_views WHERE created_at >= NOW() - ?::interval`).get(`${days} days`) as any).count;
 
   // Top pages
-  const topPages = db.prepare(`
+  const topPages = await db.prepare(`
     SELECT path, COUNT(*) as views, COUNT(DISTINCT session_id) as unique_visitors
     FROM page_views
-    WHERE created_at >= datetime('now', ?)
+    WHERE created_at >= NOW() - ?::interval
     GROUP BY path
     ORDER BY views DESC
     LIMIT 20
   `).all(`-${days} days`);
 
   // Top referrers
-  const topReferrers = db.prepare(`
+  const topReferrers = await db.prepare(`
     SELECT referrer, COUNT(*) as count
     FROM page_views
-    WHERE created_at >= datetime('now', ?) AND referrer != ''
+    WHERE created_at >= NOW() - ?::interval AND referrer != ''
     GROUP BY referrer
     ORDER BY count DESC
     LIMIT 10
   `).all(`-${days} days`);
 
   // Views today
-  const todayViews = (db.prepare(`SELECT COUNT(*) as count FROM page_views WHERE date(created_at) = date('now')`).get() as any).count;
-  const todaySessions = (db.prepare(`SELECT COUNT(DISTINCT session_id) as count FROM page_views WHERE date(created_at) = date('now')`).get() as any).count;
+  const todayViews = (await db.prepare(`SELECT COUNT(*) as count FROM page_views WHERE created_at::date = CURRENT_DATE`).get() as any).count;
+  const todaySessions = (await db.prepare(`SELECT COUNT(DISTINCT session_id) as count FROM page_views WHERE created_at::date = CURRENT_DATE`).get() as any).count;
 
   return c.json({
     days,
@@ -2807,10 +2834,10 @@ app.get('/api/analytics/timeline', auth, async (c) => {
 
   const days = parseInt(c.req.query('days') || '30');
 
-  const timeline = db.prepare(`
+  const timeline = await db.prepare(`
     SELECT date(created_at) as date, COUNT(*) as views, COUNT(DISTINCT session_id) as unique_visitors
     FROM page_views
-    WHERE created_at >= datetime('now', ?)
+    WHERE created_at >= NOW() - ?::interval
     GROUP BY date(created_at)
     ORDER BY date ASC
   `).all(`-${days} days`);
@@ -2823,8 +2850,8 @@ app.get('/api/analytics/timeline', auth, async (c) => {
 // =====================
 
 // DB table for saved PHD2 sessions
-function initPhd2Table() {
-  db.exec(`
+async function initPhd2Table() {
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS phd2_sessions (
       id TEXT PRIMARY KEY,
       filename TEXT NOT NULL DEFAULT '',
@@ -2851,17 +2878,17 @@ function initPhd2Table() {
       raw_log TEXT NOT NULL DEFAULT '',
       analysis_json TEXT NOT NULL DEFAULT '',
       project_id TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
   // Migration: add project_id column if it doesn't exist
   try {
-    db.exec('ALTER TABLE phd2_sessions ADD COLUMN project_id TEXT');
+    await db.exec('ALTER TABLE phd2_sessions ADD COLUMN project_id TEXT');
   } catch {}
   // Index for project queries
-  db.exec('CREATE INDEX IF NOT EXISTS idx_phd2_sessions_project ON phd2_sessions(project_id)');
+  await db.exec('CREATE INDEX IF NOT EXISTS idx_phd2_sessions_project ON phd2_sessions(project_id)');
 }
-initPhd2Table();
+initPhd2Table().catch(console.error);
 
 // Save PHD2 sessions
 app.post('/api/phd2/sessions', async (c) => {
@@ -2877,14 +2904,28 @@ app.post('/api/phd2/sessions', async (c) => {
       const a = analyses?.[i] || {};
       const id = `phd2_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
 
-      db.prepare(`
-        INSERT OR REPLACE INTO phd2_sessions
+      await db.prepare(`
+        INSERT INTO phd2_sessions
         (id, filename, session_index, start_time, end_time, duration_seconds,
          camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
          rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
          mean_snr, mean_star_mass, dither_count, star_lost_count, settling_failed_count,
          raw_log, analysis_json, project_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET
+         filename = EXCLUDED.filename, session_index = EXCLUDED.session_index,
+         start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time,
+         duration_seconds = EXCLUDED.duration_seconds, camera = EXCLUDED.camera,
+         exposure_ms = EXCLUDED.exposure_ms, focal_length_mm = EXCLUDED.focal_length_mm,
+         pixel_scale = EXCLUDED.pixel_scale, mount = EXCLUDED.mount,
+         frame_count = EXCLUDED.frame_count, rms_total_arcsec = EXCLUDED.rms_total_arcsec,
+         rms_ra_arcsec = EXCLUDED.rms_ra_arcsec, rms_dec_arcsec = EXCLUDED.rms_dec_arcsec,
+         peak_ra_arcsec = EXCLUDED.peak_ra_arcsec, peak_dec_arcsec = EXCLUDED.peak_dec_arcsec,
+         mean_snr = EXCLUDED.mean_snr, mean_star_mass = EXCLUDED.mean_star_mass,
+         dither_count = EXCLUDED.dither_count, star_lost_count = EXCLUDED.star_lost_count,
+         settling_failed_count = EXCLUDED.settling_failed_count,
+         raw_log = EXCLUDED.raw_log, analysis_json = EXCLUDED.analysis_json,
+         project_id = EXCLUDED.project_id
       `).run(
         id, filename || '', s.index ?? i, s.start_time || '', s.end_time || '', s.duration_seconds || 0,
         s.camera || '', s.exposure_ms || 0, s.focal_length_mm || 0, s.pixel_scale || 0, s.mount || '', s.frame_count || 0,
@@ -2906,7 +2947,7 @@ app.post('/api/phd2/sessions', async (c) => {
 // List saved PHD2 sessions
 app.get('/api/phd2/sessions', async (c) => {
   try {
-    const sessions = db.prepare(`
+    const sessions = await db.prepare(`
       SELECT id, filename, session_index, start_time, end_time, duration_seconds,
              camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
              rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
@@ -2926,7 +2967,7 @@ app.put('/api/phd2/sessions/:id/link', async (c) => {
   try {
     const id = c.req.param('id');
     const { project_id } = await c.req.json();
-    const result = db.prepare('UPDATE phd2_sessions SET project_id = ? WHERE id = ?').run(project_id || null, id);
+    const result = await db.prepare('UPDATE phd2_sessions SET project_id = ? WHERE id = ?').run(project_id || null, id);
     if (result.changes === 0) {
       return c.json({ error: 'Session not found' }, 404);
     }
@@ -2941,7 +2982,7 @@ app.put('/api/phd2/sessions/:id/link', async (c) => {
 app.get('/api/apls/projects/:id/guiding', async (c) => {
   try {
     const projectId = c.req.param('id');
-    const sessions = db.prepare(`
+    const sessions = await db.prepare(`
       SELECT id, filename, session_index, start_time, end_time, duration_seconds,
              camera, exposure_ms, focal_length_mm, pixel_scale, mount, frame_count,
              rms_total_arcsec, rms_ra_arcsec, rms_dec_arcsec, peak_ra_arcsec, peak_dec_arcsec,
@@ -3011,7 +3052,7 @@ app.get('/api/apls/projects/:id/guiding', async (c) => {
 app.delete('/api/phd2/sessions/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = db.prepare('DELETE FROM phd2_sessions WHERE id = ?').run(id);
+    const result = await db.prepare('DELETE FROM phd2_sessions WHERE id = ?').run(id);
     if (result.changes === 0) {
       return c.json({ error: 'Session not found' }, 404);
     }
@@ -3026,7 +3067,7 @@ app.delete('/api/phd2/sessions/:id', async (c) => {
 app.get('/api/phd2/sessions/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const row: any = db.prepare('SELECT * FROM phd2_sessions WHERE id = ?').get(id);
+    const row: any = await db.prepare('SELECT * FROM phd2_sessions WHERE id = ?').get(id);
     if (!row) {
       return c.json({ error: 'Session not found' }, 404);
     }
@@ -3045,7 +3086,7 @@ app.get('/api/phd2/sessions/:id', async (c) => {
 // Get PHD2 global stats
 app.get('/api/phd2/stats', async (c) => {
   try {
-    const stats = db.prepare(`
+    const stats = await db.prepare(`
       SELECT
         COUNT(*) as total_sessions,
         SUM(frame_count) as total_frames,
@@ -3063,7 +3104,7 @@ app.get('/api/phd2/stats', async (c) => {
       FROM phd2_sessions
     `).get();
 
-    const bestSession = db.prepare(`
+    const bestSession = await db.prepare(`
       SELECT id, start_time, camera, rms_total_arcsec, mean_snr
       FROM phd2_sessions ORDER BY rms_total_arcsec ASC LIMIT 1
     `).get();
@@ -3227,11 +3268,18 @@ app.post('/api/rag-query', async (c) => {
 
 // =====================
 
-const server = serve({ fetch: app.fetch, port: PORT });
-// Increase timeouts for large file uploads (FITS/XISF can be 300MB+)
-if ('timeout' in server) {
-  (server as any).timeout = 600000; // 10 minutes
-  (server as any).keepAliveTimeout = 600000; // 10 minutes
-  (server as any).requestTimeout = 600000; // 10 minutes (Node 18+)
-  (server as any).headersTimeout = 600000; // 10 minutes (Node 18+)
-}
+// Initialize PostgreSQL schema then start server
+db.initSchema().then(() => {
+  const server = serve({ fetch: app.fetch, port: PORT });
+  // Increase timeouts for large file uploads (FITS/XISF can be 300MB+)
+  if ('timeout' in server) {
+    (server as any).timeout = 600000; // 10 minutes
+    (server as any).keepAliveTimeout = 600000; // 10 minutes
+    (server as any).requestTimeout = 600000; // 10 minutes (Node 18+)
+    (server as any).headersTimeout = 600000; // 10 minutes (Node 18+)
+  }
+  console.log(`🚀 AstroCapture API running on port ${PORT}`);
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+});

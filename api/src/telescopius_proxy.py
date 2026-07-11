@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-Telescopius API Proxy using cloudscraper
-Called by the AstroCapture backend to bypass Cloudflare
+Telescopius API Proxy
+Called by the AstroCapture backend to fetch data from Telescopius API.
+Uses a browser User-Agent to pass Cloudflare's bot check (no cloudscraper needed).
 """
 import sys
 import json
-import cloudscraper
+import requests
 
 TELESCOPIUS_BASE = 'https://api.telescopius.com/v2.2'
 API_KEY = '659239331db06d5571f1ee34fdadb196'
+
+HEADERS = {
+    'Authorization': f'Key {API_KEY}',
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0',
+    'Accept': 'application/json',
+}
 
 ENDPOINTS = {
     'quote': '/quote-of-the-day',
@@ -20,15 +27,14 @@ ENDPOINTS = {
 }
 
 def fetch(endpoint_key, params=None):
-    scraper = cloudscraper.create_scraper()
     path = ENDPOINTS.get(endpoint_key)
     if not path:
         return {'error': f'Unknown endpoint: {endpoint_key}'}
     
     try:
-        response = scraper.get(
+        response = requests.get(
             f'{TELESCOPIUS_BASE}{path}',
-            headers={'Authorization': f'Key {API_KEY}'},
+            headers=HEADERS,
             params=params or {},
             timeout=30
         )

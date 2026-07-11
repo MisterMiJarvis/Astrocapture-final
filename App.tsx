@@ -1004,7 +1004,7 @@ const PostDetailView: React.FC<{ post: Post | undefined, log: ProcessingLog | un
                     <div className="flex flex-col gap-4">
                         {post.astrobinUrl && (
                         <Button onClick={() => window.open(post.astrobinUrl, '_blank', 'noopener,noreferrer')} variant="primary" className="w-full">
-                            <img src="https://www.astrobin.com/static/astrobin/images/favicon-16x16.png?v=73e861d" alt="" className="w-4 h-4" /> View on Astrobin <ExternalLink size={16} />
+                            <img src="https://cdn.astrobin.com/static/astrobin/favicon.f029cafce02c.ico" alt="" className="w-4 h-4 inline-block" /> View on Astrobin <ExternalLink size={16} />
                         </Button>
                         )}
                         {post.rawDataUrl && (

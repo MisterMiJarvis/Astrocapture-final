@@ -454,6 +454,15 @@ export const Module2Dashboard: React.FC = () => {
         </select>
 
         <button
+          onClick={() => {
+            handleCreateProfile('New Rig', {});
+          }}
+          className="px-3 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+        >
+          ➕ New Rig
+        </button>
+
+        <button
           onClick={() => setViewMode('edit')}
           className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
         >
