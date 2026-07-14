@@ -7,7 +7,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss)](https://tailwindcss.com)
 [![Hono](https://img.shields.io/badge/Hono-4-E36002)](https://hono.dev)
-[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)](https://sqlite.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -76,7 +76,7 @@
 | Technology | Purpose |
 |-----------|---------|
 | Hono 4 | Lightweight web framework |
-| SQLite (better-sqlite3) | Embedded database |
+| PostgreSQL 17 (pg) | Production database |
 | JWT (jsonwebtoken) | Authentication |
 | bcryptjs | Password hashing |
 | Cloudscraper | Telescopius API proxy |
@@ -202,7 +202,7 @@ cd api && npm run build  # Compile TypeScript → dist/
 
 ### Database
 
-SQLite database at `api/data/astrocapture.db`. Main tables:
+PostgreSQL database (host: localhost:5432). Main tables:
 
 | Table | Purpose |
 |-------|---------|
@@ -215,6 +215,8 @@ SQLite database at `api/data/astrocapture.db`. Main tables:
 | `apls_filters` | User filters (transmission, bandwidth, sky suppression) |
 | `my_equipment` | Equipment tracker |
 | `config` | Site configuration |
+
+**Note:** Migrated from SQLite to PostgreSQL in v2.6.0. SQLite is no longer supported.
 
 ---
 
@@ -244,6 +246,7 @@ sudo systemctl restart astrocapture-api
 | **Backend** | Hono API on port 3002, systemd service `astrocapture-api` |
 | **Domain** | astrocapture.org (production), beta.astrocapture.org (beta) |
 | **Server** | VPS (Ubuntu 24.04, Node 22) |
+| **Database** | PostgreSQL 17 (Docker) |
 
 ---
 
@@ -338,6 +341,11 @@ See `design-system/DESIGN_SYSTEM.md` for full documentation.
 - [x] Priority Targets system (v2.5.0)
 - [x] UI labels translated to English
 - [x] Weather tab auto-loads on first open
+- [x] PostgreSQL 17 migration (v2.6.0)
+- [x] Telescopius API cache fallback (v2.6.0)
+- [x] Filter spectral data — real transmission curves (v2.6.0)
+- [x] API-only filter service — no localStorage (v2.6.0)
+- [x] Gallery image 404 fixes (v2.6.0)
 
 ### Planned
 - [ ] Multi-language support
@@ -349,6 +357,31 @@ See `design-system/DESIGN_SYSTEM.md` for full documentation.
 ---
 
 ## Changelog
+
+### v2.6.0 — PostgreSQL Migration + Cache Fallback + Spectral Filters (2026-07-14)
+
+#### Breaking Changes
+- **SQLite → PostgreSQL 17** — Complete backend rewrite. `db.ts` now uses `pg` Pool (async) instead of `better-sqlite3` (sync). All DB calls converted to async/await with parameterized queries. SQLite is no longer supported.
+- **Filter service is API-only** — Removed all localStorage fallback/seed logic. Filters are stored exclusively in PostgreSQL. Old localStorage keys are cleaned up automatically.
+
+#### New Features
+- **Telescopius API cache fallback** — Disk-based 6h cache (`api/cache/telescopius/`) with stale fallback on API errors (429/500). Manual cache seeded with 10 common targets (M31, M42, M27, M13, M51, M81, NGC7000, M16, M17, NGC6888). Filtered empty parameters before cache hashing for consistent keys.
+- **Filter spectral data** — Real transmission curves for UV/IR Cut, L-Ultimate, and Antlia Triband filters. Exposure calculator now uses `getEffectiveTransmissionAtLine()`, `getEffectiveContinuumTransmission()`, and `getEffectiveSkyTransmission()` based on actual filter spectra instead of flat percentages.
+- **New Rig button** — Direct rig creation from Module 2 dashboard.
+- **RAG server** — `services/rag-server.py` for AI-powered features.
+
+#### Fixes
+- **Gallery images 404** — Replaced 10 missing image references in `initialData.ts` with existing webp files from `/uploads/`.
+- **Telescopius proxy Cloudflare bypass** — Rewritten with `requests` + Firefox User-Agent instead of `cloudscraper`.
+- **Gallery upload** — Added `keepAlive: true` + `connectionTimeoutMillis: 10000` to pg Pool config (connection leak fix).
+- **APLS dashboard KPIs** — Fixed date grouping with `TO_CHAR(date::text::date, 'YYYY-MM')` for PostgreSQL compatibility.
+- **558 old JS bundles cleaned up** from `dist/` directory.
+
+#### Technical
+- `better-sqlite3` replaced with `pg` in `api/package.json`
+- `api/src/seed.ts` updated for PostgreSQL syntax
+- `api/src/telescopius_proxy.py` rewritten with `requests` library
+- Filter service refactored — 353 lines → ~200 lines (removed all localStorage/seed/fallback code)
 
 ### v2.5.0 — Priority Targets System + UI Improvements (2026-07-06)
 
