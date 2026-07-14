@@ -23,7 +23,7 @@ const DocsView: React.FC = () => {
   <div className="prose prose-invert max-w-none space-y-8">
     {/* Header */}
     <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/30 rounded-xl p-6">
-      <h1 className="text-2xl font-bold text-text mb-2">🔭 Exposure Engine v9</h1>
+      <h1 className="text-2xl font-bold text-text mb-2">🔭 Exposure Engine v11</h1>
       <p className="text-text-secondary text-sm">
         Physics-based exposure calculation pipeline — 6 steps, SkyTools-calibrated, 8/10 within 3x for N_subs.
       </p>
@@ -37,7 +37,7 @@ const DocsView: React.FC = () => {
           { n: 1, title: 'Effective SQM', formula: 'sqmEff = sqmBase - max(0, 3.5 × illum^2.5 × sin(alt) × e^(-θ/30))', desc: 'Sky background degradation by the Moon. moonPhaseFactor = 3.5 × illumination^2.5 (non-linear, opposition effect). proximityFactor = e^(-θ/30) (Rayleigh scattering). θ = Moon-target angular distance. 0°→1.0, 30°→0.37, 90°→0.05. Values from Skyfield (Python, NASA DE421).' },
           { n: 2, title: 'Optical Sampling', formula: 's = (206.265 × p) / (F × fR) | A = π × (D/2000)² | d_px = (targetSize × 60) / s', desc: 'Effective focal length with reducer, arcsec/pixel sampling, collecting area, and diameter_px (object size in pixels on sensor — used in step 6)' },
           { n: 3, title: 'Sky Flux (B_sky)', formula: 'B_sky = 10^(0.4×(26.59-sqmEff)) × A × s² × QE × τ_eff', desc: 'Sky background electron rate per pixel per second' },
-          { n: 4, title: 'Optimal Sub-Exposure', formula: 't_opt = k_dyn × RN² / B_sky → clamp 10-600s', desc: 'k=2.5 (narrowband) or 5.0 (broadband), intelligent clamping (configurable in v9)' },
+          { n: 4, title: 'Optimal Sub-Exposure', formula: 't_opt = k_dyn × RN² / B_sky → clamp 10-600s', desc: 'k=2.5 (narrowband) or 5.0 (broadband), intelligent clamping. v11: broadband floor lowered to 10s (was 60s, FWC saturation fix).' },
           { n: 5, title: 'Object Signal & SNR', formula: 'S_obj = Φ_obj × A × s² × QE × τ_obj × k_calib | SNR_sub = (S_obj × t_sub) / √((S_obj+B_sky+dc)×t_sub + RN²)', desc: 'Object signal with continuumTransmission and empirical k_calib by type: diffuse_nebula=1.0, planetary_nebula=2.0, galaxy=2.0, stellar=2.5, unknown=1.0. Total noise including dark current. Warning if dc×t_sub > 0.1×RN². V11: SB_obj += extinction_mag (atmospheric extinction from Skyfield — airmass × k_ext=0.20)' },
           { n: 6, title: 'Target SNR & N_subs', formula: 'N = max(minSubs, ⌈(effTarget/SNR_sub)²⌉)', desc: 'Fixed SNR target by type, sizeWeighting capped 0.5-5.0, floor 15-20 subs. Mission impossible warning if total &gt; 15h' },
         ].map(s => (
@@ -97,7 +97,13 @@ const DocsView: React.FC = () => {
         <p><strong className="text-text">Method:</strong> Astropy aperture photometry on 16-bit non-normalized master FITS. Adaptive aperture sized to target diameter (TARGETS_DIAM). Sky annulus for local background. SNR_measured = integrated_signal / √(signal + n_pix × σ_sky²).</p>
         <p><strong className="text-text">Ratio:</strong> k_calib = median(SNR_measured / SNR_predicted) across sessions of the same object type. The project creation form auto-detects object type from target name and applies the corresponding k_calib.</p>
         <p><strong className="text-text">Limitations:</strong> High variance within types (e.g. diffuse nebulae range 0.05–0.99). Surface brightness is non-uniform within objects. A single k_calib per type is a first-order correction. Future: radial SB profiles or per-object calibration.</p>
-        <p><strong className="text-text">⚠️ v9.1 SB Unit Fix (14/07):</strong> Telescopius provides surface brightness in mag/arcmin², not mag/arcsec². Conversion: SB_arcsec² = SB_arcmin² + 2.5×log₁₀(3600) ≈ SB_arcmin² + 8.89. Old k_calib values unconsciously compensated this unit error (factor ~3600 on flux). New values revised accordingly — recalibration with FITS sessions needed.</p>
+        <p><strong className="text-text">⚠️ v11 SB Unit Fix (14/07):</strong> Telescopius provides surface brightness in mag/arcmin², not mag/arcsec². Conversion: SB_arcsec² = SB_arcmin² + 2.5×log₁₀(3600) ≈ SB_arcmin² + 8.89. Old k_calib values unconsciously compensated this unit error (factor ~3600 on flux). New values revised accordingly — recalibration with FITS sessions needed.</p>
+        <p><strong className="text-text">🌍 v11 Atmospheric Extinction (14/07):</strong> Skyfield calculates the target's altitude above the horizon, then:
+        <br />• Airmass: X = 1 / sin(targetAltitudeDeg) (capped at 10 for alt &lt; 6°)
+        <br />• Extinction: Δm = k_ext × (X - 1), where k_ext = 0.20 (Bortle 4 default, 0.15 mountain, 0.25 urban)
+        <br />• Applied to SB: SB_effective = SB_obj + Δm (target gets fainter when low)
+        <br />• Impact: M27 at 56° → +0.04 mag (+6 subs) | target at 26° → +0.25 mag (+39 subs, +28%)
+        </p>
         <p><strong className="text-text">Refinement:</strong> Coefficients updated as new master FITS sessions are added. Script: <code className="text-blue-300">astro-calibration/run-calibration.py</code></p>
       </div>
     </section>
@@ -108,7 +114,7 @@ const DocsView: React.FC = () => {
       <div className="space-y-2 text-sm text-text-secondary">
         <p><strong>M_ZERO = 26.59</strong> — AB V-band zeropoint (~0.3–0.8 mag uncertainty). The night sky spectrum (OH lines, sodium, LED) and emission nebulae (Hα ~0.6nm) differ from a flat-frequency reference. Errors partially cancel in differential (SB_obj and B_sky use the same constant). Shared by all market tools — documented per Claude AI review 25/06/2026.</p>
         <p><strong>Dark current</strong> — Default 0.0005 e⁻/px/s assumes a cooled sensor (ASI2600/IMX571). Uncooled sensors in summer can reach 0.01–0.05. Warning triggered when dc × t_sub &gt; 0.1 × RN².</p>
-        <p><strong>Clamping</strong> — Default 30-600s (narrowband) / 60-300s (broadband). Configurable via clampMin/clampMax params since v9.</p>
+        <p><strong>Clamping</strong> — Default 30-600s (narrowband) / 10-300s (broadband). v11: broadband floor lowered from 60s to 10s (FWC saturation under polluted sky). Configurable via clampMin/clampMax params.</p>
       </div>
     </section>
 
