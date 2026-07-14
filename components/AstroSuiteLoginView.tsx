@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { User, ViewState } from '../types';
 import { authenticateUser } from '../src/services/userService';
-import { syncFiltersToServer } from '../src/services/filterService';
-import { syncProjectsToServer } from '../src/services/projectService';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 
 interface AstroSuiteLoginViewProps {
@@ -25,15 +23,7 @@ const AstroSuiteLoginView: React.FC<AstroSuiteLoginViewProps> = ({ onLogin, onNa
     try {
       const result = await authenticateUser(email, password);
       if (result) {
-        // Sync localStorage data to server on login
-        try {
-          await Promise.all([
-            syncFiltersToServer(),
-            syncProjectsToServer(),
-          ]);
-        } catch (syncErr) {
-          console.warn('Sync on login failed (non-critical):', syncErr);
-        }
+        // Data is already in DB — no need to sync localStorage on login
         onLogin(result.user);
       } else {
         setError('Email ou mot de passe incorrect');

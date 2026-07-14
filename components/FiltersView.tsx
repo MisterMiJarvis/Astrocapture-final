@@ -16,6 +16,7 @@ import {
   deleteFilter,
   getFilterExposureFactor,
 } from '../src/services/filterService';
+import type { TransmissionPoint } from '../src/data/filterSpectra';
 import {
   Plus, Trash2, Edit3, X, Check, AlertTriangle, Moon, Sun, Filter,
 } from 'lucide-react';
@@ -51,6 +52,160 @@ const EMPTY_FILTER: Omit<AstroFilter, 'id' | 'createdAt' | 'updatedAt'> = {
   recommendedTargets: [],
   owned: true,
   isDefault: false,
+};
+
+// ─── SVG Spectral Chart Component ───────────────────────────────────────────
+
+const SPECTRUM_MIN = 380; // nm
+const SPECTRUM_MAX = 700; // nm
+const TRANS_MAX = 100;    // percentage
+
+/** Wavelength → RGB color approximation for the visible spectrum background. */
+function wavelengthToColor(wl: number): string {
+  let r = 0, g = 0, b = 0;
+  if (wl >= 380 && wl < 440) {
+    r = -(wl - 440) / (440 - 380);
+    b = 1;
+  } else if (wl >= 440 && wl < 490) {
+    g = (wl - 440) / (490 - 440);
+    b = 1;
+  } else if (wl >= 490 && wl < 510) {
+    g = 1;
+    b = -(wl - 510) / (510 - 490);
+  } else if (wl >= 510 && wl < 580) {
+    r = (wl - 510) / (580 - 510);
+    g = 1;
+  } else if (wl >= 580 && wl < 645) {
+    r = 1;
+    g = -(wl - 645) / (645 - 580);
+  } else if (wl >= 645 && wl <= 700) {
+    r = 1;
+  }
+  // Intensity falloff at edges
+  let factor = 1;
+  if (wl >= 380 && wl < 420) {
+    factor = 0.3 + 0.7 * (wl - 380) / (420 - 380);
+  } else if (wl >= 645 && wl <= 700) {
+    factor = 0.3 + 0.7 * (700 - wl) / (700 - 645);
+  }
+  r = Math.round(r * factor * 255);
+  g = Math.round(g * factor * 255);
+  b = Math.round(b * factor * 255);
+  return `rgb(${r},${g},${b})`;
+}
+
+/** Generate the rainbow gradient stops for the spectrum background. */
+function getRainbowStops(): string {
+  const stops: string[] = [];
+  for (let wl = SPECTRUM_MIN; wl <= SPECTRUM_MAX; wl += 10) {
+    const pct = ((wl - SPECTRUM_MIN) / (SPECTRUM_MAX - SPECTRUM_MIN)) * 100;
+    stops.push(`${wavelengthToColor(wl)} ${pct.toFixed(1)}%`);
+  }
+  return stops.join(', ');
+}
+
+const RAINBOW_GRADIENT = getRainbowStops();
+
+/** Notable spectral lines to mark on the x-axis. */
+const SPECTRAL_LINES = [
+  { wl: 656.3, label: 'Hα' },
+  { wl: 500.7, label: 'OIII' },
+  { wl: 672.4, label: 'SII' },
+];
+
+interface SpectralChartProps {
+  data: TransmissionPoint[];
+  color: string;
+  bandwidthNm: number;
+  centerWavelengthNm: number;
+}
+
+const SpectralChart: React.FC<SpectralChartProps> = ({ data, color, bandwidthNm, centerWavelengthNm }) => {
+  const W = 300;
+  const H = 100;
+  const PAD_L = 4;
+  const PAD_R = 4;
+  const PAD_T = 4;
+  const PAD_B = 18;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+
+  const xScale = (wl: number) => PAD_L + ((wl - SPECTRUM_MIN) / (SPECTRUM_MAX - SPECTRUM_MIN)) * plotW;
+  const yScale = (t: number) => PAD_T + (1 - t / TRANS_MAX) * plotH;
+
+  // Build the area path from transmission data
+  const points = data.filter(d => d.wavelength >= SPECTRUM_MIN && d.wavelength <= SPECTRUM_MAX);
+  if (points.length < 2) return null;
+
+  // Build polyline points string
+  const polylinePts = points.map(d => `${xScale(d.wavelength).toFixed(1)},${yScale(d.transmission).toFixed(1)}`).join(' ');
+
+  // Build filled area path: start at baseline left, go up to first point, through all points, down to baseline right
+  const firstX = xScale(points[0].wavelength);
+  const lastX = xScale(points[points.length - 1].wavelength);
+  const baselineY = yScale(0);
+  const areaPath = `M ${firstX.toFixed(1)} ${baselineY.toFixed(1)} ` +
+    points.map(d => `L ${xScale(d.wavelength).toFixed(1)} ${yScale(d.transmission).toFixed(1)}`).join(' ') +
+    ` L ${lastX.toFixed(1)} ${baselineY.toFixed(1)} Z`;
+
+  // Line path (same as area but no close)
+  const linePath = 'M ' + points.map(d => `${xScale(d.wavelength).toFixed(1)} ${yScale(d.transmission).toFixed(1)}`).join(' L ');
+
+  // Grid lines at 25%, 50%, 75%, 100%
+  const gridLines = [25, 50, 75, 100].map(t => {
+    const y = yScale(t);
+    return { y, label: `${t}%` };
+  });
+
+  // Spectral line markers relevant to this filter
+  const visibleLines = SPECTRAL_LINES.filter(sl => {
+    // Show lines within or near the filter's passband(s)
+    const dist = Math.abs(sl.wl - centerWavelengthNm);
+    return dist < bandwidthNm * 2 || dist < 50;
+  });
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="w-full" style={{ height: '100px' }}>
+      {/* Rainbow background */}
+      <defs>
+        <linearGradient id="spectrum-bg" x1="0" y1="0" x2="1" y2="0">
+          {RAINBOW_GRADIENT.split(', ').map((stop, i) => {
+            const [col, pos] = stop.split(' ');
+            return <stop key={i} offset={pos} stopColor={col} />;
+          })}
+        </linearGradient>
+      </defs>
+      <rect x={PAD_L} y={PAD_T} width={plotW} height={plotH} fill="url(#spectrum-bg)" opacity={0.18} rx={2} />
+
+      {/* Grid lines */}
+      {gridLines.map((gl, i) => (
+        <line key={i} x1={PAD_L} y1={gl.y} x2={W - PAD_R} y2={gl.y}
+          stroke="#ffffff" strokeOpacity={0.08} strokeWidth={0.5} />
+      ))}
+
+      {/* Filled area under curve */}
+      <path d={areaPath} fill={color} fillOpacity={0.2} />
+
+      {/* Transmission curve line */}
+      <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* Spectral line markers */}
+      {visibleLines.map((sl, i) => {
+        const x = xScale(sl.wl);
+        if (x < PAD_L || x > W - PAD_R) return null;
+        return (
+          <g key={i}>
+            <line x1={x} y1={PAD_T} x2={x} y2={H - PAD_B} stroke="#ffffff" strokeOpacity={0.25} strokeWidth={0.5} strokeDasharray="2,2" />
+            <text x={x} y={H - 4} textAnchor="middle" fontSize={7} fill="#9ca3af" fontFamily="monospace">{sl.label}</text>
+          </g>
+        );
+      })}
+
+      {/* X-axis labels */}
+      <text x={PAD_L} y={H - 4} fontSize={7} fill="#6b7280" fontFamily="monospace">{SPECTRUM_MIN}nm</text>
+      <text x={W - PAD_R} y={H - 4} textAnchor="end" fontSize={7} fill="#6b7280" fontFamily="monospace">{SPECTRUM_MAX}nm</text>
+    </svg>
+  );
 };
 
 export const FiltersView: React.FC = () => {
@@ -345,40 +500,55 @@ export const FiltersView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Bandwidth visualization */}
-                <div className="bg-background rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-text-secondary">Spectral Bandwidth</span>
-                    <span className="font-mono text-sm font-bold text-text">{filter.bandwidthNm} nm</span>
+                {/* Bandwidth visualization — SVG spectral chart or CSS gradient fallback */}
+                {filter.transmissionData && filter.transmissionData.length >= 2 ? (
+                  <div className="bg-background rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-text-secondary">Spectral Transmission</span>
+                      <span className="font-mono text-sm font-bold text-text">{filter.bandwidthNm} nm BW</span>
+                    </div>
+                    <SpectralChart
+                      data={filter.transmissionData}
+                      color={filter.color}
+                      bandwidthNm={filter.bandwidthNm}
+                      centerWavelengthNm={filter.centerWavelengthNm}
+                    />
                   </div>
-                  {/* Spectrum bar — visible rainbow background with blocked regions dimmed */}
-                  <div className="relative h-10 rounded-lg overflow-hidden" style={{ background: 'linear-gradient(to right, #380036, #4400a8, #0044ff, #00ccff, #00ff44, #ccff00, #ffaa00, #ff2200, #660000)' }}>
-                    {/* Blocked overlays */}
-                    <div className="absolute top-0 bottom-0 left-0 bg-black/70" style={{ width: `${Math.max(0, ((filter.centerWavelengthNm - filter.bandwidthNm / 2) - 400) / 300 * 100)}%` }} />
-                    <div className="absolute top-0 bottom-0 right-0 bg-black/70" style={{ width: `${Math.max(0, (700 - (filter.centerWavelengthNm + filter.bandwidthNm / 2)) / 300 * 100)}%` }} />
-                    {/* Passband highlight */}
-                    <div
-                      className="absolute top-1 bottom-1 rounded-md"
-                      style={{
-                        left: `${((filter.centerWavelengthNm - filter.bandwidthNm / 2) - 400) / 300 * 100}%`,
-                        width: `${(filter.bandwidthNm / 300) * 100}%`,
-                        backgroundColor: filter.color,
-                        opacity: 0.9,
-                        boxShadow: `0 0 8px ${filter.color}80, 0 0 20px ${filter.color}40`,
-                        border: '2px solid rgba(255,255,255,0.7)',
-                      }}
-                    >
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-[10px] font-mono font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{filter.bandwidthNm}nm</span>
+                ) : (
+                  <div className="bg-background rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-text-secondary">Spectral Bandwidth</span>
+                      <span className="font-mono text-sm font-bold text-text">{filter.bandwidthNm} nm</span>
+                    </div>
+                    {/* Spectrum bar — visible rainbow background with blocked regions dimmed */}
+                    <div className="relative h-10 rounded-lg overflow-hidden" style={{ background: 'linear-gradient(to right, #380036, #4400a8, #0044ff, #00ccff, #00ff44, #ccff00, #ffaa00, #ff2200, #660000)' }}>
+                      {/* Blocked overlays */}
+                      <div className="absolute top-0 bottom-0 left-0 bg-black/70" style={{ width: `${Math.max(0, ((filter.centerWavelengthNm - filter.bandwidthNm / 2) - 400) / 300 * 100)}%` }} />
+                      <div className="absolute top-0 bottom-0 right-0 bg-black/70" style={{ width: `${Math.max(0, (700 - (filter.centerWavelengthNm + filter.bandwidthNm / 2)) / 300 * 100)}%` }} />
+                      {/* Passband highlight */}
+                      <div
+                        className="absolute top-1 bottom-1 rounded-md"
+                        style={{
+                          left: `${((filter.centerWavelengthNm - filter.bandwidthNm / 2) - 400) / 300 * 100}%`,
+                          width: `${(filter.bandwidthNm / 300) * 100}%`,
+                          backgroundColor: filter.color,
+                          opacity: 0.9,
+                          boxShadow: `0 0 8px ${filter.color}80, 0 0 20px ${filter.color}40`,
+                          border: '2px solid rgba(255,255,255,0.7)',
+                        }}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-[10px] font-mono font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{filter.bandwidthNm}nm</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="flex justify-between text-[10px] text-text-secondary mt-1.5 font-mono">
+                      <span>400nm</span>
+                      <span className="text-text">{filter.centerWavelengthNm}nm λ<sub>c</sub></span>
+                      <span>700nm</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-[10px] text-text-secondary mt-1.5 font-mono">
-                    <span>400nm</span>
-                    <span className="text-text">{filter.centerWavelengthNm}nm λ<sub>c</sub></span>
-                    <span>700nm</span>
-                  </div>
-                </div>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-2 text-xs">

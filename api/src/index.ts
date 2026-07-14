@@ -395,7 +395,7 @@ app.get('/api/telescopius/mosaic', async (c) => {
 app.get('/api/telescopius/quote', async (c) => {
   try {
     const result = callTelescopiusProxy('quote');
-    if (result.error) return c.json({ error: result.error }, 500);
+    if (result.error) console.warn('[quote] API error, serving stale cache:', result.error);
     return c.json(result);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -418,7 +418,8 @@ app.get('/api/telescopius/highlights', async (c) => {
     if (mag_max) proxyParams.mag_max = mag_max;
     if (results_per_page) proxyParams.results_per_page = results_per_page;
     const result = callTelescopiusProxy('highlights', proxyParams);
-    if (result.error) return c.json({ error: result.error }, 500);
+    if (result.error && !result.page_results) return c.json({ error: result.error }, 500);
+    if (result.error) console.warn('[highlights] API error, serving stale cache:', result.error);
     
     // Flatten highlights format to match search format expected by front-end
     const pageResults = result.page_results || [];
@@ -484,7 +485,7 @@ app.get('/api/telescopius/solar', async (c) => {
   
   try {
     const result = callTelescopiusProxy('solar', { lat, lon, timezone });
-    if (result.error) return c.json({ error: result.error }, 500);
+    if (result.error) console.warn('[solar] API error, serving stale:', result.error);
     return c.json(result);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -497,7 +498,7 @@ app.get('/api/telescopius/pictures', async (c) => {
   
   try {
     const result = callTelescopiusProxy('pictures', { order, results_per_page });
-    if (result.error) return c.json({ error: result.error }, 500);
+    if (result.error) console.warn('[pictures] API error, serving stale:', result.error);
     return c.json(result);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -507,7 +508,7 @@ app.get('/api/telescopius/pictures', async (c) => {
 app.get('/api/telescopius/lists', async (c) => {
   try {
     const result = callTelescopiusProxy('lists');
-    if (result.error) return c.json({ error: result.error }, 500);
+    if (result.error) console.warn('[lists] API error, serving stale:', result.error);
     return c.json(result);
   } catch (err: any) {
     return c.json({ error: err.message }, 500);

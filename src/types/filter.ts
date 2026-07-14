@@ -20,6 +20,7 @@ export interface AstroFilter {
   recommendedTargets: string[];
   owned: boolean;                  // does the user own this filter?
   isDefault: boolean;              // shown in filter dropdowns by default
+  transmissionData?: { wavelength: number; transmission: number }[]; // real spectral data points
   createdAt: string;
   updatedAt: string;
 }

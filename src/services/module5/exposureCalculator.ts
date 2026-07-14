@@ -19,6 +19,64 @@ import {
   DewAlert,
   DewRiskLevel,
 } from '../../types/module5';
+import { FILTER_SPECTRA, getBroadbandReferenceArea } from '../../data/filterSpectra';
+import { fetchFilters } from '../filterService';
+
+// Category → continuumTransmission mapping
+const CATEGORY_CONTINUUM: Record<string, number> = {
+  broadband: 1.0,
+  dualband: 0.05,
+  narrowband: 0.03,
+  anti_pollution: 0.70,
+  special: 0.50,
+};
+
+/**
+ * Load filter profiles from the database API.
+ * Falls back to FILTER_PROFILES on error.
+ */
+export async function loadFilterProfiles(): Promise<Record<string, FilterProfile>> {
+  try {
+    const filters = await fetchFilters();
+    if (!Array.isArray(filters) || filters.length === 0) {
+      console.warn('[loadFilterProfiles] Empty filters from API, using fallback');
+      return FILTER_PROFILES;
+    }
+
+    const profiles: Record<string, FilterProfile> = {};
+
+    for (const f of filters) {
+      // Slugify the filter name to use as key
+      const slug = f.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+      const category = f.category || 'broadband';
+      const continuumTransmission = CATEGORY_CONTINUUM[category] ?? 0.5;
+
+      profiles[slug] = {
+        type: slug as FilterType,
+        name: f.name,
+        bandwidthNm: f.bandwidthNm ?? 350,
+        transmission: f.peakTransmission ?? 1.0,
+        skySuppression: f.skySuppression ?? 0,
+        continuumTransmission,
+        color: f.color ?? '#888888',
+        description: f.description ?? '',
+        useCases: Array.isArray(f.useCases) ? f.useCases : [],
+        moonCompatible: Boolean(f.moonCompatible),
+        recommendedTargets: Array.isArray(f.recommendedTargets) ? f.recommendedTargets : [],
+        transmissionData: f.transmissionData ?? undefined,
+      };
+    }
+
+    return profiles;
+  } catch (err) {
+    console.error('[loadFilterProfiles] Failed to load filters:', err);
+    return FILTER_PROFILES;
+  }
+}
 
 // Constantes physiques
 // NOTE: M_ZERO = 26.59 est le zeropoint AB en V-band (photons/m²/s/arcsec²).
@@ -74,8 +132,88 @@ export function inferObjectType(targetName: string): ObjectType {
 }
 
 // ============================================================================
-// PROFILS DE FILTRES v5 — avec continuumTransmission
+// PROFILS DE FILTRES v5 — avec continuumTransmission + transmissionData
 // ============================================================================
+
+// --- Helpers d'intégration spectrale ---
+
+/**
+ * Interpole la transmission à une longueur d'onde donnée.
+ * Données triées par longueur d'onde croissante.
+ */
+export function interpolateTransmission(
+  data: { wavelength: number; transmission: number }[],
+  wl: number
+): number {
+  if (data.length === 0) return 0;
+  if (wl <= data[0].wavelength) return data[0].transmission / 100;
+  if (wl >= data[data.length - 1].wavelength) return data[data.length - 1].transmission / 100;
+
+  // Recherche dichotomique
+  let lo = 0, hi = data.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (data[mid].wavelength < wl) lo = mid; else hi = mid;
+  }
+  const dw = data[hi].wavelength - data[lo].wavelength;
+  if (dw === 0) return data[lo].transmission / 100;
+  const t = data[lo].transmission +
+    ((data[hi].transmission - data[lo].transmission) * (wl - data[lo].wavelength)) / dw;
+  return t / 100; // conversion % → 0-1
+}
+
+/**
+ * Transmission effective pour une raie d'émission donnée.
+ * Interpole à partir des données spectrales réelles.
+ */
+export function getEffectiveTransmissionAtLine(
+  data: { wavelength: number; transmission: number }[],
+  wavelengthNm: number
+): number {
+  return interpolateTransmission(data, wavelengthNm);
+}
+
+/**
+ * Transmission effective pour un spectre continu (galaxies/amas).
+ * Intègre la courbe de transmission sur une plage plate et divise par la largeur.
+ * Retourne une valeur 0-1 représentant la fraction du continuum transmise.
+ */
+export function getEffectiveContinuumTransmission(
+  data: { wavelength: number; transmission: number }[],
+  rangeMin = 400,
+  rangeMax = 700
+): number {
+  if (data.length < 2) return 0.5;
+
+  // Intégration trapézoïdale sur la plage [rangeMin, rangeMax]
+  let area = 0;
+  for (let i = 1; i < data.length; i++) {
+    const wl0 = data[i - 1].wavelength;
+    const wl1 = data[i].wavelength;
+    if (wl1 < rangeMin || wl0 > rangeMax) continue;
+    const lo = Math.max(wl0, rangeMin);
+    const hi = Math.min(wl1, rangeMax);
+    if (hi <= lo) continue;
+    const t0 = interpolateTransmission(data, lo) * 100;
+    const t1 = interpolateTransmission(data, hi) * 100;
+    area += (hi - lo) * (t0 + t1) / 2;
+  }
+  const range = rangeMax - rangeMin;
+  return range > 0 ? area / (range * 100) : 0; // 0-1
+}
+
+/**
+ * Transmission effective du fond de ciel.
+ * Les sources principales de skyglow sont les raies LED (Na 589nm, Hg 435nm, 578nm)
+ * et un continuum naturel. Pour l'instant on utilise la transmission moyenne sur
+ * la plage 400-700nm comme approximation (proxy).
+ * À améliorer : pondérer par un spectre de skyglow réel.
+ */
+export function getEffectiveSkyTransmission(
+  data: { wavelength: number; transmission: number }[]
+): number {
+  return getEffectiveContinuumTransmission(data, 400, 700);
+}
 
 export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
   'UV_IR_Cut': {
@@ -90,12 +228,13 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     useCases: ['Nuits sans Lune', 'Pollution faible', 'Galaxies', 'Amas'],
     moonCompatible: false,
     recommendedTargets: ['Galaxies', 'Amas ouverts', 'Amas globulaires'],
+    transmissionData: FILTER_SPECTRA['filter_uv_ir_cut'],
   },
   'L_Ultimate': {
     type: 'L_Ultimate',
     name: 'L-Ultimate',
-    bandwidthNm: 7,
-    transmission: 0.85,
+    bandwidthNm: 3,
+    transmission: 0.95,
     skySuppression: 0.90,
     continuumTransmission: 0.05,
     color: '#7C4DFF',
@@ -103,86 +242,26 @@ export const FILTER_PROFILES: Record<FilterType, FilterProfile> = {
     useCases: ['Nébuleuses Hα/OIII', 'Sous Lune', 'Pollution urbaine'],
     moonCompatible: true,
     recommendedTargets: ['Nébuleuses émission', 'Nébuleuses planétaires'],
+    transmissionData: FILTER_SPECTRA['filter_l_ultimate'],
   },
-  'LPS_D2': {
-    type: 'LPS_D2',
-    name: 'LPS-D2',
-    bandwidthNm: 25,
-    transmission: 0.75,
-    skySuppression: 0.60,
-    continuumTransmission: 0.70,
-    color: '#FF9800',
-    description: 'Filtre anti-pollution lumineuse. Sélectif sur sodium/mercure.',
-    useCases: ['Pollution urbaine', 'Banlieue', 'Nuits claires'],
-    moonCompatible: false,
-    recommendedTargets: ['Galaxies', 'Nébuleuses', 'Amas'],
-  },
-  'Ha': {
-    type: 'Ha',
-    name: 'Hα (7nm)',
-    bandwidthNm: 7,
-    transmission: 0.90,
-    skySuppression: 0.965,
-    continuumTransmission: 0.03,
-    color: '#F44336',
-    description: 'Filtre narrowband Hydrogène-alpha.',
-    useCases: ['Nébuleuses Hα', 'Sous Lune', 'Bi-color', 'Tri-color'],
+  'Antlia_Triband': {
+    type: 'Antlia_Triband',
+    name: 'Antlia Triband RGB Ultra II',
+    bandwidthNm: 35,
+    transmission: 0.954,
+    skySuppression: 0.95,
+    continuumTransmission: 0.15,
+    color: '#7C4DFF',
+    description: 'Triband Hα + OIII + RGB filter. Wider bands than L-Ultimate, passes some RGB for color.',
+    useCases: ['Nébuleuses Hα/OIII', 'Sous Lune', 'RGB + narrowband combo'],
     moonCompatible: true,
-    recommendedTargets: ['Nébuleuses émission', 'Rémanents supernovae'],
-  },
-  'OIII': {
-    type: 'OIII',
-    name: 'OIII (7nm)',
-    bandwidthNm: 7,
-    transmission: 0.90,
-    skySuppression: 0.965,
-    continuumTransmission: 0.03,
-    color: '#00BCD4',
-    description: 'Filtre narrowband Oxygène III.',
-    useCases: ['Nébuleuses OIII', 'Planétaires', 'Sous Lune'],
-    moonCompatible: true,
-    recommendedTargets: ['Nébuleuses planétaires', 'Nébuleuses émission'],
-  },
-  'SII': {
-    type: 'SII',
-    name: 'SII (7nm)',
-    bandwidthNm: 7,
-    transmission: 0.90,
-    skySuppression: 0.965,
-    continuumTransmission: 0.03,
-    color: '#E91E63',
-    description: 'Filtre narrowband Soufre II.',
-    useCases: ['Tri-color Hubble', 'Sous Lune', 'Nébuleuses'],
-    moonCompatible: true,
-    recommendedTargets: ['Nébuleuses émission', 'Nébuleuses sombres'],
-  },
-  'RGB': {
-    type: 'RGB',
-    name: 'RGB (One-Shot-Color)',
-    bandwidthNm: 150,
-    transmission: 1.0,
-    skySuppression: 0.0,
-    continuumTransmission: 1.0,
-    color: '#9C27B0',
-    description: 'Pas de filtre additionnel — capteur OSC natif.',
-    useCases: ['Nuits sans Lune', 'Couleur naturelle'],
-    moonCompatible: false,
-    recommendedTargets: ['Galaxies', 'Amas', 'Réflections'],
-  },
-  'Luminance': {
-    type: 'Luminance',
-    name: 'Luminance',
-    bandwidthNm: 200,
-    transmission: 1.0,
-    skySuppression: 0.0,
-    continuumTransmission: 1.0,
-    color: '#9E9E9E',
-    description: 'Filtre Luminance pour imagerie LRGB.',
-    useCases: ['Nuits sans Lune', 'LRGB'],
-    moonCompatible: false,
-    recommendedTargets: ['Galaxies', 'Amas', 'Toutes cibles LRGB'],
+    recommendedTargets: ['Nébuleuses émission', 'Nébuleuses planétaires', 'Rémanents supernovae'],
+    transmissionData: FILTER_SPECTRA['filter_antlia_triband'],
   },
 };
+
+// Legacy filters removed: LPS_D2, Ha, OIII, SII, RGB, Luminance
+// Only keep filters that exist in the database.
 
 // ============================================================================
 // PIPELINE PHYSIQUE v5 — 6 ÉTAPES
@@ -434,22 +513,33 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
     params.pixelSize
   );
 
+  // --- Résolution du filtre (avant étape 3 — nécessaire pour spectral data) ---
+  const profiles = params.filterProfiles ?? FILTER_PROFILES;
+  const filterEntry = Object.values(profiles).find(
+    f => f.transmission === params.filterTransmission && f.skySuppression === skySuppression
+  );
+  const filterBandwidthNm = filterEntry?.bandwidthNm ?? 350; // défaut : broadband
+
   // --- Étape 3 : B_sky ---
+  // Utilise les données spectrales réelles si disponibles
+  const transmissionData = filterEntry?.transmissionData;
+  const effSkyTransmission = transmissionData
+    ? getEffectiveSkyTransmission(transmissionData)
+    : params.filterTransmission;
+  const effSkySuppression = transmissionData
+    ? 1 - effSkyTransmission // derive sky suppression from real data
+    : skySuppression;
+
   const { fluxSky, bSky } = calculateSkyFluxAndBrightness(
     sqmEffective,
     apertureArea,
     sampling,
     params.quantumEfficiency,
-    params.filterTransmission,
-    skySuppression
+    transmissionData ? effSkyTransmission : params.filterTransmission,
+    transmissionData ? effSkySuppression : skySuppression
   );
 
   // --- Étape 4 : t_sub (k dynamique + clamping intelligent) ---
-  // Déterminer la bande passante du filtre depuis FILTER_PROFILES
-  const filterEntry = Object.values(FILTER_PROFILES).find(
-    f => f.transmission === params.filterTransmission && f.skySuppression === skySuppression
-  );
-  const filterBandwidthNm = filterEntry?.bandwidthNm ?? 350; // défaut : broadband
   const isBroadband = filterBandwidthNm > 50 || (!isEmissionNebula && filterBandwidthNm > 50);
 
   const { tOptimumRaw, tSub, kDynamic } = calculateOptimalSubExposure(
@@ -465,7 +555,15 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
   const kCalib = getKCalib(objectType);
 
   // #3 : utiliser continuumTransmission depuis FILTER_PROFILES
-  const continuumTransmission = filterEntry?.continuumTransmission ?? 1.0;
+  // Si transmissionData disponible, calculer les valeurs effectives réelles
+  const emissionWavelengthNm = params.emissionWavelengthNm ?? 656.3; // Hα par défaut
+
+  const effFilterTransmission = transmissionData
+    ? getEffectiveTransmissionAtLine(transmissionData, emissionWavelengthNm)
+    : params.filterTransmission;
+  const continuumTransmission = transmissionData
+    ? getEffectiveContinuumTransmission(transmissionData)
+    : (filterEntry?.continuumTransmission ?? 1.0);
 
   const { sObj, noiseSub, snrPerSub, darkCurrentWarning } = calculateObjectSignalAndSNR(
     objectSurfaceBrightness,
@@ -473,7 +571,7 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
     apertureArea,
     sampling,
     params.quantumEfficiency,
-    params.filterTransmission,
+    transmissionData ? effFilterTransmission : params.filterTransmission,
     continuumTransmission,
     bSky,
     darkCurrent,
@@ -552,6 +650,11 @@ export function calculateExposure(params: ExposureParams): ExposureResult {
     kDynamic,
     recommendation,
     warning,
+    // Spectral data values (if used)
+    effectiveSkyTransmission: transmissionData ? effSkyTransmission : undefined,
+    effectiveLineTransmission: transmissionData ? effFilterTransmission : undefined,
+    effectiveContinuumTransmission: transmissionData ? continuumTransmission : undefined,
+    usingSpectralData: !!transmissionData,
   };
 }
 

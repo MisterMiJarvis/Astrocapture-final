@@ -1,13 +1,18 @@
 // ============================================================================
 // SERVICE : Rig Profile Manager
-// Module 2 — Gestion des profils de rigs avec persistence API SQLite
-// Migrated from localStorage → /api/apls/rigs
+// Module 2 — Gestion des profils de rigs (API-only, no localStorage fallback)
 // ============================================================================
 
 import { RigProfile, RigCalculations, SamplingRecommendation, CreateRigProfileDTO, GuidingConfigDTO } from '../types/module2';
 
 const API_BASE = '/api/apls/rigs';
 export const ACTIVE_PROFILE_KEY = 'apls_active_rig_profile_id';
+
+// Clean up old localStorage keys from previous versions
+const OLD_RIG_KEYS = ['astrosuite_rig_profiles', 'astrosuite_rig_profiles_v2', 'apls_rig_profiles_v1', 'astrosuite_rigs'];
+for (const oldKey of OLD_RIG_KEYS) {
+  try { localStorage.removeItem(oldKey); } catch {}
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Token helper (reuse same pattern as api.ts)
@@ -135,53 +140,17 @@ function mapDtoToApiBody(dto: CreateRigProfileDTO): any {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CRUD Profils (async — API calls)
+// CRUD Profils (async — API calls, no localStorage fallback)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Track if default has been seeded this session to prevent re-seeding after delete
-let hasSeededDefault = false;
-
-// Clean up old localStorage keys that cause re-seeding (same pattern as filterService)
-const OLD_RIG_KEYS = ['astrosuite_rig_profiles', 'astrosuite_rig_profiles_v2', 'apls_rig_profiles_v1', 'astros…s_rigs'];
-for (const oldKey of OLD_RIG_KEYS) {
-  try { localStorage.removeItem(oldKey); } catch {}
-}
-
 export async function getAllProfiles(): Promise<RigProfile[]> {
-  try {
-    const data = await apiFetch<any[]>('');
-    if (data.length > 0) {
-      hasSeededDefault = true; // DB has data, no need to seed
-      return data.map(mapApiToProfile);
-    }
-    // No profiles in DB yet — only seed default ONCE per session, not after every delete
-    if (hasSeededDefault) {
-      return [];
-    }
-    hasSeededDefault = true;
-    const created = await createProfile({
-      name: 'Default Rig',
-      isDefault: true,
-      telescope: { name: '', focalLength: 714, aperture: 102, fRatio: 7, type: 'Refractor' },
-      modifier: { type: 'None', factor: 1.0 },
-      camera: { name: '', sensorWidth: 11.3, sensorHeight: 11.3, pixelSize: 3.76, resolutionX: 3008, resolutionY: 3008, readNoise: 1.5, quantumEfficiency: 0.8, isColor: true, hasCooling: true, binningAcquisition: 1 },
-      guiding: { cameraName: '', pixelSize: 3.75, binning: 1, mode: 'GuideScope', focalLength: 120 },
-      mount: { name: '', type: 'EQ', maxPayload: 15 },
-    });
-    return [created];
-  } catch (err) {
-    console.error('Failed to fetch rig profiles from API:', err);
-    return [];
-  }
+  const data = await apiFetch<any[]>('');
+  return data.map(mapApiToProfile);
 }
 
 export async function getProfileById(id: string): Promise<RigProfile | undefined> {
-  try {
-    const data = await apiFetch<any>(`/${id}`);
-    return mapApiToProfile(data);
-  } catch {
-    return undefined;
-  }
+  const data = await apiFetch<any>(`/${id}`);
+  return mapApiToProfile(data);
 }
 
 export function getDefaultProfileSync(): RigProfile {
@@ -240,35 +209,22 @@ export async function updateProfile(id: string, dto: Partial<CreateRigProfileDTO
   if (dto.guiding !== undefined) body.guidingCamera = { name: dto.guiding.cameraName, pixelSize: dto.guiding.pixelSize, binning: dto.guiding.binning, mode: dto.guiding.mode, focalLength: dto.guiding.focalLength };
   if (dto.mount !== undefined) body.mount = { name: dto.mount.name, type: dto.mount.type, maxPayload: dto.mount.maxPayload };
 
-  try {
-    const data = await apiFetch<any>(`/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    });
-    return mapApiToProfile(data);
-  } catch (err) {
-    console.error('Failed to update rig profile:', err);
-    return null;
-  }
+  const data = await apiFetch<any>(`/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  return mapApiToProfile(data);
 }
 
 export async function deleteProfile(id: string): Promise<boolean> {
-  try {
-    await apiFetch<any>(`/${id}`, { method: 'DELETE' });
+  await apiFetch<any>(`/${id}`, { method: 'DELETE' });
 
-    // Reset active if needed
-    const activeId = getActiveProfileId();
-    if (activeId === id) {
-      localStorage.removeItem(ACTIVE_PROFILE_KEY);
-    }
-    return true;
-  } catch (err) {
-    // Re-throw auth errors so the UI can show feedback
-    if (err instanceof Error && err.message.includes('Unauthorized')) {
-      throw new Error('Session expirée. Reconnectez-vous pour supprimer un rig.');
-    }
-    throw err;
+  // Reset active if needed
+  const activeId = getActiveProfileId();
+  if (activeId === id) {
+    localStorage.removeItem(ACTIVE_PROFILE_KEY);
   }
+  return true;
 }
 
 export async function duplicateProfile(id: string, newName?: string): Promise<RigProfile | null> {

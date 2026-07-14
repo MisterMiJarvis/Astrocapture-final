@@ -1,6 +1,6 @@
 // ============================================================================
 // PROJECT SERVICE — CRUD + Observations + Exposure Planning
-// API-first with localStorage fallback
+// API-only (no localStorage fallback)
 // ============================================================================
 
 import { Project, CreateProjectData, AddObservationData, ProjectObservation, ProjectExposurePlan, ExposureFormulaSnapshot, SNRTarget } from '../types/project';
@@ -8,6 +8,12 @@ import { AstroFilter } from './filterService';
 import { fetchFilters, getFilterExposureFactor, getMoonBenefitFactor } from './filterService';
 
 const API_BASE = '/api/apls/projects';
+
+// Clean up any leftover localStorage keys from old versions
+const OLD_KEYS = ['astrosuite_projects', 'astrosuite_projects_v2', 'apls_projects_v1'];
+for (const oldKey of OLD_KEYS) {
+  try { localStorage.removeItem(oldKey); } catch {}
+}
 
 // ─── Auth token helper ────────────────────────────────────────────────────
 
@@ -51,9 +57,25 @@ function generateObsId(): string {
 // Calibration SkyTools : 9/10 t_sub dans 3x, 8/10 N_subs dans 3x
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { calculateExposure, FILTER_PROFILES, inferObjectType } from './module5/exposureCalculator';
-import type { ExposureParams, FilterType } from '../types/module5';
+import { calculateExposure, FILTER_PROFILES, loadFilterProfiles, inferObjectType } from './module5/exposureCalculator';
+import type { ExposureParams, FilterType, FilterProfile } from '../types/module5';
 import type { ObjectType } from './module5/exposureCalculator';
+
+// Cache for DB-loaded filter profiles (loaded once per session)
+let cachedDbProfiles: Record<string, FilterProfile> | null = null;
+
+/**
+ * Get filter profiles from DB (cached), fallback to hardcoded FILTER_PROFILES
+ */
+async function getFilterProfiles(): Promise<Record<string, FilterProfile>> {
+  if (cachedDbProfiles) return cachedDbProfiles;
+  try {
+    cachedDbProfiles = await loadFilterProfiles();
+    return cachedDbProfiles;
+  } catch {
+    return FILTER_PROFILES;
+  }
+}
 
 const M_ZERO = 26.59; // conservé pour référence — v9 utilise le même dans exposureCalculator.ts
 
@@ -93,7 +115,8 @@ function bortleToSQM(bortle: number): number {
  * Convertit ExposureCalcParams → ExposureParams (v9)
  * puis ExposureResult (v9) → ProjectExposurePlan (rétro-compat UI)
  */
-export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposurePlan[] {
+export function calculateExposurePlan(params: ExposureCalcParams, profiles?: Record<string, FilterProfile>): ProjectExposurePlan[] {
+  const filterProfiles = profiles ?? FILTER_PROFILES;
   const {
     targetMagnitude,
     targetSizeArcmin,
@@ -135,22 +158,28 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
   const moonPhaseFactor = moonIllumination * 3.5;
   const moonAltitudeDeg = moonIllumination > 0 ? 45 : 0; // altitude approximative
 
-  // ─── Mapper filter string → FilterType v9 ──────────────────────────────
-  const FILTER_MAP: Record<string, FilterType> = {
-    'UV_IR_Cut': 'UV_IR_Cut', 'UV/IR Cut': 'UV_IR_Cut',
-    'L_Ultimate': 'L_Ultimate', 'L-Ultimate': 'L_Ultimate',
-    'LPS_D2': 'LPS_D2', 'LPS-D2': 'LPS_D2',
-    'Ha': 'Ha', 'Hα': 'Ha',
-    'OIII': 'OIII',
-    'SII': 'SII',
-    'RGB': 'RGB',
-    'Luminance': 'Luminance', 'Lum': 'Luminance',
-  };
-  const filterType = FILTER_MAP[filter] ?? 'UV_IR_Cut';
-  const filterProfile = FILTER_PROFILES[filterType];
-
+  // ─── Chercher le filtre dans les profils (DB ou fallback) ─────────────
+  // Essayer d'abord une correspondance exacte par nom, puis par slug
+  const filterSlug = filter.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  let filterProfile = filterProfiles[filterSlug] ?? filterProfiles[filter] ?? null;
+  
+  // Fallback: chercher par nom insensible à la casse
+  if (!filterProfile) {
+    const match = Object.values(filterProfiles).find(
+      p => p.name.toLowerCase() === filter.toLowerCase()
+    );
+    filterProfile = match ?? null;
+  }
+  
+  // Dernier recours: UV/IR Cut (broadband par défaut)
+  if (!filterProfile) {
+    filterProfile = filterProfiles['UV_IR_Cut'] ?? Object.values(filterProfiles)[0];
+  }
+  
   // Déterminer le type d'objet (émission vs continuum)
-  const isEmissionNebula = ['Ha', 'OIII', 'SII', 'L_Ultimate'].includes(filter);
+  const isEmissionNebula = filterProfile.bandwidthNm <= 12 || 
+    ['Ha', 'OIII', 'SII', 'L_Ultimate', 'l_ultimate_3nm'].includes(filterSlug) ||
+    filterProfile.continuumTransmission <= 0.1;
 
   // ─── Construire ExposureParams (v9) ──────────────────────────────────────
   const v9Params: ExposureParams = {
@@ -250,44 +279,33 @@ export function calculateExposurePlan(params: ExposureCalcParams): ProjectExposu
 }
 
 export function calculateFullExposurePlan(
-  params: ExposureCalcParams & { targetType: string }
+  params: ExposureCalcParams & { targetType: string },
+  profiles?: Record<string, FilterProfile>
 ): ProjectExposurePlan[] {
   const types = params.targetType?.split(',') || [];
   const plans: ProjectExposurePlan[] = [];
 
-  plans.push(...calculateExposurePlan(params));
+  plans.push(...calculateExposurePlan(params, profiles));
 
   const isNarrowband = types.some(t => ['neb', 'plnb', 'snrb'].includes(t));
   if (isNarrowband && params.filter !== 'Ha' && params.filter !== 'OIII' && params.filter !== 'SII') {
     for (const f of ['Ha', 'OIII', 'SII'] as const) {
-      plans.push(...calculateExposurePlan({ ...params, filter: f }));
+      plans.push(...calculateExposurePlan({ ...params, filter: f }, profiles));
     }
   }
 
   return plans;
 }
 
-// ─── Project CRUD (API-first, localStorage fallback) ──────────────────────
+// ─── Project CRUD (API-only) ──────────────────────────────────────────────
 
 export async function fetchProjects(): Promise<Project[]> {
-  try {
-    const data = await apiFetch<Project[]>('');
-    const projects = Array.isArray(data) ? data : [];
-    // Sync localStorage with server — server is source of truth
-    saveLocalProjects(projects);
-    return projects;
-  } catch {
-    return getLocalProjects();
-  }
+  const data = await apiFetch<Project[]>('');
+  return Array.isArray(data) ? data : [];
 }
 
 export async function fetchProject(id: string): Promise<Project | null> {
-  try {
-    return await apiFetch<Project>(`/${id}`);
-  } catch {
-    const projects = getLocalProjects();
-    return projects.find(p => p.id === id) || null;
-  }
+  return await apiFetch<Project>(`/${id}`);
 }
 
 export async function createProject(data: CreateProjectData): Promise<Project> {
@@ -296,6 +314,9 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
   // Determine Bortle from location
   const bortle = data.locationSource === 'pradelles' ? 2 : 4;
 
+  // Load filter profiles from DB (cached)
+  const profiles = await getFilterProfiles();
+  
   const exposurePlan = calculateExposurePlan({
     targetMagnitude: data.targetMagnitude,
     targetSizeArcmin: data.targetSizeArcmin,
@@ -312,7 +333,7 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
     snrTarget: data.snrTarget ?? 30,
     targetName: data.targetName,
     targetType: data.targetType,
-  });
+  }, profiles);
 
   const totalPlannedHours = exposurePlan.reduce((sum, p) => sum + p.totalExposureTime, 0) / 3600;
 
@@ -350,43 +371,29 @@ export async function createProject(data: CreateProjectData): Promise<Project> {
     updatedAt: new Date().toISOString(),
   };
 
-  try {
-    return await apiFetch<Project>('', {
-      method: 'POST',
-      body: JSON.stringify(project),
-    });
-  } catch {
-    return saveLocalProject(project);
-  }
+  return await apiFetch<Project>('', {
+    method: 'POST',
+    body: JSON.stringify(project),
+  });
 }
 
 export async function updateProject(id: string, updates: Partial<Project>): Promise<Project> {
-  try {
-    return await apiFetch<Project>(`/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  } catch {
-    return updateLocalProject(id, updates);
-  }
+  return await apiFetch<Project>(`/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  try {
-    const res = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-      },
-    });
-    if (!res.ok) {
-      throw new Error(`Delete failed: ${res.status}`);
-    }
-    // Also remove from localStorage to prevent ghost resurrection
-    deleteLocalProject(id);
-  } catch {
-    deleteLocalProject(id);
+  const res = await fetch(`${API_BASE}/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Delete failed: ${res.status}`);
   }
 }
 
@@ -401,46 +408,19 @@ export async function addObservation(projectId: string, obs: AddObservationData)
     createdAt: new Date().toISOString(),
   };
 
-  try {
-    // POST the observation, then re-fetch the project to get updated progress
-    await apiFetch<any>(`/${projectId}/observations`, {
-      method: 'POST',
-      body: JSON.stringify(observation),
-    });
-    return await apiFetch<Project>(`/${projectId}`);
-  } catch {
-    return addLocalObservation(projectId, observation);
-  }
+  // POST the observation, then re-fetch the project to get updated progress
+  await apiFetch<any>(`/${projectId}/observations`, {
+    method: 'POST',
+    body: JSON.stringify(observation),
+  });
+  return await apiFetch<Project>(`/${projectId}`);
 }
 
 export async function deleteObservation(projectId: string, observationId: string): Promise<Project> {
-  try {
-    await apiFetch<any>(`/${projectId}/observations/${observationId}`, {
-      method: 'DELETE',
-    });
-    return await apiFetch<Project>(`/${projectId}`);
-  } catch {
-    return deleteLocalObservation(projectId, observationId);
-  }
-}
-
-// ─── Sync: push localStorage → server, return merged ─────────────────────
-
-export async function syncProjectsToServer(): Promise<Project[]> {
-  const localProjects = getLocalProjects();
-  try {
-    const result = await apiFetch<{ projects: Project[] }>('/../sync', {
-      method: 'POST',
-      body: JSON.stringify({ projects: localProjects }),
-    });
-    if (result.projects && result.projects.length > 0) {
-      saveLocalProjects(result.projects);
-    }
-    return result.projects || [];
-  } catch (err) {
-    console.error('Project sync failed:', err);
-    return localProjects;
-  }
+  await apiFetch<any>(`/${projectId}/observations/${observationId}`, {
+    method: 'DELETE',
+  });
+  return await apiFetch<Project>(`/${projectId}`);
 }
 
 // ─── Progress calculation ──────────────────────────────────────────────────
@@ -527,78 +507,3 @@ async function getCurrentMoonIllumination(lat: number, lon: number): Promise<num
   }
 }
 
-// ─── LocalStorage fallback ────────────────────────────────────────────────
-
-const LOCAL_KEY = 'astrosuite_projects';
-
-function getLocalProjects(): Project[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalProjects(projects: Project[]): void {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(projects));
-}
-
-function saveLocalProject(project: Project): Project {
-  const projects = getLocalProjects();
-  projects.push(project);
-  saveLocalProjects(projects);
-  return project;
-}
-
-function updateLocalProject(id: string, updates: Partial<Project>): Project {
-  const projects = getLocalProjects();
-  const idx = projects.findIndex(p => p.id === id);
-  if (idx === -1) throw new Error('Project not found');
-  projects[idx] = {
-    ...projects[idx],
-    ...updates,
-    totalExposureSeconds: 0,
-    completionPercent: 0,
-    updatedAt: new Date().toISOString(),
-  };
-  const progress = calculateProgress(projects[idx]);
-  projects[idx].totalExposureSeconds = progress.totalExposureSeconds;
-  projects[idx].completionPercent = progress.completionPercent;
-  saveLocalProjects(projects);
-  return projects[idx];
-}
-
-function deleteLocalProject(id: string): void {
-  const projects = getLocalProjects().filter(p => p.id !== id);
-  saveLocalProjects(projects);
-}
-
-function addLocalObservation(projectId: string, observation: ProjectObservation): Project {
-  const projects = getLocalProjects();
-  const idx = projects.findIndex(p => p.id === projectId);
-  if (idx === -1) throw new Error('Project not found');
-  projects[idx].observations.push(observation);
-  const progress = calculateProgress(projects[idx]);
-  projects[idx].totalExposureSeconds = progress.totalExposureSeconds;
-  projects[idx].completionPercent = progress.completionPercent;
-  projects[idx].updatedAt = new Date().toISOString();
-  if (projects[idx].status === 'planning') {
-    projects[idx].status = 'in_progress';
-  }
-  saveLocalProjects(projects);
-  return projects[idx];
-}
-
-function deleteLocalObservation(projectId: string, observationId: string): Project {
-  const projects = getLocalProjects();
-  const idx = projects.findIndex(p => p.id === projectId);
-  if (idx === -1) throw new Error('Project not found');
-  projects[idx].observations = projects[idx].observations.filter(o => o.id !== observationId);
-  const progress = calculateProgress(projects[idx]);
-  projects[idx].totalExposureSeconds = progress.totalExposureSeconds;
-  projects[idx].completionPercent = progress.completionPercent;
-  projects[idx].updatedAt = new Date().toISOString();
-  saveLocalProjects(projects);
-  return projects[idx];
-}

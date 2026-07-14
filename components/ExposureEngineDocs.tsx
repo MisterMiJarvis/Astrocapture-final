@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { FilterType, FILTER_PROFILES, calculateExposure, getKCalib, inferObjectType, K_CALIB_BY_TYPE, ObjectType } from '../src/services/module5/exposureCalculator';
-import { ExposureParams, ExposureResult } from '../src/types/module5';
+import React, { useState, useEffect } from 'react';
+import { FilterType, FILTER_PROFILES, loadFilterProfiles, calculateExposure, getKCalib, inferObjectType, K_CALIB_BY_TYPE, ObjectType } from '../src/services/module5/exposureCalculator';
+import { ExposureParams, ExposureResult, FilterProfile } from '../src/types/module5';
 
 const RIG_PRESETS = {
   'RedCat51_ASI533MC': {
@@ -26,6 +26,8 @@ const EXAMPLE_TARGETS = [
   { name: 'M27 Dumbbell', sb: 13.5, diameter: 8, isEmission: true, filter: 'OIII' as FilterType },
   { name: 'M51 Whirlpool', sb: 21.0, diameter: 11, isEmission: false, filter: 'UV_IR_Cut' as FilterType },
   { name: 'NGC6960 Western Veil', sb: 18.0, diameter: 70, isEmission: true, filter: 'Ha' as FilterType },
+  { name: 'NGC7000 North America', sb: 19.0, diameter: 120, isEmission: true, filter: 'l_ultimate_3nm' as FilterType },
+  { name: 'IC1396 Elephant Trunk', sb: 20.0, diameter: 140, isEmission: true, filter: 'triband_rgb_ultra_ii' as FilterType },
 ];
 
 const ExposureEngineDocs: React.FC = () => {
@@ -54,7 +56,14 @@ const ExposureEngineDocs: React.FC = () => {
   );
 };
 
-const DocsView: React.FC = () => (
+const DocsView: React.FC = () => {
+  const [filterProfiles, setFilterProfiles] = useState<Record<string, FilterProfile>>(FILTER_PROFILES);
+  
+  useEffect(() => {
+    loadFilterProfiles().then(setFilterProfiles).catch(() => {});
+  }, []);
+  
+  return (
   <div className="prose prose-invert max-w-none space-y-8">
     {/* Header */}
     <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/30 rounded-xl p-6">
@@ -206,8 +215,8 @@ const DocsView: React.FC = () => (
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
-            {(Object.keys(FILTER_PROFILES) as FilterType[]).map(t => {
-              const f = FILTER_PROFILES[t];
+            {(Object.keys(filterProfiles) as FilterType[]).map(t => {
+              const f = filterProfiles[t];
               return (
                 <tr key={t} className="hover:bg-surface-secondary/50">
                   <td className="py-2 px-3 text-text font-medium">{f.name}</td>
@@ -284,7 +293,8 @@ const DocsView: React.FC = () => (
       </p>
     </section>
   </div>
-);
+  );
+};
 
 const CalculatorView: React.FC = () => {
   const [rigKey, setRigKey] = useState<keyof typeof RIG_PRESETS>('RedCat51_ASI533MC');
@@ -295,10 +305,15 @@ const CalculatorView: React.FC = () => {
   const [moonAlt, setMoonAlt] = useState(0);
   const [moonPhase, setMoonPhase] = useState(0);
   const [moonSep, setMoonSep] = useState(180);
+  const [filterProfiles, setFilterProfiles] = useState<Record<string, FilterProfile>>(FILTER_PROFILES);
+
+  useEffect(() => {
+    loadFilterProfiles().then(setFilterProfiles).catch(() => {});
+  }, []);
 
   const rig = RIG_PRESETS[rigKey];
   const target = EXAMPLE_TARGETS[targetIdx];
-  const filterProfile = FILTER_PROFILES[target.filter];
+  const filterProfile = filterProfiles[target.filter] || FILTER_PROFILES[target.filter] || FILTER_PROFILES['UV_IR_Cut'];
 
   const params: ExposureParams = {
     aperture: rig.aperture,

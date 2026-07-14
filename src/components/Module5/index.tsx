@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FilterType,
   ExposureParams,
@@ -9,7 +9,12 @@ import {
 } from '../../types/module5';
 import {
   FILTER_PROFILES,
+  loadFilterProfiles,
   calculateExposure,
+  interpolateTransmission,
+  getEffectiveTransmissionAtLine,
+  getEffectiveContinuumTransmission,
+  getEffectiveSkyTransmission,
   calculateReducerImpact,
   calculateEffectiveSQM,
   calculateMoonSeparation,
@@ -19,6 +24,7 @@ import {
   ObjectType,
   K_CALIB_BY_TYPE,
 } from '../../services/module5/exposureCalculator';
+import { FILTER_SPECTRA } from '../../data/filterSpectra';
 
 interface FilterSelectorProps {
   selectedFilter: FilterType;
@@ -36,14 +42,20 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
   moonPhase,
   moonAltitude,
 }) => {
+  const [filterProfiles, setFilterProfiles] = useState<Record<string, FilterProfile>>(FILTER_PROFILES);
+
+  useEffect(() => {
+    loadFilterProfiles().then(setFilterProfiles).catch(() => {});
+  }, []);
+
   const hasMoon = moonPhase > 0.3 && moonAltitude > 0;
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Filter</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {(Object.keys(FILTER_PROFILES) as FilterType[]).map((type) => {
-          const profile = FILTER_PROFILES[type];
+        {Object.keys(filterProfiles).map((type) => {
+          const profile = filterProfiles[type];
           const isCompatible = !hasMoon || profile.moonCompatible;
           const isSelected = selectedFilter === type;
 
@@ -160,6 +172,11 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
   const [kFactor, setKFactor] = useState<5 | 10>(5);
   const [reducerFactor, setReducerFactor] = useState<number>(1.0);
   const [targetName, setTargetName] = useState<string>('');
+  const [filterProfiles, setFilterProfiles] = useState<Record<string, FilterProfile>>(FILTER_PROFILES);
+
+  useEffect(() => {
+    loadFilterProfiles().then(setFilterProfiles).catch(() => {});
+  }, []);
 
   const params: ExposureParams = useMemo(
     () => ({
@@ -168,12 +185,13 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
       pixelSize: rigProfile.pixelSize,
       focalLength: rigProfile.focalLength * reducerFactor,
       quantumEfficiency: rigProfile.quantumEfficiency,
-      filterTransmission: FILTER_PROFILES[filterType].transmission,
+      filterTransmission: filterProfiles[filterType]?.transmission ?? FILTER_PROFILES['L_Ultimate'].transmission,
       readNoise: rigProfile.readNoise,
       kFactor,
       targetName: targetName || undefined,
+      filterProfiles,
     }),
-    [rigProfile, sqmModel, filterType, kFactor, reducerFactor, targetName]
+    [rigProfile, sqmModel, filterType, kFactor, reducerFactor, targetName, filterProfiles]
   );
 
   const result: ExposureResult = useMemo(() => calculateExposure(params), [params]);
@@ -310,6 +328,30 @@ export const ExposureCalculator: React.FC<ExposureCalculatorProps> = ({
             <p className="text-sm text-red-600">⚠️ {result.warning}</p>
           </div>
         )}
+
+        {/* Real spectral data info */}
+        {(() => {
+          const filterProfile = filterProfiles[filterType];
+          const td = filterProfile?.transmissionData;
+          if (!td || td.length < 2) return null;
+          const haT = getEffectiveTransmissionAtLine(td, 656.3);
+          const oiiiT = getEffectiveTransmissionAtLine(td, 500.7);
+          const siiT = getEffectiveTransmissionAtLine(td, 672.4);
+          const skyT = getEffectiveSkyTransmission(td);
+          const contT = getEffectiveContinuumTransmission(td);
+          return (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+              <p className="text-xs font-semibold text-green-800">📊 Calcul basé sur les données réelles de transmission du filtre</p>
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                <div><span className="text-green-700">Hα 656.3nm:</span> <span className="font-mono font-bold text-green-900">{haT.toFixed(1)}%</span></div>
+                <div><span className="text-green-700">OIII 500.7nm:</span> <span className="font-mono font-bold text-green-900">{oiiiT.toFixed(1)}%</span></div>
+                <div><span className="text-green-700">SII 672.4nm:</span> <span className="font-mono font-bold text-green-900">{siiT.toFixed(1)}%</span></div>
+                <div><span className="text-green-700">Sky eff:</span> <span className="font-mono font-bold text-green-900">{skyT.toFixed(1)}%</span></div>
+                <div><span className="text-green-700">Continuum:</span> <span className="font-mono font-bold text-green-900">{contT.toFixed(1)}%</span></div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Reducer impact */}
@@ -436,9 +478,10 @@ export const ReducerImpactChart: React.FC<ReducerImpactChartProps> = ({
       pixelSize: rigProfile.pixelSize / factor,
       focalLength: 500 * factor,
       quantumEfficiency: rigProfile.quantumEfficiency,
-      filterTransmission: FILTER_PROFILES[filterType].transmission,
+      filterTransmission: FILTER_PROFILES[filterType]?.transmission ?? 0.95,
       readNoise: rigProfile.readNoise,
       kFactor,
+      filterProfiles: FILTER_PROFILES,
     };
     return calculateExposure(params).subExposureTime;
   });
@@ -524,9 +567,10 @@ export const SNRSimulator: React.FC<SNRSimulatorProps> = ({
       pixelSize: rigProfile.pixelSize,
       focalLength: 500,
       quantumEfficiency: rigProfile.quantumEfficiency,
-      filterTransmission: FILTER_PROFILES[filterType].transmission,
+      filterTransmission: FILTER_PROFILES[filterType]?.transmission ?? 0.95,
       readNoise: rigProfile.readNoise,
       kFactor: 5,
+      filterProfiles: FILTER_PROFILES,
     },
     targetSNR,
     maxSubs,

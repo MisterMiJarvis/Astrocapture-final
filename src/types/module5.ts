@@ -5,7 +5,20 @@
 
 import { ObjectType } from '../services/module5/exposureCalculator';
 
-export type FilterType = 'UV_IR_Cut' | 'L_Ultimate' | 'LPS_D2' | 'Ha' | 'OIII' | 'SII' | 'RGB' | 'Luminance';
+// FilterType is now dynamic — any filter ID from the DB works
+export type FilterType = string;
+
+// Default filter IDs (fallback when API is unavailable)
+export const DEFAULT_FILTER_IDS = {
+  UV_IR_Cut: 'UV_IR_Cut',
+  L_Ultimate: 'L_Ultimate',
+  LPS_D2: 'LPS_D2',
+  Ha: 'Ha',
+  OIII: 'OIII',
+  SII: 'SII',
+  RGB: 'RGB',
+  Luminance: 'Luminance',
+} as const;
 
 export type DewRiskLevel = 'Safe' | 'Warning' | 'Critical';
 
@@ -22,6 +35,7 @@ export interface FilterProfile {
   useCases: string[];
   moonCompatible: boolean;
   recommendedTargets: string[];
+  transmissionData?: { wavelength: number; transmission: number }[]; // données réelles de transmission spectrale
 }
 
 /** Modélisation SQM avec dégradation lunaire */
@@ -64,6 +78,12 @@ export interface ExposureParams {
   // Filtre (rétro-compat — l'UI passe ces valeurs)
   filterTransmission: number;   // τ_filter
   skySuppression?: number;      // réduction du fond de ciel (rétro-compat)
+
+  // Filtres dynamiques (optionnel — fallback to FILTER_PROFILES if not provided)
+  filterProfiles?: Record<string, FilterProfile>;
+
+  // Longueur d'onde d'émission pour nébuleuses (nm). Défaut: 656.3 (Hα)
+  emissionWavelengthNm?: number;
 }
 
 /** Résultat du calculateur d'exposition (v5) */
@@ -90,6 +110,12 @@ export interface ExposureResult {
   // Recommandations
   recommendation: string;
   warning?: string;
+
+  // Valeurs de transmission effectives (calculées à partir des données spectrales réelles si disponibles)
+  effectiveSkyTransmission?: number;    // 0-1
+  effectiveLineTransmission?: number;   // 0-1 (Hα, OIII, SII, etc.)
+  effectiveContinuumTransmission?: number; // 0-1
+  usingSpectralData?: boolean;          // true si les données spectrales réelles ont été utilisées
 }
 
 /** Impact du réducteur (rétro-compat) */

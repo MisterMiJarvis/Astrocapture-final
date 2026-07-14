@@ -7,6 +7,8 @@ import { INITIAL_DATA } from './initialData';
 import { login, logout, getAuthInstance, subscribeToSettings, subscribeToCollection, saveSettings, saveCollectionItem, deleteCollectionItem, uploadFile, getDocument, invalidateTokenCache } from './services/api';
 import { StarBackground, Button, Input, TextArea, Modal, RichTextEditor, ImageUploader, Lightbox, DraggableListItem, FileUploader, Select, ToggleSwitch, ScrollToTopButton, SocialShare, CookieBanner } from './components/Shared';
 import { DEFAULT_EQUIPMENT } from './services/equipmentService';
+import { getAllProfiles as fetchRigProfiles } from './src/services/module2/rigProfileService';
+import { fetchFilters as fetchAstroFilters } from './src/services/filterService';
 import { getImageUrl, getSrcSet } from './services/imageProxy';
 import {
   Camera, Wind, User, Lock, Plus, Trash2, Edit2, LogOut, Menu, X, Info,
@@ -1832,6 +1834,22 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
   const [rawDataFile, setRawDataFile] = React.useState<File | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
   const [acquisitionLogs, setAcquisitionLogs] = React.useState<AcquisitionLogEntry[]>([]);
+  const [rigProfiles, setRigProfiles] = React.useState<any[]>([]);
+  const [astroFilters, setAstroFilters] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    fetchRigProfiles().then(profiles => setRigProfiles(profiles)).catch(() => {});
+    fetchAstroFilters().then(filters => setAstroFilters(filters)).catch(() => {});
+  }, []);
+
+  const buildEquipmentString = (rig: any): string => {
+    const parts = [
+      rig.telescope?.name,
+      rig.camera?.name,
+      rig.mount?.name,
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
 
   const openModal = (post: Post | null) => {
     if (post) {
@@ -1984,7 +2002,23 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
               onFileChange={setImageFile}
               id="gallery-image-upload"
             />
-            <Input label="Equipment" value={editingPost.equipment} onChange={e => handleFieldChange('equipment', e.target.value)} />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-text-secondary mb-1">Equipment</label>
+              {rigProfiles.length > 0 && (
+                <Select value={editingPost.equipment} onChange={e => {
+                  if (e.target.value === '__custom__') return;
+                  handleFieldChange('equipment', e.target.value);
+                }}>
+                  <option value="">— Select from rigs —</option>
+                  {rigProfiles.map(rig => {
+                    const eqString = buildEquipmentString(rig);
+                    return <option key={rig.id} value={eqString}>{rig.name}: {eqString}</option>;
+                  })}
+                  <option value="__custom__">✏️ Custom (type below)</option>
+                </Select>
+              )}
+              <Input value={editingPost.equipment} onChange={e => handleFieldChange('equipment', e.target.value)} placeholder="e.g. RedCat 51, ASI2600MM Pro, EQ6-R Pro" />
+            </div>
             <div className="flex gap-4">
                 <Input label="Capture Date" type="date" value={editingPost.captureDate} onChange={e => handleFieldChange('captureDate', e.target.value)} />
                 <Input label="Tags (comma-separated)" value={Array.isArray(editingPost.tags) ? editingPost.tags.join(', ') : editingPost.tags} onChange={e => handleFieldChange('tags', e.target.value)} />
@@ -2026,7 +2060,24 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
                            </div>
                            <div className="grid grid-cols-2 gap-2">
                                 <Input label="Date" type="date" value={log.date} onChange={e => handleLogChange(index, 'date', e.target.value)} />
-                                <Input label="Filter" placeholder="e.g., L-Pro" value={log.filter} onChange={e => handleLogChange(index, 'filter', e.target.value)} />
+                                <div className="space-y-1">
+                                  <label className="block text-sm font-medium text-text-secondary">Filter</label>
+                                  {astroFilters.length > 0 ? (
+                                    <select
+                                      value={log.filter}
+                                      onChange={e => handleLogChange(index, 'filter', e.target.value)}
+                                      className="w-full bg-background border border-border p-2.5 text-text rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                                    >
+                                      <option value="">— Select filter —</option>
+                                      {astroFilters.map(f => (
+                                        <option key={f.id} value={f.name}>{f.name}{f.type ? ` (${f.type})` : ''}</option>
+                                      ))}
+                                      <option value="__custom__">✏️ Custom</option>
+                                    </select>
+                                  ) : (
+                                    <Input placeholder="e.g., L-Pro" value={log.filter} onChange={e => handleLogChange(index, 'filter', e.target.value)} />
+                                  )}
+                                </div>
                                 <Input label="Frames" type="number" value={log.exposureCount} onChange={e => handleLogChange(index, 'exposureCount', parseInt(e.target.value))} />
                                 <Input label="Exposure (s)" type="number" value={log.exposureLength} onChange={e => handleLogChange(index, 'exposureLength', parseInt(e.target.value))} />
                            </div>
