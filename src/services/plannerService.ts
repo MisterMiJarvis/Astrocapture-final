@@ -620,9 +620,23 @@ function buildWindowSlot(
       score = Math.min(score, 15);  // Cap at Poor
     }
 
+    // Hard limit: cloud cover > 80% = no go for imaging
+    if (weather.cloudCoverPct > 80) {
+      score = Math.min(score, 15);  // Cap at Poor
+    } else if (weather.cloudCoverPct > 60) {
+      score = Math.min(score, 40);  // Cap at Fair
+    } else if (weather.cloudCoverPct > 40) {
+      score = Math.min(score, 60);  // Cap at Good
+    }
+
     if (weather.dewRisk === 'Safe') score += 5;
     else if (weather.dewRisk === 'Warning') score += 2;
     else score += 0;
+
+    // Hard limit: Critical dew = no go without active dew control
+    if (weather.dewRisk === 'Critical') {
+      score = Math.min(score, 40);  // Cap at Fair
+    }
   } else {
     // No weather data — assume average
     score += 12;
