@@ -431,7 +431,6 @@ Weather data is averaged **hourly across the entire imaging window duration**, n
 - [x] All UI labels in English
 
 ### Planned
-- [ ] Observation date selection in project form (currently defaults to today)
 - [ ] k_calib recalibration with FITS aperture photometry
 - [ ] Spectral sky background model (Na/Hg/LED lines by Bortle level)
 - [ ] Configurable observer location (currently hardcoded to St-Étienne-du-Grès)
