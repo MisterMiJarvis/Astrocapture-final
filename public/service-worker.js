@@ -137,17 +137,16 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// ─── Activate: clean up old caches ────────────────────────────────────────────
+// ─── Activate: clean up old caches + force unregister old SW ──────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => !ACTIVE_CACHES.includes(name))
-          .map((name) => caches.delete(name))
-      );
-    })
+    Promise.all([
+      // Delete old caches
+      caches.keys().then(keys => Promise.all(
+        keys.filter(k => !ACTIVE_CACHES.includes(k)).map(k => caches.delete(k))
+      )),
+      // Claim all clients immediately so new SW takes control
+      self.clients.claim(),
+    ])
   );
-  // Take control of all clients immediately
-  self.clients.claim();
 });
