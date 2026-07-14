@@ -525,11 +525,6 @@ export const Module2Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Horizon Mask */}
-      <div>
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-3">🏔️ Horizon Mask</h3>
-        <HorizonMaskUploader />
-      </div>
     </div>
   );
 };
