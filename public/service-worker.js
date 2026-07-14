@@ -1,8 +1,8 @@
 // AstroCapture Service Worker v4 — PWA with app shell caching + offline fallback
 
-const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v4';
+const IMAGE_CACHE_NAME = 'astrocapture-image-cache-v5';
 const ALADIN_CACHE_NAME = 'aladin-tile-cache-v1';
-const APP_SHELL_CACHE_NAME = 'astrocapture-app-shell-v1';
+const APP_SHELL_CACHE_NAME = 'astrocapture-app-shell-v2';
 
 const ACTIVE_CACHES = [IMAGE_CACHE_NAME, ALADIN_CACHE_NAME, APP_SHELL_CACHE_NAME];
 
@@ -130,7 +130,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Static assets from same origin (JS, CSS, icons) → Stale-While-Revalidate
-  if (requestUrl.origin === IMAGE_ORIGIN) {
+  // Exclude API calls — they should always go to network
+  if (requestUrl.origin === IMAGE_ORIGIN && !requestUrl.pathname.startsWith('/api/')) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
