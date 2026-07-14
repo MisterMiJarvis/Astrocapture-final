@@ -18,7 +18,7 @@ import {
 } from '../src/services/filterService';
 import type { TransmissionPoint } from '../src/data/filterSpectra';
 import {
-  Plus, Trash2, Edit3, X, Check, AlertTriangle, Moon, Sun, Filter,
+  Plus, Trash2, Edit3, X, Check, AlertTriangle, Moon, Sun, Filter, Image as ImageIcon,
 } from 'lucide-react';
 
 const COLOR_OPTIONS = [
@@ -54,7 +54,72 @@ const EMPTY_FILTER: Omit<AstroFilter, 'id' | 'createdAt' | 'updatedAt'> = {
   isDefault: false,
 };
 
-// ─── SVG Spectral Chart Component ───────────────────────────────────────────
+// ─── Gallery thumbnails by filter (via acquisition_logs) ────────────────────
+interface GalleryPost {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  totalSubs: number;
+  totalIntegration: string;
+}
+
+function useFilterGalleryPosts(filterId: string | undefined) {
+  const [posts, setPosts] = useState<GalleryPost[]>([]);
+  useEffect(() => {
+    if (!filterId) { setPosts([]); return; }
+    fetch(`/api/filters/${encodeURIComponent(filterId)}/gallery`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        setPosts(data.map(p => ({
+          id: p.id,
+          title: p.title || 'Untitled',
+          imageUrl: p.imageUrl || null,
+          totalSubs: p.totalSubs ?? 0,
+          totalIntegration: p.totalIntegration ?? '',
+        })));
+      })
+      .catch(() => setPosts([]));
+  }, [filterId]);
+  return posts;
+}
+
+const FilterGalleryThumbnails: React.FC<{ filterId: string; onSelectPost: (postId: string) => void }> = ({ filterId, onSelectPost }) => {
+  const posts = useFilterGalleryPosts(filterId);
+  if (posts.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <div className="text-xs text-text-secondary mb-1.5 flex items-center gap-1">
+        <ImageIcon size={11} /> Gallery ({posts.length})
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {posts.map(post => (
+          <button
+            key={post.id}
+            onClick={() => onSelectPost(post.id)}
+            className="flex-shrink-0 group relative rounded-lg overflow-hidden border border-border hover:border-primary/50 transition-all"
+            title={`${post.title} — ${post.totalSubs} subs, ${post.totalIntegration}`}
+          >
+            {post.imageUrl ? (
+              <img
+                src={post.imageUrl}
+                alt={post.title}
+                className="w-16 h-16 object-cover group-hover:opacity-80 transition-opacity"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-16 h-16 bg-surface-secondary flex items-center justify-center">
+                <ImageIcon size={16} className="text-text-secondary opacity-40" />
+              </div>
+            )}
+            <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[9px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+              {post.title}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const SPECTRUM_MIN = 380; // nm
 const SPECTRUM_MAX = 700; // nm
@@ -581,6 +646,22 @@ export const FiltersView: React.FC = () => {
                 {filter.description && (
                   <p className="text-xs text-text-secondary mt-2">{filter.description}</p>
                 )}
+
+                {/* Gallery thumbnails */}
+                <FilterGalleryThumbnails filterId={filter.id} onSelectPost={(postId) => {
+                  // Open post detail — fetch full post + acquisition logs
+                  fetch(`/api/posts/${postId}`).then(r => r.json()).then(async (post) => {
+                    const logs = await fetch(`/api/posts/${postId}/acquisition-logs`).then(r => r.json());
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:pointer';
+                    const totalSubs = logs.reduce((s: number, l: any) => s + (l.exposureCount || 0), 0);
+                    const totalSec = logs.reduce((s: number, l: any) => s + (l.exposureCount || 0) * (l.exposureLength || 0), 0);
+                    const totalMin = Math.round(totalSec / 60);
+                    modal.innerHTML = `<div style="max-width:90vw;max-height:90vh;position:relative"><img src="${post.imageUrl || ''}" style="max-width:90vw;max-height:80vh;object-fit:contain;border-radius:8px" /><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);color:white;padding:12px 16px;border-radius:0 0 8px 8px"><div style="font-size:16px;font-weight:bold;margin-bottom:4px">${post.title || post.objectName || ''}</div><div style="font-size:12px;opacity:0.8">${post.captureDate || ''} | ${totalSubs} subs | ${totalMin} min total | ${post.equipment || ''}</div>${logs.map((l: any) => `<div style="font-size:11px;opacity:0.6;margin-top:2px">${l.date}: ${l.filter} — ${l.exposureCount}×${l.exposureLength}s</div>`).join('')}</div></div>`;
+                    modal.onclick = () => modal.remove();
+                    document.body.appendChild(modal);
+                  });
+                }} />
               </div>
             );
           })}

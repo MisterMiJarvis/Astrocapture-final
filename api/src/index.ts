@@ -653,6 +653,34 @@ app.delete('/api/acquisition-logs/:id', auth, async (c) => {
   return c.json({ ok: true });
 });
 
+// Gallery images by filter (via acquisition_logs join posts)
+app.get('/api/filters/:filterId/gallery', async (c) => {
+  const filterId = c.req.param('filterId');
+  // Map filter DB id to acquisition_logs.filter name
+  const filterRow = await db.prepare('SELECT name FROM apls_filters WHERE id = ?').get(filterId);
+  if (!filterRow) return c.json([]);
+  const filterName = (filterRow as any).name;
+  // Match acquisition_logs.filter against the filter name or common variants
+  // L-Ultimate → "L-Ultimate", UV/IR Cut → "UV/IR", Antlia Triband → "Antlia"
+  const filterNameShort = filterName.split(' ')[0]; // first word
+  const posts = await db.prepare(
+    `SELECT DISTINCT p.id, p.title, p.image_url, p.object_name, p.capture_date, p.total_integration_time,
+            (SELECT SUM(exposure_count) FROM acquisition_logs WHERE post_id = p.id AND filter LIKE ?) as total_subs,
+            (SELECT SUM(exposure_count * exposure_length) FROM acquisition_logs WHERE post_id = p.id AND filter LIKE ?) as total_integration_seconds
+     FROM posts p
+     WHERE EXISTS (SELECT 1 FROM acquisition_logs a WHERE a.post_id = p.id AND a.filter LIKE ?)
+     ORDER BY p.capture_date DESC`
+  ).all(`%${filterNameShort}%`, `%${filterNameShort}%`, `%${filterNameShort}%`);
+  return c.json(posts.map((p: any) => ({
+    id: p.id,
+    title: p.title || p.object_name || 'Untitled',
+    imageUrl: p.image_url || null,
+    captureDate: p.capture_date,
+    totalSubs: p.total_subs || 0,
+    totalIntegration: p.total_integration_time || '',
+  })));
+});
+
 // =====================
 // PROCESSING POSTS
 // =====================
