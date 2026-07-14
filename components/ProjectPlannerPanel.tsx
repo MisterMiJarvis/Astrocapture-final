@@ -296,10 +296,6 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
             ))}
           </div>
 
-          {/* Weather snapshot for best window */}
-          {planner.bestWindow?.weather && (
-            <WeatherSnapshotCard weather={planner.bestWindow.weather} />
-          )}
         </>
       )}
     </div>
@@ -524,76 +520,5 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
 };
 
 // ─── Weather Snapshot Card ───────────────────────────────────────────────────
-
-const WeatherSnapshotCard: React.FC<{ weather: WeatherSnapshot }> = ({ weather }) => {
-  const dewColor = weather.dewRisk === 'Critical' ? 'text-red-300' :
-                   weather.dewRisk === 'Warning' ? 'text-amber-300' : 'text-emerald-300';
-  const cloudColor = weather.cloudCoverPct < 20 ? 'text-emerald-300' :
-                     weather.cloudCoverPct < 50 ? 'text-blue-300' :
-                     weather.cloudCoverPct < 80 ? 'text-amber-300' : 'text-red-300';
-
-  return (
-    <div className="bg-background rounded-lg border border-border p-3">
-      <h4 className="text-sm font-semibold text-text mb-2 flex items-center gap-1">
-        <Cloud size={14} /> Weather snapshot (optimal window)
-      </h4>
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-        <div className="text-center">
-          <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
-            <span className="text-sm">🌡️</span>
-          </div>
-          <div className="font-mono font-bold text-text text-sm">{weather.tempC.toFixed(0)}°C</div>
-          <div className="text-[10px] text-text-secondary">Temp</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
-            <Droplets size={12} />
-          </div>
-          <div className="font-mono font-bold text-text text-sm">{weather.humidityPct.toFixed(0)}%</div>
-          <div className="text-[10px] text-text-secondary">Humidity</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
-            <Cloud size={12} />
-          </div>
-          <div className={`font-mono font-bold text-sm ${cloudColor}`}>{weather.cloudCoverPct.toFixed(0)}%</div>
-          <div className="text-[10px] text-text-secondary">Clouds</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
-            <Wind size={12} />
-          </div>
-          <div className="font-mono font-bold text-text text-sm">{weather.windKmh.toFixed(0)} km/h</div>
-          <div className="text-[10px] text-text-secondary">Wind</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
-            <Eye size={12} />
-          </div>
-          <div className="font-mono font-bold text-text text-sm">{weather.seeing.toFixed(1)}"</div>
-          <div className="text-[10px] text-text-secondary">Seeing ({weather.seeingLabel})</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
-            <Droplets size={12} />
-          </div>
-          <div className={`font-mono font-bold text-sm ${dewColor}`}>{weather.dewRisk}</div>
-          <div className="text-[10px] text-text-secondary">Dew Δ{weather.dewPointDelta.toFixed(1)}°</div>
-        </div>
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        {weather.isGoodForImaging ? (
-          <span className="text-xs text-emerald-300 flex items-center gap-1">
-            <CheckCircle2 size={12} /> Favorable conditions
-          </span>
-        ) : (
-          <span className="text-xs text-amber-300 flex items-center gap-1">
-            <AlertTriangle size={12} /> Marginal conditions
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
 
 export default ProjectPlannerPanel;

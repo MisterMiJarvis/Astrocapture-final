@@ -503,6 +503,55 @@ export function computePlanner(
 
 // ─── Build a window slot from a contiguous altitude segment ────────────────
 
+// Average weather over all hourly samples within the window duration
+function averageWeatherOverWindow(
+  startTime: Date,
+  endTime: Date,
+  getWeather: (d: Date) => WeatherSnapshot | null,
+): WeatherSnapshot | null {
+  if (endTime.getTime() <= startTime.getTime()) return null;
+
+  const samples: WeatherSnapshot[] = [];
+  const stepMs = 60 * 60 * 1000; // 1 hour steps
+  for (let t = startTime.getTime(); t <= endTime.getTime(); t += stepMs) {
+    const w = getWeather(new Date(t));
+    if (w) samples.push(w);
+  }
+  if (samples.length === 0) return null;
+
+  const avg = (fn: (w: WeatherSnapshot) => number) =>
+    samples.reduce((s, w) => s + fn(w), 0) / samples.length;
+
+  const avgClouds = avg(w => w.cloudCoverPct);
+  const avgWind = avg(w => w.windKmh);
+  const avgSeeing = avg(w => w.seeing ?? 0);
+  const avgTemp = avg(w => w.tempC);
+  const avgHumidity = avg(w => w.humidityPct);
+  const avgDewDelta = avg(w => w.dewPointDelta);
+
+  // Dew risk: worst case during the session (not average — dew is a hard limit)
+  const worstDew = samples.reduce((worst, w) => {
+    if (w.dewRisk === 'Critical') return 'Critical' as const;
+    if (w.dewRisk === 'Warning' && worst !== 'Critical') return 'Warning' as const;
+    return worst;
+  }, 'Safe' as 'Safe' | 'Warning' | 'Critical');
+
+  // Re-estimate seeing from averaged values for consistency
+  const avgSeeingLabel = seeingLabelToAntoniadi(avgSeeing);
+
+  return {
+    tempC: avgTemp,
+    humidityPct: avgHumidity,
+    cloudCoverPct: avgClouds,
+    windKmh: avgWind,
+    seeing: avgSeeing,
+    seeingLabel: avgSeeingLabel,
+    dewRisk: worstDew,
+    dewPointDelta: avgDewDelta,
+    isGoodForImaging: avgClouds < 60 && avgWind < 25 && worstDew !== 'Critical',
+  };
+}
+
 function buildWindowSlot(
   startPt: AltitudePoint,
   points: AltitudePoint[],
@@ -525,9 +574,8 @@ function buildWindowSlot(
   const moonIllum = moonIllumination(startTime);
   const moonAlt = moonAltitude(startTime, lat, lon);
 
-  // Weather — sample at midpoint
-  const midTime = new Date((startTime.getTime() + endTime.getTime()) / 2);
-  const weather = getWeather(midTime);
+  // Weather — average over the entire window duration (not just midpoint)
+  const weather = averageWeatherOverWindow(startTime, endTime, getWeather);
 
   // ─── Quality score ─────────────────────────────────────────────────────────
   // Score components:

@@ -44,9 +44,8 @@ import {
   Telescope, MapPin, Clock, Moon, Target, Camera, Filter, BarChart3,
   X, Eye, Sparkles, Search, RotateCw, Star, ChevronLeft,
   Crosshair, Maximize2, Pencil, Save,
-  Activity, Award, AlertTriangle, TrendingUp, Download,
+  Activity, Award, AlertTriangle, TrendingUp,
 } from 'lucide-react';
-import { exportNinaTargetFile, generateNinaFileName } from '../src/services/nina/ninaTargetExport';
 import { ProjectPlannerPanel } from './ProjectPlannerPanel';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
@@ -1713,31 +1712,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
 
       {/* Planner — altitude curve, imaging windows, weather */}
       <ProjectPlannerPanel project={project} />
-
-      {/* NINA Export */}
-      <div className="bg-surface border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-text flex items-center gap-2"><Download size={16} /> Export NINA</h3>
-            <p className="text-xs text-text-secondary mt-1">Generates a target file for NINA Advanced Sequencer (JSON)</p>
-          </div>
-          <button
-            onClick={() => {
-              const json = exportNinaTargetFile(project);
-              const blob = new Blob([json], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = generateNinaFileName(project);
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Download size={16} /> Download target file
-          </button>
-        </div>
-      </div>
 
       {/* Observations */}
       <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
