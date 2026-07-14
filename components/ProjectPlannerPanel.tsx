@@ -79,7 +79,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-text flex items-center gap-2">
-            <Calendar size={16} /> Planning d'observation
+            <Calendar size={16} /> Observation Planner
           </h3>
           <p className="text-xs text-text-secondary mt-1">
             Imaging windows, target altitude and weather conditions
@@ -89,7 +89,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
           <button
             onClick={() => changeDate(-1)}
             className="p-1.5 rounded-lg border border-border hover:bg-surface-secondary text-text-secondary transition-colors"
-            title="Jour précédent"
+            title="Previous day"
           >
             <span className="text-sm">←</span>
           </button>
@@ -105,7 +105,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
           <button
             onClick={() => changeDate(1)}
             className="p-1.5 rounded-lg border border-border hover:bg-surface-secondary text-text-secondary transition-colors"
-            title="Jour suivant"
+            title="Next day"
           >
             <span className="text-sm">→</span>
           </button>
@@ -113,7 +113,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
             <button
               onClick={() => setSelectedDate(new Date())}
               className="p-1.5 rounded-lg border border-border hover:bg-surface-secondary text-text-secondary transition-colors"
-              title="Aujourd'hui"
+              title="Today"
             >
               <RotateCw size={14} />
             </button>
@@ -124,7 +124,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <RotateCw className="w-6 h-6 text-primary animate-spin" />
-          <span className="ml-2 text-sm text-text-secondary">Calcul du planning…</span>
+          <span className="ml-2 text-sm text-text-secondary">Loading planner…</span>
         </div>
       ) : error ? (
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-300">
@@ -134,23 +134,23 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
       ) : !planner || planner.windows.length === 0 ? (
         <div className="text-center py-8 text-text-secondary">
           <Mountain className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Cible sous l'horizon cette nuit</p>
-          <p className="text-xs mt-1">Essayez une autre date</p>
+          <p className="text-sm">Target below horizon tonight</p>
+          <p className="text-xs mt-1">Try another date</p>
         </div>
       ) : (
         <>
           {/* Summary KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             <div className="bg-background p-3 rounded-lg border border-border">
               <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-                <Mountain size={12} /> Alt. max
+                <Mountain size={12} /> Max alt
               </div>
               <div className="font-mono font-bold text-text text-lg">
                 {planner.transitAltitude.toFixed(0)}°
               </div>
               {planner.transitTime && (
                 <div className="text-[10px] text-text-secondary">
-                  {planner.transitTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  {planner.transitTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               )}
             </div>
@@ -180,7 +180,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                 </div>
                 <div className="bg-background p-3 rounded-lg border border-border">
                   <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-                    <Moon size={12} /> Lune
+                    <Moon size={12} /> Moon
                   </div>
                   <div className="font-mono font-bold text-text text-lg">
                     {((planner.bestWindow.moonIllumination ?? 0) * 100).toFixed(0)}%
@@ -193,7 +193,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                 </div>
                 <div className="bg-background p-3 rounded-lg border border-border">
                   <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
-                    <Wind size={12} /> Vent
+                    <Wind size={12} /> Wind
                   </div>
                   <div className="font-mono font-bold text-text text-lg">
                     {planner.bestWindow.weather ? Math.round(planner.bestWindow.weather.windKmh) : '--'}
@@ -201,6 +201,49 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
                   </div>
                   <div className="text-[10px] text-text-secondary">
                     {planner.bestWindow.weather && planner.bestWindow.weather.windKmh > 10 ? '🔴 No go' : '✅ OK'}
+                  </div>
+                </div>
+                <div className="bg-background p-3 rounded-lg border border-border">
+                  <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+                    <Cloud size={12} /> Clouds
+                  </div>
+                  <div className={`font-mono font-bold text-lg ${
+                    planner.bestWindow.weather
+                      ? (planner.bestWindow.weather.cloudCoverPct < 20 ? 'text-emerald-300' : planner.bestWindow.weather.cloudCoverPct < 50 ? 'text-blue-300' : planner.bestWindow.weather.cloudCoverPct < 80 ? 'text-amber-300' : 'text-red-300')
+                      : 'text-text'
+                  }`}>
+                    {planner.bestWindow.weather ? planner.bestWindow.weather.cloudCoverPct.toFixed(0) : '--'}
+                    <span className="text-xs text-text-secondary ml-0.5">%</span>
+                  </div>
+                  <div className="text-[10px] text-text-secondary">
+                    {planner.bestWindow.weather ? (planner.bestWindow.weather.cloudCoverPct < 20 ? 'Clear' : planner.bestWindow.weather.cloudCoverPct < 50 ? 'Partly' : planner.bestWindow.weather.cloudCoverPct < 80 ? 'Cloudy' : 'Overcast') : ''}
+                  </div>
+                </div>
+                <div className="bg-background p-3 rounded-lg border border-border">
+                  <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+                    <Eye size={12} /> Seeing
+                  </div>
+                  <div className="font-mono font-bold text-text text-lg">
+                    {planner.bestWindow.weather && planner.bestWindow.weather.seeing != null ? planner.bestWindow.weather.seeing.toFixed(1) : '--'}
+                    <span className="text-xs text-text-secondary ml-0.5">"</span>
+                  </div>
+                  <div className="text-[10px] text-text-secondary">
+                    {planner.bestWindow.weather ? planner.bestWindow.weather.seeingLabel : ''}
+                  </div>
+                </div>
+                <div className="bg-background p-3 rounded-lg border border-border">
+                  <div className="text-xs text-text-secondary flex items-center gap-1 mb-1">
+                    <Droplets size={12} /> Dew
+                  </div>
+                  <div className={`font-mono font-bold text-lg ${
+                    planner.bestWindow.weather
+                      ? (planner.bestWindow.weather.dewRisk === 'Critical' ? 'text-red-300' : planner.bestWindow.weather.dewRisk === 'Warning' ? 'text-amber-300' : 'text-emerald-300')
+                      : 'text-text'
+                  }`}>
+                    {planner.bestWindow.weather ? planner.bestWindow.weather.dewRisk : '--'}
+                  </div>
+                  <div className="text-[10px] text-text-secondary">
+                    {planner.bestWindow.weather ? `Δ${planner.bestWindow.weather.dewPointDelta.toFixed(1)}°C` : ''}
                   </div>
                 </div>
               </>
@@ -211,7 +254,7 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
           {planner.remainingExposureMinutes > 0 ? (
             <div className="text-xs text-text-secondary flex items-center gap-3 bg-background/50 px-3 py-2 rounded-lg">
               <span className="flex items-center gap-1">
-                <Camera size={12} /> Exposition restante:
+                <Camera size={12} /> Remaining exposure:
               </span>
               <span className="font-mono text-text">
                 {(planner.remainingExposureMinutes / 60).toFixed(1)}h
@@ -219,12 +262,12 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
               {planner.totalObservableHours * 60 >= planner.remainingExposureMinutes ? (
                 <span className="text-emerald-400">✅ Windows sufficient</span>
               ) : (
-                <span className="text-orange-400">⚠️ Pas assez de temps de nuit</span>
+                <span className="text-orange-400">⚠️ Not enough night time</span>
               )}
             </div>
           ) : (
             <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg">
-              ✅ Toutes les poses prévues sont déjà acquises
+              ✅ All planned exposures already acquired
             </div>
           )}
 
@@ -232,12 +275,12 @@ export const ProjectPlannerPanel: React.FC<ProjectPlannerPanelProps> = ({ projec
           {planner.nightStart && planner.nightEnd && (
             <div className="text-xs text-text-secondary flex items-center gap-3">
               <span className="flex items-center gap-1">
-                <Sun size={12} /> Nuit astronomique:
+                <Sun size={12} /> Astronomical night:
               </span>
               <span className="font-mono">
-                {planner.nightStart.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                {planner.nightStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 {' → '}
-                {planner.nightEnd.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                {planner.nightEnd.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           )}
@@ -327,7 +370,7 @@ const AltitudeCurve: React.FC<{ altitudeCurve: AltitudePoint[] }> = ({ altitudeC
   return (
     <div className="bg-background rounded-lg border border-border p-3">
       <div className="text-xs text-text-secondary mb-2 flex items-center gap-1">
-        <Mountain size={12} /> Altitude cible au fil de la nuit
+        <Mountain size={12} /> Target altitude overnight
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ maxHeight: '200px' }}>
         {/* Grid lines */}
@@ -400,7 +443,7 @@ const AltitudeCurve: React.FC<{ altitudeCurve: AltitudePoint[] }> = ({ altitudeC
           <span className="w-3 h-0.5 bg-blue-500 inline-block"></span> Visible
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-0.5 bg-red-500 inline-block"></span> Sous horizon
+          <span className="w-3 h-0.5 bg-red-500 inline-block"></span> Below horizon
         </span>
       </div>
     </div>
@@ -411,12 +454,12 @@ const AltitudeCurve: React.FC<{ altitudeCurve: AltitudePoint[] }> = ({ altitudeC
 
 const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
   const colors = QUALITY_COLORS[slot.qualityLabel] || QUALITY_COLORS.Poor;
-  const startStr = slot.startTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const endStr = slot.endTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const startStr = slot.startTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const endStr = slot.endTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const durStr = slot.durationMinutes >= 60
     ? `${Math.floor(slot.durationMinutes / 60)}h${(slot.durationMinutes % 60).toString().padStart(2, '0')}`
     : `${Math.round(slot.durationMinutes)}min`;
-  const cappedEndStr = slot.cappedEndTime ? slot.cappedEndTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+  const cappedEndStr = slot.cappedEndTime ? slot.cappedEndTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null;
   const cappedDurStr = slot.cappedDurationMinutes > 0
     ? slot.cappedDurationMinutes >= 60
       ? `${Math.floor(slot.cappedDurationMinutes / 60)}h${(slot.cappedDurationMinutes % 60).toString().padStart(2, '0')}`
@@ -432,7 +475,7 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
           <span className="text-xs text-text-secondary">{durStr}</span>
           {slot.isBestWindow && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-semibold">
-              ★ Meilleure
+              ★ Best
             </span>
           )}
         </div>
@@ -457,7 +500,7 @@ const WindowSlotCard: React.FC<{ slot: ImagingWindowSlot }> = ({ slot }) => {
           <Mountain size={10} /> max {slot.maxAltitude.toFixed(0)}°
         </span>
         <span className="flex items-center gap-1">
-          <TrendingUp size={10} /> moy {slot.avgAltitude.toFixed(0)}°
+          <TrendingUp size={10} /> avg {slot.avgAltitude.toFixed(0)}°
         </span>
         {slot.moonIllumination != null && (
           <span className="flex items-center gap-1">
@@ -507,21 +550,21 @@ const WeatherSnapshotCard: React.FC<{ weather: WeatherSnapshot }> = ({ weather }
             <Droplets size={12} />
           </div>
           <div className="font-mono font-bold text-text text-sm">{weather.humidityPct.toFixed(0)}%</div>
-          <div className="text-[10px] text-text-secondary">Humidité</div>
+          <div className="text-[10px] text-text-secondary">Humidity</div>
         </div>
         <div className="text-center">
           <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
             <Cloud size={12} />
           </div>
           <div className={`font-mono font-bold text-sm ${cloudColor}`}>{weather.cloudCoverPct.toFixed(0)}%</div>
-          <div className="text-[10px] text-text-secondary">Nuages</div>
+          <div className="text-[10px] text-text-secondary">Clouds</div>
         </div>
         <div className="text-center">
           <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
             <Wind size={12} />
           </div>
           <div className="font-mono font-bold text-text text-sm">{weather.windKmh.toFixed(0)} km/h</div>
-          <div className="text-[10px] text-text-secondary">Vent</div>
+          <div className="text-[10px] text-text-secondary">Wind</div>
         </div>
         <div className="text-center">
           <div className="text-xs text-text-secondary flex items-center justify-center gap-1 mb-0.5">
@@ -541,11 +584,11 @@ const WeatherSnapshotCard: React.FC<{ weather: WeatherSnapshot }> = ({ weather }
       <div className="mt-2 flex items-center gap-2">
         {weather.isGoodForImaging ? (
           <span className="text-xs text-emerald-300 flex items-center gap-1">
-            <CheckCircle2 size={12} /> Conditions favorables
+            <CheckCircle2 size={12} /> Favorable conditions
           </span>
         ) : (
           <span className="text-xs text-amber-300 flex items-center gap-1">
-            <AlertTriangle size={12} /> Conditions marginales
+            <AlertTriangle size={12} /> Marginal conditions
           </span>
         )}
       </div>
