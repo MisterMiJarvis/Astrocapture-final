@@ -15,6 +15,7 @@ import { fetchFilters } from './filterService';
 export const FILTER_ID_TO_TYPE: Record<string, FilterType> = {
   filter_uv_ir_cut: 'UV_IR_Cut',
   filter_l_ultimate: 'L_Ultimate',
+  filter_antlia_triband: 'Antlia_Triband',
   filter_lps_d2: 'LPS_D2',
   filter_ha: 'Ha',
   filter_oiii: 'OIII',
@@ -29,6 +30,7 @@ export const FILTER_ID_TO_TYPE: Record<string, FilterType> = {
 export const FILTER_TYPE_TO_ID: Record<FilterType, string> = {
   UV_IR_Cut: 'filter_uv_ir_cut',
   L_Ultimate: 'filter_l_ultimate',
+  Antlia_Triband: 'filter_antlia_triband',
   LPS_D2: 'filter_lps_d2',
   Ha: 'filter_ha',
   OIII: 'filter_oiii',
@@ -43,6 +45,7 @@ export const FILTER_TYPE_TO_ID: Record<FilterType, string> = {
 export const FILTER_TYPE_LABELS: Record<FilterType, string> = {
   UV_IR_Cut: 'UV/IR Cut',
   L_Ultimate: 'L Ultimate',
+  Antlia_Triband: 'Antlia Triband',
   LPS_D2: 'LPS-D2',
   Ha: 'Hα',
   OIII: 'OIII',
@@ -100,6 +103,7 @@ export function getFilterType(filter: AstroFilter): FilterType {
 export const FILTER_COLORS: Record<FilterType, string> = {
   UV_IR_Cut: 'bg-blue-500/20 text-blue-300',
   L_Ultimate: 'bg-purple-500/20 text-purple-300',
+  Antlia_Triband: 'bg-indigo-500/20 text-indigo-300',
   LPS_D2: 'bg-green-500/20 text-green-300',
   Ha: 'bg-red-500/20 text-red-300',
   OIII: 'bg-cyan-500/20 text-cyan-300',
@@ -118,6 +122,7 @@ export const FILTER_COLORS: Record<FilterType, string> = {
 export const FILTER_TYPE_COVERAGE: Record<FilterType, FilterType[]> = {
   UV_IR_Cut: ['UV_IR_Cut'],
   L_Ultimate: ['L_Ultimate', 'Ha', 'OIII'], // dual Ha+OIII
+  Antlia_Triband: ['Antlia_Triband', 'Ha', 'OIII', 'SII', 'UV_IR_Cut'], // triband covers Ha+OIII+SII + broadband role
   LPS_D2: ['LPS_D2', 'UV_IR_Cut'], // anti-pollution covers broadband role too
   Ha: ['Ha'],
   OIII: ['OIII'],

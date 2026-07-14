@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, execFile } from 'child_process';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
@@ -3236,6 +3236,51 @@ app.get('/api/images/resize', async (c) => {
     return new Response(stream as any, {
       headers: { 'Content-Type': 'image/webp' },
     });
+  }
+});
+
+// =====================
+// Moon Ephemeris (Skyfield)
+// =====================
+
+app.post('/api/apls/moon-ephemeris', async (c) => {
+  try {
+    const { target_ra_hours, target_dec_degs, year, month, day, hour, lat, lon } = await c.req.json();
+    
+    if (target_ra_hours == null || target_dec_degs == null) {
+      return c.json({ error: 'target_ra_hours and target_dec_degs required' }, 400);
+    }
+    
+    const scriptPath = join(process.cwd(), 'scripts', 'moon_ephemeris.py');
+    const input = JSON.stringify({
+      target_ra_hours, target_dec_degs,
+      year: year || new Date().getFullYear(),
+      month: month || (new Date().getMonth() + 1),
+      day: day || new Date().getDate(),
+      hour: hour ?? 22,
+      lat: lat ?? 43.78,
+      lon: lon ?? 4.73,
+    });
+    
+    const result = await new Promise<string>((resolve, reject) => {
+      const proc = execFile('python3', [scriptPath], {
+        timeout: 10000,
+        maxBuffer: 1024 * 1024,
+      }, (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(stderr || err.message));
+        } else {
+          resolve(stdout.trim());
+        }
+      });
+      proc.stdin?.write(input);
+      proc.stdin?.end();
+    });
+    
+    return c.json(JSON.parse(result));
+  } catch (err: any) {
+    console.error('Moon ephemeris error:', err);
+    return c.json({ error: err.message || 'Moon ephemeris calculation failed' }, 500);
   }
 });
 

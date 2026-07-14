@@ -126,6 +126,7 @@ export const OBJECT_TYPES = [
   { value: 'snrm', label: 'Supernova Remnant', apiCode: 'snrm' },
   { value: 'gxycl', label: 'Galaxy Cluster', apiCode: 'gxycl' },
   { value: 'stcl', label: 'Star Cluster', apiCode: 'stcl' },
+  { value: 'glcl', label: 'Globular Cluster', apiCode: 'glcl' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,33 +134,41 @@ export const OBJECT_TYPES = [
 // ─────────────────────────────────────────────────────────────────────────────
 import { FilterType } from '../types/module5';
 
-/** Map Telescopius type codes to recommended filter sets */
+/**
+ * Map Telescopius type codes to recommended filter sets.
+ *
+ * Filter use cases:
+ *  - UV_IR_Cut: broadband, spectre continu — galaxies, amas, nébuleuses par réflexion. Sans Lune.
+ *  - L_Ultimate: dual-band 3nm Ha+OIII — nébuleuses en émission, planétaires, restes SN. Résiste Lune + pollution.
+ *  - Antlia_Triband: tri-band Ha+OIII+Hβ + large spectre — galaxies sous ciel pollué, cibles mixtes, compromis Lune modérée.
+ */
 const TYPE_FILTER_MAP: Record<string, FilterType[]> = {
-  // Emission nebulae
-  eneb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
-  rneb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
-  dineb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
-  h2r: ['Ha', 'OIII', 'SII'],
-  neb: ['Ha', 'OIII', 'SII', 'UV_IR_Cut'],
-  // Planetary nebulae
-  plnb: ['OIII', 'Ha', 'UV_IR_Cut'],
-  // Supernova remnants
-  snrm: ['Ha', 'OIII', 'SII'],
-  // Galaxies
-  gxy: ['L_Ultimate', 'UV_IR_Cut', 'RGB'],
-  lgx: ['L_Ultimate', 'UV_IR_Cut', 'RGB'],
-  sgx: ['L_Ultimate', 'UV_IR_Cut'],
-  sfgx: ['Ha', 'L_Ultimate'],
-  pogx: ['L_Ultimate', 'UV_IR_Cut'],
-  agn: ['L_Ultimate', 'UV_IR_Cut'],
-  // Clusters
-  opcl: ['UV_IR_Cut', 'RGB', 'Luminance'],
-  stcl: ['UV_IR_Cut', 'RGB'],
-  gxycl: ['L_Ultimate', 'RGB'],
-  // Reflection nebulae
-  rneb_ref: ['RGB', 'L_Ultimate'],
-  // Dark nebulae
-  dneb: ['L_Ultimate', 'RGB'],
+  // Emission nebulae → L-Ultimate (Ha+OIII), Antlia Triband (compromis)
+  eneb: ['L_Ultimate', 'Antlia_Triband', 'Ha', 'OIII', 'SII'],
+  rneb: ['L_Ultimate', 'Antlia_Triband', 'Ha', 'OIII', 'SII'],
+  dineb: ['L_Ultimate', 'Antlia_Triband', 'Ha', 'OIII', 'SII'],
+  h2r: ['L_Ultimate', 'Antlia_Triband', 'Ha', 'OIII', 'SII'],
+  neb: ['L_Ultimate', 'Antlia_Triband', 'Ha', 'OIII', 'SII'],
+  // Planetary nebulae → L-Ultimate (OIII dominant), Antlia Triband
+  plnb: ['L_Ultimate', 'Antlia_Triband', 'OIII', 'Ha'],
+  // Supernova remnants → L-Ultimate (Ha+OIII), Antlia Triband
+  snrm: ['L_Ultimate', 'Antlia_Triband', 'Ha', 'OIII', 'SII'],
+  // Galaxies → UV/IR Cut (sans Lune), Antlia Triband (ciel pollué)
+  gxy: ['Antlia_Triband', 'UV_IR_Cut'],
+  lgx: ['Antlia_Triband', 'UV_IR_Cut'],
+  sgx: ['Antlia_Triband', 'UV_IR_Cut'],
+  sfgx: ['Antlia_Triband', 'UV_IR_Cut'],
+  pogx: ['Antlia_Triband', 'UV_IR_Cut'],
+  agn: ['Antlia_Triband', 'UV_IR_Cut'],
+  // Clusters → UV/IR Cut (spectre continu, vraie couleur étoiles)
+  opcl: ['Antlia_Triband', 'UV_IR_Cut'],
+  stcl: ['Antlia_Triband', 'UV_IR_Cut'],
+  glcl: ['Antlia_Triband', 'UV_IR_Cut'],
+  gxycl: ['Antlia_Triband', 'UV_IR_Cut'],
+  // Reflection nebulae → UV/IR Cut (lumière réfléchie), Antlia Triband (mixte)
+  rneb_ref: ['Antlia_Triband', 'UV_IR_Cut'],
+  // Dark nebulae → UV/IR Cut (continuum), Antlia Triband
+  dneb: ['Antlia_Triband', 'UV_IR_Cut'],
 };
 
 const GENERIC_TYPES = new Set(['deep_sky_object', 'solar_system_object', 'str', 'uvsrc', 'irsrc', 'nirsrc', 'mirsrc', 'varst', 'xrsrc', 'radsrc', 'gamsrc', 'best', 'dms', 'stass', 'ism', 'mst', 'pulvar', 'bsg', 'esg']);
@@ -185,9 +194,9 @@ export function recommendFiltersForTypes(types: string[]): FilterType[] {
     }
   }
 
-  // If no specific match, default to broadband
+  // If no specific type match, no filters recommended
   if (order.length === 0) {
-    return ['UV_IR_Cut', 'L_Ultimate', 'RGB'];
+    return [];
   }
   return order;
 }
@@ -458,7 +467,8 @@ export interface FramingAnalysis {
 
 export interface RigInfo {
   name: string;
-  focalLength: number;
+  focalLength: number;          // native telescope focal length (mm)
+  effectiveFocalLength: number;  // after reducer/flattener (mm)
   aperture: number;
   fRatio: number;
   sensorWidth: number;  // mm
@@ -470,7 +480,7 @@ export interface RigInfo {
  * Calculate framing analysis for a target + rig combination
  */
 export function calculateFraming(target: TelescopiusTarget, rig: RigInfo): FramingAnalysis {
-  const effFL = rig.focalLength; // No modifier for now
+  const effFL = rig.effectiveFocalLength || rig.focalLength; // Use effective if available
   const fRatio = effFL / rig.aperture;
   const pixelScale = (rig.pixelSize * 206.265) / effFL;
   const fovWidth = (rig.sensorWidth * 206.265) / effFL;

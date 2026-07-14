@@ -23,6 +23,7 @@ import {
   calculateProgress,
   calculateExposurePlan,
   calculateFullExposurePlan,
+  fetchMoonEphemeris,
 } from '../src/services/projectService';
 import {
   searchTargets,
@@ -428,24 +429,62 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     const bortle = localLocation === 'pradelles' ? 2 : 4;
     // Find the actual filter data from user's collection
     const filterData = userFilters.find((f: AstroFilter) => getFilterType(f) === primaryFilter);
-    const preview = calculateExposurePlan({
-      targetMagnitude: selectedTarget.magnitude ?? null,
-      targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
-      surfaceBrightness: selectedTarget.surfaceBrightness ?? null,
-      filter: primaryFilter,
-      focalLength: effectiveRig?.opticModifier?.effectiveFocalLength ?? effectiveRig?.telescope?.focalLength ?? 800,
-      aperture: effectiveRig?.telescope?.aperture ?? 200,
-      pixelSize: effectiveRig?.imagingCamera?.pixelSize ?? 3.76,
-      readNoise: effectiveRig?.imagingCamera?.readNoise ?? 1.5,
-      quantumEfficiency: effectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
-      fullWellDepth: effectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
-      moonIllumination: 0.5,
-      avgSeeing: 2.5,
-      bortle,
-      snrTarget,
-      filterData, // Pass real filter specs!
+    
+    // Fetch real Moon ephemeris from Skyfield, then calculate exposure
+    const raDeg = selectedTarget.raDeg ?? (selectedTarget.ra ? parseFloat(selectedTarget.ra) * 15 : 0);
+    const decDeg = selectedTarget.decDeg ?? (selectedTarget.dec ? parseFloat(selectedTarget.dec) : 0);
+    
+    fetchMoonEphemeris(raDeg, decDeg).then(moonData => {
+      const moonIllumination = moonData?.moonIllumination ?? 0.5;
+      const moonAltitudeDeg = moonData?.moonAltitudeDeg ?? 0;
+      const moonSeparationDeg = moonData?.angularSeparationDeg ?? 90;
+      const extinctionMag = moonData?.extinctionMag ?? 0;
+      
+      const preview = calculateExposurePlan({
+        targetMagnitude: selectedTarget.magnitude ?? null,
+        targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
+        surfaceBrightness: selectedTarget.surfaceBrightness ?? null,
+        filter: primaryFilter,
+        focalLength: effectiveRig?.opticModifier?.effectiveFocalLength ?? effectiveRig?.telescope?.focalLength ?? 800,
+        aperture: effectiveRig?.telescope?.aperture ?? 200,
+        pixelSize: effectiveRig?.imagingCamera?.pixelSize ?? 3.76,
+        readNoise: effectiveRig?.imagingCamera?.readNoise ?? 1.5,
+        quantumEfficiency: effectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
+        fullWellDepth: effectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
+        moonIllumination,
+        avgSeeing: 2.5,
+        bortle,
+        snrTarget,
+        filterData,
+        targetRaDeg: raDeg,
+        targetDecDeg: decDeg,
+        // Pass real ephemeris values (Moon + extinction)
+        moonAltitudeDeg,
+        moonSeparationDeg,
+        extinctionMag,
+      } as any);
+      setExposurePreview(preview);
+    }).catch(() => {
+      // Fallback: no ephemeris
+      const preview = calculateExposurePlan({
+        targetMagnitude: selectedTarget.magnitude ?? null,
+        targetSizeArcmin: selectedTarget.sizeArcmin ?? null,
+        surfaceBrightness: selectedTarget.surfaceBrightness ?? null,
+        filter: primaryFilter,
+        focalLength: effectiveRig?.opticModifier?.effectiveFocalLength ?? effectiveRig?.telescope?.focalLength ?? 800,
+        aperture: effectiveRig?.telescope?.aperture ?? 200,
+        pixelSize: effectiveRig?.imagingCamera?.pixelSize ?? 3.76,
+        readNoise: effectiveRig?.imagingCamera?.readNoise ?? 1.5,
+        quantumEfficiency: effectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
+        fullWellDepth: effectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
+        moonIllumination: 0.5,
+        avgSeeing: 2.5,
+        bortle,
+        snrTarget,
+        filterData,
+      });
+      setExposurePreview(preview);
     });
-    setExposurePreview(preview);
   }, [selectedTarget, primaryFilter, activeRig, rigs, snrTarget, userFilters, localLocation]);
 
   // Handle target selection from TargetExplorerView
@@ -1090,24 +1129,58 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
     const bortle = editLocation === 'pradelles' ? 2 : 4;
     const editEffectiveRig = activeRig || rigs.find((r: any) => r.id === editRigId);
     const filterData = userFilters.find((f: any) => getFilterType(f) === editFilter);
-    const preview = calculateExposurePlan({
-      targetMagnitude: project.targetMagnitude,
-      targetSizeArcmin: project.targetSizeArcmin,
-      surfaceBrightness: project.surfaceBrightness ?? null,
-      filter: editFilter,
-      focalLength: editEffectiveRig?.opticModifier?.effectiveFocalLength ?? editEffectiveRig?.telescope?.focalLength ?? project.focalLength ?? 800,
-      aperture: editEffectiveRig?.telescope?.aperture ?? project.aperture ?? 200,
-      pixelSize: editEffectiveRig?.imagingCamera?.pixelSize ?? project.pixelSize ?? 3.76,
-      readNoise: editEffectiveRig?.imagingCamera?.readNoise ?? 1.5,
-      quantumEfficiency: editEffectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
-      fullWellDepth: editEffectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
-      moonIllumination: 0.5,
-      avgSeeing: 2.5,
-      bortle,
-      snrTarget: editSnrTarget,
-      filterData,
+    
+    // Fetch Moon ephemeris for this project's target
+    const raDeg = project.targetRa ? parseFloat(project.targetRa) * 15 : 0;
+    const decDeg = project.targetDec ? parseFloat(project.targetDec) : 0;
+    
+    fetchMoonEphemeris(raDeg, decDeg).then(moonData => {
+      const moonIllumination = moonData?.moonIllumination ?? 0.5;
+      const moonAltitudeDeg = moonData?.moonAltitudeDeg ?? 0;
+      const moonSeparationDeg = moonData?.angularSeparationDeg ?? 90;
+      const extinctionMag = moonData?.extinctionMag ?? 0;
+      
+      const preview = calculateExposurePlan({
+        targetMagnitude: project.targetMagnitude,
+        targetSizeArcmin: project.targetSizeArcmin,
+        surfaceBrightness: project.surfaceBrightness ?? null,
+        filter: editFilter,
+        focalLength: editEffectiveRig?.opticModifier?.effectiveFocalLength ?? editEffectiveRig?.telescope?.focalLength ?? project.focalLength ?? 800,
+        aperture: editEffectiveRig?.telescope?.aperture ?? project.aperture ?? 200,
+        pixelSize: editEffectiveRig?.imagingCamera?.pixelSize ?? project.pixelSize ?? 3.76,
+        readNoise: editEffectiveRig?.imagingCamera?.readNoise ?? 1.5,
+        quantumEfficiency: editEffectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
+        fullWellDepth: editEffectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
+        moonIllumination,
+        avgSeeing: 2.5,
+        bortle,
+        snrTarget: editSnrTarget,
+        filterData,
+        moonAltitudeDeg,
+        moonSeparationDeg,
+        extinctionMag,
+      } as any);
+      setEditExposurePreview(preview);
+    }).catch(() => {
+      const preview = calculateExposurePlan({
+        targetMagnitude: project.targetMagnitude,
+        targetSizeArcmin: project.targetSizeArcmin,
+        surfaceBrightness: project.surfaceBrightness ?? null,
+        filter: editFilter,
+        focalLength: editEffectiveRig?.opticModifier?.effectiveFocalLength ?? editEffectiveRig?.telescope?.focalLength ?? project.focalLength ?? 800,
+        aperture: editEffectiveRig?.telescope?.aperture ?? project.aperture ?? 200,
+        pixelSize: editEffectiveRig?.imagingCamera?.pixelSize ?? project.pixelSize ?? 3.76,
+        readNoise: editEffectiveRig?.imagingCamera?.readNoise ?? 1.5,
+        quantumEfficiency: editEffectiveRig?.imagingCamera?.quantumEfficiency ?? 0.8,
+        fullWellDepth: editEffectiveRig?.imagingCamera?.fullWellDepth ?? 50000,
+        moonIllumination: 0.5,
+        avgSeeing: 2.5,
+        bortle,
+        snrTarget: editSnrTarget,
+        filterData,
+      });
+      setEditExposurePreview(preview);
     });
-    setEditExposurePreview(preview);
   }, [isEditing, editFilter, editSnrTarget, editLocation, editRigId, rigs, activeRig, userFilters, project]);
 
   const handleRigChange = (rigId: string) => {

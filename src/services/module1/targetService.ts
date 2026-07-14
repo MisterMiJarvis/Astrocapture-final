@@ -156,9 +156,11 @@ export function calculateNovaRank(
   let framingFit: NovaScoreDetails['framingFit'] = 'unknown';
   let coveragePercent: number | null = null;
   if (rig && target.sizeArcmin > 0) {
+    const effFL = rig.telescope.focalLength * (rig.modifier.type === 'None' ? 1 : rig.modifier.factor);
     const rigInfo: RigInfo = {
       name: rig.name,
-      focalLength: rig.telescope.focalLength * (rig.modifier.type === 'None' ? 1 : rig.modifier.factor),
+      focalLength: rig.telescope.focalLength,
+      effectiveFocalLength: effFL,
       aperture: rig.telescope.aperture,
       fRatio: rig.telescope.fRatio,
       sensorWidth: rig.camera.sensorWidth,

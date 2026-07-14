@@ -6,7 +6,6 @@ import FiltersView from './FiltersView';
 import ProjectsView from './ProjectsView';
 import AplsModule6View from './AplsModule6View';
 import PHD2Analysis from '@/src/components/PHD2Analysis';
-import RAGChatView from './RAGChatView';
 import ExposureEngineDocs from './ExposureEngineDocs';
 import AstroSuiteLoginView from './AstroSuiteLoginView';
 import AstroSuiteWeatherView from './AstroSuiteWeatherView';
@@ -31,7 +30,6 @@ const TAB_CONFIG: { id: AplsTab; label: string; icon: string }[] = [
   { id: 'weather', label: 'Weather', icon: '🌤️' },
   { id: 'analysis', label: 'Analysis', icon: '📈' },
   { id: 'exposure', label: 'Exposure', icon: '🔬' },
-  { id: 'help', label: 'Knowledge', icon: '📚' },
 ];
 
 const LOCATION_NAMES: Record<string, string> = {
@@ -95,8 +93,6 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
         return <PHD2Analysis />;
       case 'exposure':
         return <ExposureEngineDocs />;
-      case 'help':
-        return <RAGChatView />;
       default:
         return <AplsModule1View locationSource={locationSource} onLocationChange={handleLocationChange} />;
     }
@@ -136,7 +132,7 @@ const AstroSuiteView: React.FC<AstroSuiteViewProps> = ({ initialTab = 'dashboard
 
             {/* Logout */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-text-secondary font-medium sm:hidden">{user.firstName}</span>
+              <span className="text-xs text-text-secondary font-medium sm:hidden">{user.firstName || user.email}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm font-semibold text-red-400 hover:text-red-300 px-2 sm:px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 border border-red-700/40 transition-colors flex items-center gap-1"

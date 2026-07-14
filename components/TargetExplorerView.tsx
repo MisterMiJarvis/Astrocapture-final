@@ -145,6 +145,7 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           const rigInfo: RigInfo = {
             name: def.name,
             focalLength: def.telescope?.focalLength || 0,
+            effectiveFocalLength: def.opticModifier?.effectiveFocalLength || def.telescope?.focalLength || 0,
             aperture: def.telescope?.aperture || 0,
             fRatio: def.telescope?.fRatio || 0,
             sensorWidth: def.imagingCamera?.sensorWidth || 0,
@@ -499,15 +500,15 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
             );
           })()}
 
-          {/* Framing indicator */}
-          {framing && (() => {
+          {/* Framing indicator — hidden when unknown to avoid '?' noise */}
+          {framing && framing.fitStatus !== 'unknown' && (() => {
             const fitIcons: Record<string, string> = {
-              perfect: '✅', good: '👍', tight: '⚠️', too_large: '❌', unknown: '❓',
+              perfect: '✅', good: '👍', tight: '⚠️', too_large: '❌',
             };
             return (
               <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between">
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${FIT_COLORS[framing.fitStatus]}`}>
-                  {fitIcons[framing.fitStatus]} {framing.fitStatus === 'too_large' ? 'Mosaic' : framing.fitStatus === 'perfect' ? 'Perfect' : framing.fitStatus === 'good' ? 'Good' : framing.fitStatus === 'tight' ? 'Tight' : '?'}
+                  {fitIcons[framing.fitStatus]} {framing.fitStatus === 'too_large' ? 'Mosaic' : framing.fitStatus === 'perfect' ? 'Perfect' : framing.fitStatus === 'good' ? 'Good' : 'Tight'}
                 </span>
                 {framing.coveragePercent != null && (
                   <span className="text-[10px] text-text-secondary font-mono">{(framing.coveragePercent ?? 0).toFixed(0)}% FOV</span>
@@ -568,9 +569,11 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
                     setActiveRigId(e.target.value);
                     const rig = rigs.find((r: any) => r.id === e.target.value);
                     if (rig) {
+                      const effFL = rig.opticModifier?.effectiveFocalLength || rig.telescope?.focalLength || 0;
                       setDefaultRig({
                         name: rig.name,
                         focalLength: rig.telescope?.focalLength || 0,
+                        effectiveFocalLength: effFL,
                         aperture: rig.telescope?.aperture || 0,
                         fRatio: rig.telescope?.fRatio || 0,
                         sensorWidth: rig.imagingCamera?.sensorWidth || 0,
@@ -676,11 +679,14 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           {/* Rig info */}
           {defaultRig && (
             <div className="text-xs text-text-secondary flex items-center gap-3">
-              <span>📐 FOV: {defaultRig.sensorWidth && defaultRig.focalLength ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.focalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.focalLength).toFixed(1)}'` : '—'}</span>
+              <span>📐 FOV: {defaultRig.sensorWidth && defaultRig.effectiveFocalLength ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.effectiveFocalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.effectiveFocalLength).toFixed(1)}'` : '—'}</span>
               <span>|</span>
-              <span>📏 Scale: {defaultRig.pixelSize && defaultRig.focalLength ? `${((defaultRig.pixelSize * 206.265) / defaultRig.focalLength).toFixed(2)}"/px` : '—'}</span>
+              <span>📏 Scale: {defaultRig.pixelSize && defaultRig.effectiveFocalLength ? `${((defaultRig.pixelSize * 206.265) / defaultRig.effectiveFocalLength).toFixed(2)}"/px` : '—'}</span>
               <span>|</span>
-              <span>🔭 {defaultRig.focalLength}mm f/{defaultRig.fRatio}</span>
+              <span>🔭 {defaultRig.effectiveFocalLength}mm f/{(defaultRig.effectiveFocalLength / defaultRig.aperture).toFixed(1)}</span>
+              {defaultRig.effectiveFocalLength !== defaultRig.focalLength && (
+                <span className="text-text-tertiary">({defaultRig.focalLength}mm native × réducteur)</span>
+              )}
             </div>
           )}
 
@@ -772,11 +778,14 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           {/* Rig info */}
           {defaultRig && (
             <div className="text-xs text-text-secondary flex items-center gap-3">
-              <span>📐 FOV: {defaultRig.sensorWidth && defaultRig.focalLength ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.focalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.focalLength).toFixed(1)}'` : '—'}</span>
+              <span>📐 FOV: {defaultRig.sensorWidth && defaultRig.effectiveFocalLength ? `${(defaultRig.sensorWidth * 206.265 / defaultRig.effectiveFocalLength).toFixed(1)}' × ${(defaultRig.sensorHeight * 206.265 / defaultRig.effectiveFocalLength).toFixed(1)}'` : '—'}</span>
               <span>|</span>
-              <span>📏 Scale: {defaultRig.pixelSize && defaultRig.focalLength ? `${((defaultRig.pixelSize * 206.265) / defaultRig.focalLength).toFixed(2)}"/px` : '—'}</span>
+              <span>📏 Scale: {defaultRig.pixelSize && defaultRig.effectiveFocalLength ? `${((defaultRig.pixelSize * 206.265) / defaultRig.effectiveFocalLength).toFixed(2)}"/px` : '—'}</span>
               <span>|</span>
-              <span>🔭 {defaultRig.focalLength}mm f/{defaultRig.fRatio}</span>
+              <span>🔭 {defaultRig.effectiveFocalLength}mm f/{(defaultRig.effectiveFocalLength / defaultRig.aperture).toFixed(1)}</span>
+              {defaultRig.effectiveFocalLength !== defaultRig.focalLength && (
+                <span className="text-text-tertiary">({defaultRig.focalLength}mm native × réducteur)</span>
+              )}
             </div>
           )}
 

@@ -91,18 +91,23 @@ const GUARD = 1e-6;          // Constante de garde anti division par zéro
 const MISSION_IMPOSSIBLE_HOURS = 15; // Seuil "mission impossible" pour le total d'intégration
 
 // ============================================================================
-// k_calib PAR TYPE D'OBJET — Calibration empirique (29/06/2026)
-// Mesuré sur 10 sessions master FITS vs pipeline. À affiner au fur et à mesure.
+// k_calib PAR TYPE D'OBJET — Calibration empirique (29/06/2026, révisé 14/07/2026)
+// ⚠️ Révision 14/07 : correction du bug d'unités SB (Telescopius = mag/arcmin², pas mag/arcsec²)
+// Les anciennes valeurs compensaient l'erreur d'unités. En attendant recalibration FITS :
+//   - diffuse_nebula : 1.0 (SB moyenne représentative)
+//   - planetary_nebula : 10.0 (cœur très brillant, SB moyenne trompeuse)
+//   - galaxy : 2.5 (cœur + bras, conservé)
+//   - stellar : 3.0 (ponctuel, conservé)
 // Source: astro-calibration/run-calibration.py (astropy aperture photometry)
 // ============================================================================
 
 export type ObjectType = 'diffuse_nebula' | 'planetary_nebula' | 'galaxy' | 'stellar' | 'unknown';
 
 export const K_CALIB_BY_TYPE: Record<ObjectType, number> = {
-  diffuse_nebula:   0.223,  // 5 sessions, médiane. M16=0.99 (référence)
-  planetary_nebula: 0.019,  // 2 sessions M27. Pipeline sur-estime (core bright vs halo)
-  galaxy:           2.572,  // 2 sessions M51/M63. Pipeline sous-estime (core capturé)
-  stellar:          2.905,  // 1 session c4. Trop peu de données
+  diffuse_nebula:   1.0,    // 14/07: révisé. Ancien 0.223 compensait erreur d'unités SB. Neutre en attendant recalibration.
+  planetary_nebula: 2.0,    // 14/07: révisé. Ancien 0.15 compensait erreur d'unités SB. k=2.0 → M27 ~5h (réaliste 3nm NB). Cœur brillant justifie k>1.
+  galaxy:           2.0,    // 14/07: arrondi à 2.0 (avant 2.572). Cœur brillant + bras diffus.
+  stellar:          2.5,    // 14/07: arrondi (avant 2.905). Source ponctuelle, signal concentré.
   unknown:          1.0,    // Pas de correction par défaut
 };
 
@@ -282,9 +287,7 @@ export function calculateEffectiveSQM_v5(
   let degradation = 0;
 
   if (moonAltitudeDeg > 0) {
-    const proximityFactor = moonSeparationDeg < 30
-      ? 1 + (30 - moonSeparationDeg) / 30
-      : 1;
+    const proximityFactor = Math.exp(-moonSeparationDeg / 30);
     degradation = moonPhaseFactor * Math.sin((moonAltitudeDeg * Math.PI) / 180) * proximityFactor;
   }
 
@@ -311,6 +314,8 @@ export function calculateOpticalGeometry(
   const sampling = (206.265 * pixelSizeUm) / fEff; // arcsec/pixel
   const radiusM = apertureMm / 2000;
   const apertureArea = Math.PI * radiusM * radiusM;
+  // diameter_px : taille de l'objet en pixels sur le capteur (utilisé étape 6)
+  // Défini ici car dépend de l'échantillonnage. Calculé par l'étape 6 avec le diamètre cible.
   return { sampling, apertureArea, effectiveFocalLength: fEff };
 }
 
@@ -359,11 +364,11 @@ export function calculateOptimalSubExposure(
   const tOptimumRaw = (kDynamic * readNoise * readNoise) / Math.max(GUARD, bSky);
 
   // Clamping intelligent selon le type de filtre
-  // v9 : bornes configurables via clampMin/clampMax (sinon valeurs par défaut)
-  // Claude AI note : 30s peut être trop conservateur pour narrowband 3nm sous Bortle 2-3
-  // et 600s peut être insuffisant pour Halpha petite ouverture sous LP
+  // v10 : bornes configurables via clampMin/clampMax (sinon valeurs par défaut)
+  // Gemini review : plancher broadband 60s trop élevé — saturation FWC sous ciel pollué
+  // ou instrument très ouvert (F/4, RASA). Abaissé à 10s.
   const isBroadband = filterBandwidthNm > 50;
-  const defaultMin = isBroadband ? 60 : 30;
+  const defaultMin = isBroadband ? 10 : 30;
   const defaultMax = isBroadband ? 300 : 600;
   const min = clampMin ?? defaultMin;
   const max = clampMax ?? defaultMax;

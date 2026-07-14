@@ -82,7 +82,7 @@ const M_ZERO = 26.59; // conservé pour référence — v9 utilise le même dans
 interface ExposureCalcParams {
   targetMagnitude: number | null;
   targetSizeArcmin: number | null;
-  surfaceBrightness: number | null;  // mag/arcsec² — used when sizeArcmin is null
+  surfaceBrightness: number | null;  // mag/arcmin² (de Telescopius) — converti en arcsec² dans le calcul
   filter: string;
   focalLength: number;
   aperture: number;
@@ -97,6 +97,12 @@ interface ExposureCalcParams {
   filterData?: AstroFilter;
   targetName?: string;    // nom de la cible (pour auto-dÃ©tection k_calib)
   targetType?: string;    // type de cible (string libre â mappÃ© vers ObjectType)
+  targetRaDeg?: number;   // RA en degres (pour ephemerides Lune + cible)
+  targetDecDeg?: number;  // Dec en degres (pour ephemerides Lune + cible)
+  observationDate?: string; // ISO date (pour ephemerides Lune + cible)
+  extinctionMag?: number;  // Perte de magnitude par extinction atmosphérique (Skyfield)
+  targetAirmass?: number;  // Masse d'air de la cible (Skyfield)
+  targetAltitudeDeg?: number; // Altitude de la cible en degrés (Skyfield)
 }
 
 /**
@@ -115,6 +121,41 @@ function bortleToSQM(bortle: number): number {
  * Convertit ExposureCalcParams → ExposureParams (v9)
  * puis ExposureResult (v9) → ProjectExposurePlan (rétro-compat UI)
  */
+
+/**
+ * Fetch real Moon ephemeris from Skyfield (via API → Python script).
+ * Returns null if unavailable (fallback to hardcoded values).
+ */
+export async function fetchMoonEphemeris(targetRaDeg: number, targetDecDeg: number, observationDate?: string): Promise<{
+  moonAltitudeDeg: number;
+  moonIllumination: number;
+  angularSeparationDeg: number;
+  proximityFactor: number;
+  targetAltitudeDeg: number;
+  targetAirmass: number;
+  extinctionMag: number;
+} | null> {
+  try {
+    const date = observationDate ? new Date(observationDate) : new Date();
+    const res = await fetch('/api/apls/moon-ephemeris', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_ra_hours: targetRaDeg / 15, // deg → hours
+        target_dec_degs: targetDecDeg,
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+        hour: date.getUTCHours() || 22,
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export function calculateExposurePlan(params: ExposureCalcParams, profiles?: Record<string, FilterProfile>): ProjectExposurePlan[] {
   const filterProfiles = profiles ?? FILTER_PROFILES;
   const {
@@ -129,18 +170,33 @@ export function calculateExposurePlan(params: ExposureCalcParams, profiles?: Rec
     quantumEfficiency,
     moonIllumination,
     bortle = 4,
-  } = params;
+    moonAltitudeDeg: providedMoonAlt = 0,
+    moonSeparationDeg: providedMoonSep = 90,
+  } = params as ExposureCalcParams & { moonAltitudeDeg?: number; moonSeparationDeg?: number };
 
   // ─── Convert integrated magnitude to surface brightness (mag/arcsec²) ───────
   const rawMag = targetMagnitude ?? 10;
   let sbObj: number;
+  // ⚠️ Telescopius fournit la SB en mag/arcmin² — convertir en mag/arcsec²
+  // Conversion : SB_arcsec² = SB_arcmin² + 2.5 × log10(3600) ≈ SB_arcmin² + 8.89
+  // (Gemini review 14/07/2026 — sinon le flux est gonflé ×3600)
   if (surfaceBrightness != null && surfaceBrightness > 0) {
-    sbObj = surfaceBrightness;
+    sbObj = surfaceBrightness + 8.89;
   } else if (targetSizeArcmin && targetSizeArcmin > 0) {
     const surfaceArcsec2 = Math.PI * Math.pow((targetSizeArcmin * 60) / 2, 2);
     sbObj = rawMag + 2.5 * Math.log10(surfaceArcsec2);
   } else {
     sbObj = Math.max(rawMag + 5, 18);
+  }
+
+  // ─── Extinction atmosphérique (V11 — Gemini suggestion) ────────────────
+  // La cible perd en luminosité quand elle est basse sur l'horizon (masse d'air).
+  // Δm = k_ext × (X - 1), où X = 1/sin(altitude) et k_ext ≈ 0.20 (Bortle 4)
+  // Skyfield calcule l'altitude réelle de la cible et renvoie extinction_mag.
+  // On l'ajoute à SB : plus la cible est basse, plus SB_obj augmente (plus faint).
+  const extinctionMag = (params as ExposureCalcParams & { extinctionMag?: number }).extinctionMag;
+  if (extinctionMag != null && extinctionMag > 0) {
+    sbObj += extinctionMag;
   }
 
   // ─── Convert Bortle to SQM base ─────────────────────────────────────────
@@ -154,9 +210,14 @@ export function calculateExposurePlan(params: ExposureCalcParams, profiles?: Rec
   const sqmBase = bortleToSQM(bortle);
 
   // ─── Moon → v9 params ──────────────────────────────────────────────────
-  // projectService a moonIllumination (0-1) → v9 veut moonPhaseFactor (0-3.5)
-  const moonPhaseFactor = moonIllumination * 3.5;
-  const moonAltitudeDeg = moonIllumination > 0 ? 45 : 0; // altitude approximative
+  // Utilise les valeurs réelles de Skyfield si disponibles, sinon fallback
+  // Effet d'opposition de la Lune : la relation illumination→brightness est non-linéaire
+  // Un quartier (50%) est ~10x moins brillant qu'une Pleine Lune, pas 2x
+  // Formule : 3.5 × illumination^2.5 (Gemini review 14/07/2026)
+  // Pleine Lune (1.0) → 3.5 | Quartier (0.5) → 0.62 | Nouvelle (0.0) → 0.0
+  const moonPhaseFactor = 3.5 * Math.pow(moonIllumination, 2.5);
+  const moonAltitudeDeg = providedMoonAlt || (moonIllumination > 0 ? 45 : 0);
+  const moonSeparationDeg = providedMoonSep || 90;
 
   // ─── Chercher le filtre dans les profils (DB ou fallback) ─────────────
   // Essayer d'abord une correspondance exacte par nom, puis par slug
@@ -192,7 +253,7 @@ export function calculateExposurePlan(params: ExposureCalcParams, profiles?: Rec
     skyMagnitude: sqmBase,
     moonAltitudeDeg,
     moonPhaseFactor,
-    moonSeparationDeg: 90, // défaut
+    moonSeparationDeg,
     filterTransmission: filterProfile.transmission,
     skySuppression: filterProfile.skySuppression,
     objectSurfaceBrightness: sbObj,
@@ -481,10 +542,12 @@ async function getRigById(rigId: string): Promise<RigInfoResponse | null> {
 }
 
 function rigToInfo(rig: any): RigInfoResponse {
+  const nativeFL = rig.telescope?.focalLength ?? 800;
+  const factor = rig.opticModifier?.factor ?? 1;
   return {
     id: rig.id,
     name: rig.name,
-    focalLength: rig.telescope?.focalLength ?? 800,
+    focalLength: nativeFL * factor,  // effective focal length for exposure calc
     aperture: rig.telescope?.aperture ?? 200,
     pixelSize: rig.imagingCamera?.pixelSize ?? 3.76,
     sensorWidth: rig.imagingCamera?.sensorWidth ?? 23.5,
