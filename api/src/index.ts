@@ -1481,6 +1481,11 @@ function parseTarget(row: any) {
     priority: row.priority, notes: row.notes, completed: Boolean(row.completed),
     completedDate: row.completed_date, acquisitionHours: row.acquisition_hours,
     targetHours: row.target_hours, imageUrl: row.image_url,
+    surfaceBrightness: row.surface_brightness ?? null,
+    altitudeMax: row.altitude_max ?? null,
+    moonSeparation: row.moon_separation ?? null,
+    totalImagingHours: row.total_imaging_hours ?? 0,
+    telescopiusTypes: row.telescopius_types ? row.telescopius_types.split(',') : [],
   };
 
 }
@@ -1505,13 +1510,15 @@ app.get('/api/targets/:id', async (c) => {
 app.post('/api/targets', auth, async (c) => {
   const body = await c.req.json();
   const id = body.id || crypto.randomUUID();
-  await db.prepare(`INSERT INTO observation_targets (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height, ra, dec, ra_deg, dec_deg, priority, notes, completed, completed_date, acquisition_hours, target_hours, image_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  await db.prepare(`INSERT INTO observation_targets (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height, ra, dec, ra_deg, dec_deg, priority, notes, completed, completed_date, acquisition_hours, target_hours, image_url, surface_brightness, altitude_max, moon_separation, total_imaging_hours, telescopius_types)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.objectId || '', body.commonName || '', body.objectType || '', body.constellation || '',
     body.magnitude ?? null, body.angularSizeArcmin?.width ?? 0, body.angularSizeArcmin?.height ?? 0,
     body.ra || '', body.dec || '', body.raDeg ?? 0, body.decDeg ?? 0,
     body.priority || 'medium', body.notes || '', body.completed ? 1 : 0, body.completedDate ?? null,
-    body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null
+    body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null,
+    body.surfaceBrightness ?? null, body.altitudeMax ?? null, body.moonSeparation ?? null,
+    body.totalImagingHours ?? 0, (body.telescopiusTypes || []).join(',')
   );
   return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(id)));
 });
@@ -1522,13 +1529,17 @@ app.put('/api/targets/:id', auth, async (c) => {
     object_id = ?, common_name = ?, object_type = ?, constellation = ?, magnitude = ?,
     size_width = ?, size_height = ?, ra = ?, dec = ?, ra_deg = ?, dec_deg = ?,
     priority = ?, notes = ?, completed = ?,
-    completed_date = ?, acquisition_hours = ?, target_hours = ?, image_url = ?
+    completed_date = ?, acquisition_hours = ?, target_hours = ?, image_url = ?,
+    surface_brightness = ?, altitude_max = ?, moon_separation = ?,
+    total_imaging_hours = ?, telescopius_types = ?
     WHERE id = ?`).run(
     body.objectId ?? '', body.commonName ?? '', body.objectType ?? '', body.constellation ?? '', body.magnitude ?? null,
     body.angularSizeArcmin?.width ?? 0, body.angularSizeArcmin?.height ?? 0,
     body.ra ?? '', body.dec ?? '', body.raDeg ?? 0, body.decDeg ?? 0,
     body.priority ?? 'medium', body.notes ?? '', body.completed ? 1 : 0, body.completedDate ?? null,
-    body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null, c.req.param('id')
+    body.acquisitionHours ?? 0, body.targetHours ?? null, body.imageUrl ?? null,
+    body.surfaceBrightness ?? null, body.altitudeMax ?? null, body.moonSeparation ?? null,
+    body.totalImagingHours ?? 0, (body.telescopiusTypes || []).join(','), c.req.param('id')
   );
   return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(c.req.param('id'))));
 });
@@ -1539,8 +1550,161 @@ app.delete('/api/targets/:id', auth, async (c) => {
 });
 
 // =====================
-// OBSERVATION SESSIONS
+// TELESCOPIUS MANUAL FETCH — save target from Telescopius to DB
+// These are the ONLY endpoints that call Telescopius. They are never called automatically.
 // =====================
+
+/**
+ * POST /api/targets/from-telescopius
+ * Takes a target name/objectId, fetches ALL data from Telescopius (ONE API call),
+ * saves it to the observation_targets table in PostgreSQL, and returns the saved target.
+ * This is called only when the user explicitly selects a target from search results.
+ */
+app.post('/api/targets/from-telescopius', auth, async (c) => {
+  const body = await c.req.json();
+  const { name, objectId } = body;
+  const searchTerm = name || objectId;
+  if (!searchTerm) return c.json({ error: 'name or objectId required' }, 400);
+
+  // Search Telescopius for this specific target (ONE API call)
+  const proxyParams: Record<string, string> = {
+    name: searchTerm,
+    name_exact: 'true',
+    lat: body.lat?.toString() || '43.7889',
+    lon: body.lon?.toString() || '4.7533',
+    timezone: body.timezone || 'Europe/Paris',
+    results_per_page: '1',
+  };
+
+  const result = callTelescopiusProxy('search', proxyParams);
+  if (result.error) return c.json({ error: `Telescopius error: ${result.error}` }, 502);
+
+  const pageResults = result.page_results || [];
+  if (pageResults.length === 0) return c.json({ error: 'Target not found on Telescopius' }, 404);
+
+  const item = pageResults[0];
+  const obj = item.object || item;
+  const transit = item.transit_observation || {};
+  const tonightVis = item.tonight_visibility || {};
+  const tonightTimes = item.tonight_times || {};
+  const typeList = obj.types || [];
+  const genericTypes = ['deep_sky_object', 'solar_system_object', 'str', 'uvsrc', 'irsrc', 'nirsrc', 'mirsrc', 'varst', 'xrsrc', 'radsrc', 'gamsrc', 'best', 'dms', 'stass', 'ism'];
+  const mainType = typeList.find((t: string) => !genericTypes.includes(t)) || 'deep_sky_object';
+  const windows = tonightVis.windows || [];
+  const totalImagingHours = windows.reduce((sum: number, w: any) => sum + (w.imaging_time_hours || w.hours || 0), 0);
+
+  // Build the target object with all Telescopius data
+  const targetData = {
+    id: `tgt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    object_id: obj.main_id || obj.id || searchTerm,
+    common_name: obj.main_name || obj.main_id || searchTerm,
+    object_type: mainType,
+    constellation: obj.con || transit.con || '',
+    magnitude: obj.visual_mag ?? obj.magnitude ?? null,
+    size_width: obj.size_arcmin ?? (obj.size ? parseFloat(obj.size) : 0),
+    size_height: obj.size_arcmin ?? (obj.size ? parseFloat(obj.size) : 0),
+    ra: obj.ra || '',
+    dec: obj.dec || '',
+    ra_deg: parseFloat(transit.ra || obj.ra_deg || 0) * 15, // hours → degrees
+    dec_deg: parseFloat(transit.dec || obj.dec_deg || 0),
+    image_url: obj.main_image_url || obj.thumbnail_url || null,
+    priority: body.priority || 'medium',
+    notes: body.notes || '',
+    completed: 0,
+    completed_date: null,
+    acquisition_hours: 0,
+    target_hours: body.targetHours ?? null,
+  };
+
+  // Check if target already exists (by object_id)
+  const existing = await db.prepare('SELECT id FROM observation_targets WHERE object_id = ?').get(targetData.object_id);
+  if (existing) {
+    // Update existing target with fresh Telescopius data
+    await db.prepare(`UPDATE observation_targets SET
+      common_name = ?, object_type = ?, constellation = ?, magnitude = ?,
+      size_width = ?, size_height = ?, ra = ?, dec = ?, ra_deg = ?, dec_deg = ?,
+      image_url = ?
+      WHERE id = ?`).run(
+      targetData.common_name, targetData.object_type, targetData.constellation, targetData.magnitude,
+      targetData.size_width, targetData.size_height, targetData.ra, targetData.dec,
+      targetData.ra_deg, targetData.dec_deg, targetData.image_url, existing.id
+    );
+    return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(existing.id)));\n  }
+
+  // Insert new target
+  await db.prepare(`INSERT INTO observation_targets
+    (id, object_id, common_name, object_type, constellation, magnitude, size_width, size_height,
+     ra, dec, ra_deg, dec_deg, priority, notes, completed, completed_date, acquisition_hours,
+     target_hours, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    targetData.id, targetData.object_id, targetData.common_name, targetData.object_type,
+    targetData.constellation, targetData.magnitude, targetData.size_width, targetData.size_height,
+    targetData.ra, targetData.dec, targetData.ra_deg, targetData.dec_deg,
+    targetData.priority, targetData.notes, 0, null, 0, targetData.target_hours, targetData.image_url
+  );
+  return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(targetData.id)));
+});
+
+/**
+ * PUT /api/targets/:id/sync-telescopius
+ * Re-fetches data from Telescopius for an existing target and updates the DB.
+ * Uses the object_id to search Telescopius. Makes ONE API call.
+ */
+app.put('/api/targets/:id/sync-telescopius', auth, async (c) => {
+  const targetId = c.req.param('id');
+  const existing = await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(targetId);
+  if (!existing) return c.json({ error: 'Target not found' }, 404);
+
+  const body = await c.req.json().catch(() => ({}));
+  const searchTerm = existing.object_id || existing.common_name;
+  if (!searchTerm) return c.json({ error: 'No object_id to search' }, 400);
+
+  const proxyParams: Record<string, string> = {
+    name: searchTerm,
+    name_exact: 'true',
+    lat: body.lat?.toString() || '43.7889',
+    lon: body.lon?.toString() || '4.7533',
+    timezone: body.timezone || 'Europe/Paris',
+    results_per_page: '1',
+  };
+
+  const result = callTelescopiusProxy('search', proxyParams);
+  if (result.error) return c.json({ error: `Telescopius error: ${result.error}` }, 502);
+
+  const pageResults = result.page_results || [];
+  if (pageResults.length === 0) return c.json({ error: 'Target not found on Telescopius' }, 404);
+
+  const item = pageResults[0];
+  const obj = item.object || item;
+  const transit = item.transit_observation || {};
+  const typeList = obj.types || [];
+  const genericTypes = ['deep_sky_object', 'solar_system_object', 'str', 'uvsrc', 'irsrc', 'nirsrc', 'mirsrc', 'varst', 'xrsrc', 'radsrc', 'gamsrc', 'best', 'dms', 'stass', 'ism'];
+  const mainType = typeList.find((t: string) => !genericTypes.includes(t)) || existing.object_type || 'deep_sky_object';
+
+  await db.prepare(`UPDATE observation_targets SET
+    common_name = ?, object_type = ?, constellation = ?, magnitude = ?,
+    size_width = ?, size_height = ?, ra = ?, dec = ?, ra_deg = ?, dec_deg = ?,
+    image_url = ?
+    WHERE id = ?`).run(
+    obj.main_name || obj.main_id || existing.common_name,
+    mainType,
+    obj.con || transit.con || existing.constellation,
+    obj.visual_mag ?? obj.magnitude ?? existing.magnitude,
+    obj.size_arcmin ?? (obj.size ? parseFloat(obj.size) : existing.size_width),
+    obj.size_arcmin ?? (obj.size ? parseFloat(obj.size) : existing.size_height),
+    obj.ra || existing.ra,
+    obj.dec || existing.dec,
+    parseFloat(transit.ra || obj.ra_deg || 0) * 15,
+    parseFloat(transit.dec || obj.dec_deg || 0),
+    obj.main_image_url || obj.thumbnail_url || existing.image_url,
+    targetId
+  );
+  return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(targetId)));
+});
+
+// =====================
+// OBSERVATION SESSIONS
+// ====================
 
 function parseSession(row: any) {
   return {
@@ -2392,6 +2556,7 @@ function parseProject(row: any) {
     locationSource: row.location_source,
     lat: row.lat,
     lon: row.lon,
+    bortle: row.bortle ?? 4,
     rigId: row.rig_id,
     rigName: row.rig_name,
     focalLength: row.focal_length,
@@ -2467,16 +2632,16 @@ app.post('/api/apls/projects', auth, async (c) => {
     id, user_id, title, status,
     target_id, target_name, target_type, target_ra, target_dec,
     target_magnitude, target_size_arcmin, surface_brightness, target_image_url,
-    location_source, lat, lon,
+    location_source, lat, lon, bortle,
     rig_id, rig_name, focal_length, aperture, pixel_size, sensor_width, sensor_height,
     primary_filter, exposure_plan, total_planned_hours,
     total_exposure_seconds, completion_percent, snr_target, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, userId, body.title || '', body.status || 'planning',
     body.targetId || '', body.targetName || '', body.targetType || '',
     body.targetRa || '', body.targetDec || '',
     body.targetMagnitude ?? null, body.targetSizeArcmin ?? null, body.surfaceBrightness ?? null, body.targetImageUrl ?? null,
-    body.locationSource || '', body.lat ?? 0, body.lon ?? 0,
+    body.locationSource || '', body.lat ?? 0, body.lon ?? 0, body.bortle ?? 4,
     body.rigId ?? null, body.rigName ?? null, body.focalLength ?? null,
     body.aperture ?? null, body.pixelSize ?? null, body.sensorWidth ?? null, body.sensorHeight ?? null,
     body.primaryFilter || '', JSON.stringify(body.exposurePlan || []),
@@ -2524,6 +2689,7 @@ app.patch('/api/apls/projects/:id', auth, async (c) => {
   if (body.locationSource !== undefined) fields.location_source = body.locationSource;
   if (body.lat !== undefined) fields.lat = body.lat;
   if (body.lon !== undefined) fields.lon = body.lon;
+  if (body.bortle !== undefined) fields.bortle = body.bortle;
   if (body.rigId !== undefined) fields.rig_id = body.rigId;
   if (body.rigName !== undefined) fields.rig_name = body.rigName;
   if (body.focalLength !== undefined) fields.focal_length = body.focalLength;

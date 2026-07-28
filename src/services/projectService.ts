@@ -371,9 +371,8 @@ export async function fetchProject(id: string): Promise<Project | null> {
 
 export async function createProject(data: CreateProjectData): Promise<Project> {
   const rigInfo = data.rigId ? await getRigById(data.rigId) : await getActiveRig();
-
-  // Determine Bortle from location
-  const bortle = data.locationSource === 'pradelles' ? 2 : 4;
+  // Determine Bortle from explicit value or fallback to location-based default
+  const bortle = data.bortle || (data.locationSource === 'pradelles' ? 2 : 4);
 
   // Load filter profiles from DB (cached)
   const profiles = await getFilterProfiles();

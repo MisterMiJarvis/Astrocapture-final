@@ -17,15 +17,40 @@ const poolConfig = {
   database: process.env.PG_DB || 'haldb',
   user: process.env.PG_USER || 'hal',
   password: getPassword(),
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  // Keep connections alive to avoid timeout errors
+  max: 10,
+  idleTimeoutMillis: 0,
+  connectionTimeoutMillis: 5000,
   keepAlive: true,
-  keepAliveInitialDelayMillis: 10000,
+  keepAliveInitialDelayMillis: 5000,
 };
 
-export const pool = new pg.Pool(poolConfig);
+// Pool is managed internally via activePool (recreated on failure)
+// Wrapper: get a healthy PG client with pool recreation on failure
+let activePool = new pg.Pool(poolConfig);
+activePool.on('error', (err: any) => console.error('PG pool error:', err.message));
+let recreatePromise: Promise<void> | null = null;
+
+async function recreatePool(): Promise<void> {
+  if (recreatePromise) return recreatePromise;
+  recreatePromise = (async () => {
+    console.log('Recreating PG pool...');
+    try { await activePool.end(); } catch {}
+    activePool = new pg.Pool(poolConfig);
+    activePool.on('error', (err: any) => console.error('PG pool error:', err.message));
+    console.log('PG pool recreated successfully');
+  })();
+  try { await recreatePromise; } finally { recreatePromise = null; }
+}
+
+async function getHealthyClient(): Promise<any> {
+  try {
+    return await activePool.connect();
+  } catch (err: any) {
+    console.error('PG connect failed, recreating pool:', err.message);
+    await recreatePool();
+    return await activePool.connect();
+  }
+}
 
 // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
 function convertPlaceholders(sql: string): string {
@@ -96,7 +121,7 @@ function prepare(sql: string) {
   return {
     // run() - INSERT/UPDATE/DELETE - returns result with changes, lastInsertRowid
     async run(...params: any[]) {
-      const client = await pool.connect();
+      const client = await getHealthyClient();
       try {
         const result = await client.query(transformedSql, params);
         return {
@@ -109,7 +134,7 @@ function prepare(sql: string) {
     },
     // get() - SELECT - returns first row or undefined
     async get(...params: any[]) {
-      const client = await pool.connect();
+      const client = await getHealthyClient();
       try {
         const result = await client.query(transformedSql, params);
         return result.rows[0] ?? undefined;
@@ -119,7 +144,7 @@ function prepare(sql: string) {
     },
     // all() - SELECT - returns all rows
     async all(...params: any[]) {
-      const client = await pool.connect();
+      const client = await getHealthyClient();
       try {
         const result = await client.query(transformedSql, params);
         return result.rows;
@@ -132,7 +157,7 @@ function prepare(sql: string) {
 
 // exec() - run raw SQL (for schema creation etc.)
 async function exec(sql: string) {
-  const client = await pool.connect();
+  const client = await getHealthyClient();
   try {
     await client.query(transformSql(sql));
   } finally {
@@ -147,7 +172,7 @@ function pragma(_sql: string) {
 
 // Async init - create tables if they don't exist
 async function initSchema() {
-  const client = await pool.connect();
+  const client = await getHealthyClient();
   try {
     // Enable FK constraints
     await client.query('SET session_replication_role = replica;'); // Bypass FK checks during creation
@@ -516,6 +541,38 @@ async function initSchema() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )`);
 
+    // ── Migrations: add columns to observation_targets for full Telescopius data ──
+    const targetColumns = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'observation_targets'
+    `);
+    const existingCols = new Set(targetColumns.rows.map((r: any) => r.column_name));
+
+    const newColumns: [string, string][] = [
+      ['surface_brightness', 'REAL'],
+      ['altitude_max', 'REAL'],
+      ['moon_separation', 'REAL'],
+      ['total_imaging_hours', 'REAL DEFAULT 0'],
+      ['telescopius_types', "TEXT DEFAULT ''"],
+    ];
+    for (const [col, def] of newColumns) {
+      if (!existingCols.has(col)) {
+        await client.query(`ALTER TABLE observation_targets ADD COLUMN ${col} ${def}`);
+        console.log(`[db] Added column ${col} to observation_targets`);
+      }
+    }
+
+    // ── Migration: add bortle column to apls_projects ──
+    const projectColumns = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'apls_projects'
+    `);
+    const existingProjectCols = new Set(projectColumns.rows.map((r: any) => r.column_name));
+    if (!existingProjectCols.has('bortle')) {
+      await client.query('ALTER TABLE apls_projects ADD COLUMN bortle INTEGER DEFAULT 4');
+      console.log('[db] Added column bortle to apls_projects');
+    }
+
     await client.query('SET session_replication_role = DEFAULT;'); // Re-enable FK checks
 
     // Indexes
@@ -559,7 +616,7 @@ const db = {
   exec,
   pragma,
   initSchema,
-  pool,
+  pool: activePool,
 };
 
 export default db;

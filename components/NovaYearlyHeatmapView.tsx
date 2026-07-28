@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Thermometer, Target, Search } from 'lucide-react';
 import { calculateYearlyVisibility, VisibilityMonth } from '../services/novaService';
+import { PRESET_LOCATIONS } from '../src/data/locations';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -23,7 +24,7 @@ const NovaYearlyHeatmapView: React.FC = () => {
   const [customDec, setCustomDec] = useState('');
   const [customName, setCustomName] = useState('');
   const [visibility, setVisibility] = useState<VisibilityMonth[]>([]);
-  const [location, setLocation] = useState({ lat: 43.7889, lon: 4.7533 }); // Saint-Étienne-du-Grès
+  const [location, setLocation] = useState({ lat: PRESET_LOCATIONS[0].lat, lon: PRESET_LOCATIONS[0].lon }); // Default: Saint-Étienne-du-Grès
   const [isCustom, setIsCustom] = useState(false);
 
   useEffect(() => {

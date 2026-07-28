@@ -6,6 +6,7 @@ import { fetchAstroForecast, fetchNightlyForecast } from '../services/weatherSer
 import { fetchAstronomyData } from '../services/astronomyApiService';
 import { mapAstronomyData } from '../services/astronomyDataMapper';
 import { mapAndFilterImagingWindow, mapNightlyForecast as mapNightlyForecastData } from '../services/weatherDataMapper';
+import { PRESET_LOCATIONS, getPresetLocation, PresetLocation } from '../src/data/locations';
 
 const NightlyForecastView = React.lazy(() => import('./NightlyForecastView'));
 const WeatherDisplayView = React.lazy(() => import('./WeatherDisplayView'));
@@ -23,18 +24,16 @@ interface AstroSuiteWeatherViewProps {
 }
 
 const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLocation }) => {
-    const [locationSource, setLocationSource] = React.useState<'current' | 'saintEtienne' | 'pradelles' | ''>(
-        (defaultLocation as 'current' | 'saintEtienne' | 'pradelles' | '') || ''
+    const [locationSource, setLocationSource] = React.useState<'current' | 'saintEtienne' | 'pradelles' | 'custom' | ''>(
+        (defaultLocation as 'current' | 'saintEtienne' | 'pradelles' | 'custom' | '') || ''
     );
     const [coordinates, setCoordinates] = React.useState<{ lat: number; lon: number } | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = React.useState(false);
     const [locationError, setLocationError] = React.useState<string | null>(null);
     const [currentBortle, setCurrentBortle] = React.useState<number | null>(null);
-
-    const PRESET_LOCATIONS = {
-        saintEtienne: { lat: 43.79, lon: 4.72, name: "Saint-Étienne-du-Grès (13103)", bortle: 4 },
-        pradelles: { lat: 44.77, lon: 3.88, name: "Pradelles (43420)", bortle: 2 }
-    };
+    const [customLat, setCustomLat] = React.useState<string>('');
+    const [customLon, setCustomLon] = React.useState<string>('');
+    const [customBortle, setCustomBortle] = React.useState<string>('4');
 
     // Sync local location when the parent bandeau changes the default location
     // Also initialize on mount if coordinates are still null
@@ -46,11 +45,13 @@ const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLo
             // Always set coordinates if they're null and we have a default location
             if (!coordinates) {
                 if (defaultLocation === 'saintEtienne') {
-                    setCoordinates(PRESET_LOCATIONS.saintEtienne);
-                    setCurrentBortle(PRESET_LOCATIONS.saintEtienne.bortle);
+                    const loc = getPresetLocation('saintEtienne')!;
+                    setCoordinates({ lat: loc.lat, lon: loc.lon });
+                    setCurrentBortle(loc.bortle);
                 } else if (defaultLocation === 'pradelles') {
-                    setCoordinates(PRESET_LOCATIONS.pradelles);
-                    setCurrentBortle(PRESET_LOCATIONS.pradelles.bortle);
+                    const loc = getPresetLocation('pradelles')!;
+                    setCoordinates({ lat: loc.lat, lon: loc.lon });
+                    setCurrentBortle(loc.bortle);
                 }
                 setLocationError(null);
             }
@@ -139,12 +140,12 @@ const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLo
                     setIsLoadingLocation(false);
                 }
             );
-        } else if (source === 'saintEtienne') {
-            setCoordinates(PRESET_LOCATIONS.saintEtienne);
-            setCurrentBortle(PRESET_LOCATIONS.saintEtienne.bortle);
-        } else if (source === 'pradelles') {
-            setCoordinates(PRESET_LOCATIONS.pradelles);
-            setCurrentBortle(PRESET_LOCATIONS.pradelles.bortle);
+        } else if (source === 'saintEtienne' || source === 'pradelles') {
+            const loc = getPresetLocation(source)!;
+            setCoordinates({ lat: loc.lat, lon: loc.lon });
+            setCurrentBortle(loc.bortle);
+        } else if (source === 'custom') {
+            // Will be set when user fills in custom fields
         }
     };
 
@@ -184,9 +185,64 @@ const AstroSuiteWeatherView: React.FC<AstroSuiteWeatherViewProps> = ({ defaultLo
                         <Select label="Select Location Source" value={locationSource} onChange={handleLocationChange}>
                             <option value="" disabled>-- Choose a location --</option>
                             <option value="current">My Current Location</option>
-                            <option value="saintEtienne">{PRESET_LOCATIONS.saintEtienne.name}</option>
-                            <option value="pradelles">{PRESET_LOCATIONS.pradelles.name}</option>
+                            {PRESET_LOCATIONS.map((loc) => (
+                                <option key={loc.id} value={loc.id}>{loc.name}</option>
+                            ))}
+                            <option value="custom">📍 Custom</option>
                         </Select>
+                        {locationSource === 'custom' && (
+                            <div className="space-y-2 mt-2">
+                                <input
+                                    type="number"
+                                    step="0.0001"
+                                    value={customLat}
+                                    onChange={(e) => {
+                                        setCustomLat(e.target.value);
+                                        const lat = parseFloat(e.target.value);
+                                        const lon = parseFloat(customLon);
+                                        if (!isNaN(lat) && !isNaN(lon)) {
+                                            setCoordinates({ lat, lon });
+                                            setCurrentBortle(parseInt(customBortle) || 4);
+                                        }
+                                    }}
+                                    placeholder="Latitude (e.g. 43.7889)"
+                                    className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                                />
+                                <input
+                                    type="number"
+                                    step="0.0001"
+                                    value={customLon}
+                                    onChange={(e) => {
+                                        setCustomLon(e.target.value);
+                                        const lat = parseFloat(customLat);
+                                        const lon = parseFloat(e.target.value);
+                                        if (!isNaN(lat) && !isNaN(lon)) {
+                                            setCoordinates({ lat, lon });
+                                            setCurrentBortle(parseInt(customBortle) || 4);
+                                        }
+                                    }}
+                                    placeholder="Longitude (e.g. 4.7533)"
+                                    className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                                />
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="9"
+                                    value={customBortle}
+                                    onChange={(e) => {
+                                        setCustomBortle(e.target.value);
+                                        const lat = parseFloat(customLat);
+                                        const lon = parseFloat(customLon);
+                                        if (!isNaN(lat) && !isNaN(lon)) {
+                                            setCoordinates({ lat, lon });
+                                            setCurrentBortle(parseInt(e.target.value) || 4);
+                                        }
+                                    }}
+                                    placeholder="Bortle scale (1-9)"
+                                    className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                                />
+                            </div>
+                        )}
                         {isLoadingLocation && <p className="text-text-secondary text-center">Fetching your location...</p>}
                         {locationError && <p className="text-red-400 text-center">{locationError}</p>}
                         {coordinates && (

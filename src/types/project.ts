@@ -120,6 +120,7 @@ export interface Project {
   locationSource: string;
   lat: number;
   lon: number;
+  bortle: number;
 
   // Rig
   rigId: string | null;
@@ -165,6 +166,7 @@ export interface CreateProjectData {
   locationSource: string;
   lat: number;
   lon: number;
+  bortle?: number;
   rigId: string | null;
   primaryFilter: string;
   snrTarget?: SNRTarget;

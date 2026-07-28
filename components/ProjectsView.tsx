@@ -47,6 +47,7 @@ import {
   Activity, Award, AlertTriangle, TrendingUp,
 } from 'lucide-react';
 import { ProjectPlannerPanel } from './ProjectPlannerPanel';
+import { PRESET_LOCATIONS, getPresetLocation } from '../src/data/locations';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
   planning: { label: 'Planning', icon: '📋', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30' },
@@ -337,7 +338,7 @@ const ProjectCard: React.FC<{ project: Project; onClick: () => void; onDelete: (
       {/* Observations count */}
       <div className="flex items-center gap-3 mt-2 text-xs text-text-secondary">
         <span className="flex items-center gap-1"><Camera size={12} /> {project.observations.length} observation{project.observations.length !== 1 ? 's' : ''}</span>
-        <span className="flex items-center gap-1"><MapPin size={12} /> {project.locationSource === 'saintEtienne' ? 'St-Étienne-du-Grès' : project.locationSource === 'pradelles' ? 'Pradelles' : project.locationSource}</span>
+        <span className="flex items-center gap-1"><MapPin size={12} /> {getPresetLocation(project.locationSource)?.name || project.locationSource}</span>
       </div>
     </div>
   );
@@ -353,10 +354,6 @@ interface CreateProjectViewProps {
   onCancel: () => void;
 }
 
-const CREATE_LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
-  saintEtienne: { lat: 43.7889, lon: 4.7533 },
-  pradelles: { lat: 44.6167, lon: 3.9667 },
-};
 
 const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   locationSource,
@@ -377,12 +374,20 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
 
   // Local location/rig state for project creation
   const [localLocation, setLocalLocation] = useState<string>(locationSource);
+  const [customLat, setCustomLat] = useState<string>('');
+  const [customLon, setCustomLon] = useState<string>('');
+  const [customBortle, setCustomBortle] = useState<string>('4');
   const [rigs, setRigs] = useState<any[]>([]);
   const [activeRig, setActiveRig] = useState<any>(null);
   const [activeRigId, setActiveRigId] = useState<string>('');
   const [userFilters, setUserFilters] = useState<AstroFilter[]>([]);
 
-  const localCoords = CREATE_LOCATION_COORDS[localLocation] || CREATE_LOCATION_COORDS.saintEtienne;
+  // Resolve coordinates and bortle from preset or custom inputs
+  const preset = getPresetLocation(localLocation);
+  const localCoords = preset
+    ? { lat: preset.lat, lon: preset.lon }
+    : { lat: parseFloat(customLat) || 0, lon: parseFloat(customLon) || 0 };
+  const localBortle = preset ? preset.bortle : (parseInt(customBortle) || 4);
 
   // Load rigs
   useEffect(() => {
@@ -425,7 +430,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   useEffect(() => {
     if (!selectedTarget) { setExposurePreview(null); return; }
     const effectiveRig = activeRig || rigs[0];
-    const bortle = localLocation === 'pradelles' ? 2 : 4;
+    const bortle = localBortle;
     // Find the actual filter data from user's collection
     const filterData = userFilters.find((f: AstroFilter) => getFilterType(f) === primaryFilter);
     
@@ -484,7 +489,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       });
       setExposurePreview(preview);
     });
-  }, [selectedTarget, primaryFilter, activeRig, rigs, snrTarget, userFilters, localLocation]);
+  }, [selectedTarget, primaryFilter, activeRig, rigs, snrTarget, userFilters, localLocation, localBortle]);
 
   // Handle target selection from TargetExplorerView
   const handleTargetSelect = (target: TelescopiusTarget) => {
@@ -515,6 +520,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         locationSource: localLocation,
         lat: localCoords.lat,
         lon: localCoords.lon,
+        bortle: localBortle,
         rigId: activeRig?.id ?? null,
         primaryFilter,
         snrTarget,
@@ -658,9 +664,40 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               onChange={(e) => { setLocalLocation(e.target.value); onLocationChange(e.target.value); }}
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
             >
-              <option value="saintEtienne">🏠 St-Étienne-du-Grès</option>
-              <option value="pradelles">🏡 Pradelles</option>
+              {PRESET_LOCATIONS.map((loc) => (
+                <option key={loc.id} value={loc.id}>🏠 {loc.name}</option>
+              ))}
+              <option value="custom">📍 Custom</option>
             </select>
+            {localLocation === 'custom' && (
+              <div className="mt-2 space-y-2">
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={customLat}
+                  onChange={(e) => setCustomLat(e.target.value)}
+                  placeholder="Latitude (e.g. 43.7889)"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                />
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={customLon}
+                  onChange={(e) => setCustomLon(e.target.value)}
+                  placeholder="Longitude (e.g. 4.7533)"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  value={customBortle}
+                  onChange={(e) => setCustomBortle(e.target.value)}
+                  placeholder="Bortle scale (1-9)"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                />
+              </div>
+            )}
           </div>
 
           {/* Rig */}
@@ -730,7 +767,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           </div>
         </div>
         <div className="text-xs text-text-secondary flex items-center gap-3">
-          <span className="flex items-center gap-1"><MapPin size={12} /> {localLocation === 'saintEtienne' ? 'St-Étienne-du-Grès' : 'Pradelles'}</span>
+          <span className="flex items-center gap-1"><MapPin size={12} /> {getPresetLocation(localLocation)?.name || (localLocation === 'custom' ? 'Custom' : localLocation)}</span>
           <span className="flex items-center gap-1"><Moon size={12} /> Moon integration included</span>
         </div>
       </div>
@@ -1075,6 +1112,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   // Edit state
   const [editTitle, setEditTitle] = useState(project.title);
   const [editLocation, setEditLocation] = useState(project.locationSource);
+  const [editCustomLat, setEditCustomLat] = useState(project.lat ? String(project.lat) : '');
+  const [editCustomLon, setEditCustomLon] = useState(project.lon ? String(project.lon) : '');
+  const [editCustomBortle, setEditCustomBortle] = useState(project.bortle ? String(project.bortle) : '4');
   const [editFilter, setEditFilter] = useState(project.primaryFilter);
   const [editSnrTarget, setEditSnrTarget] = useState<SNRTarget>(project.snrTarget);
   const [editRigId, setEditRigId] = useState(project.rigId || '');
@@ -1125,7 +1165,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       }
     }
     prevEditSettings.current = currentSettings;
-    const bortle = editLocation === 'pradelles' ? 2 : 4;
+    const editPreset = getPresetLocation(editLocation);
+    const bortle = editPreset ? editPreset.bortle : (parseInt(editCustomBortle) || 4);
     const editEffectiveRig = activeRig || rigs.find((r: any) => r.id === editRigId);
     const filterData = userFilters.find((f: any) => getFilterType(f) === editFilter);
     
@@ -1180,7 +1221,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       });
       setEditExposurePreview(preview);
     });
-  }, [isEditing, editFilter, editSnrTarget, editLocation, editRigId, rigs, activeRig, userFilters, project]);
+  }, [isEditing, editFilter, editSnrTarget, editLocation, editCustomBortle, editRigId, rigs, activeRig, userFilters, project]);
 
   const handleRigChange = (rigId: string) => {
     setEditRigId(rigId);
@@ -1191,6 +1232,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   const startEditing = () => {
     setEditTitle(project.title);
     setEditLocation(project.locationSource);
+    setEditCustomLat(project.lat ? String(project.lat) : '');
+    setEditCustomLon(project.lon ? String(project.lon) : '');
+    setEditCustomBortle(project.bortle ? String(project.bortle) : '4');
     setEditFilter(project.primaryFilter);
     setEditSnrTarget(project.snrTarget);
     setEditRigId(project.rigId || '');
@@ -1232,6 +1276,17 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       sensorWidth: rig?.imagingCamera?.sensorWidth ?? null,
       sensorHeight: rig?.imagingCamera?.sensorHeight ?? null,
     };
+    // Set lat/lon/bortle from preset or custom inputs
+    const editPreset = getPresetLocation(editLocation);
+    if (editPreset) {
+      updates.lat = editPreset.lat;
+      updates.lon = editPreset.lon;
+      updates.bortle = editPreset.bortle;
+    } else {
+      updates.lat = parseFloat(editCustomLat) || 0;
+      updates.lon = parseFloat(editCustomLon) || 0;
+      updates.bortle = parseInt(editCustomBortle) || 4;
+    }
     // Recalculate exposure plan (apply manual overrides if any)
     if (editExposurePreview && editExposurePreview.length > 0) {
       const overriddenPlan = editExposurePreview.map((plan: any, i: number) => {
@@ -1332,11 +1387,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   // ─── Edit Mode ──────────────────────────────────────────────────────────────
 
   if (isEditing) {
-    const LOCATION_COORDS: Record<string, { lat: number; lon: number }> = {
-      saintEtienne: { lat: 43.7889, lon: 4.7533 },
-      pradelles: { lat: 44.6167, lon: 3.9667 },
-    };
-
     return (
       <div className="space-y-6">
         {/* Header */}
@@ -1412,9 +1462,40 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
                 onChange={(e) => setEditLocation(e.target.value)}
                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
               >
-                <option value="saintEtienne">🏠 St-Étienne-du-Grès</option>
-                <option value="pradelles">🏡 Pradelles</option>
+                {PRESET_LOCATIONS.map((loc) => (
+                  <option key={loc.id} value={loc.id}>🏠 {loc.name}</option>
+                ))}
+                <option value="custom">📍 Custom</option>
               </select>
+              {editLocation === 'custom' && (
+                <div className="mt-2 space-y-2">
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={editCustomLat}
+                    onChange={(e) => setEditCustomLat(e.target.value)}
+                    placeholder="Latitude (e.g. 43.7889)"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                  />
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={editCustomLon}
+                    onChange={(e) => setEditCustomLon(e.target.value)}
+                    placeholder="Longitude (e.g. 4.7533)"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="9"
+                    value={editCustomBortle}
+                    onChange={(e) => setEditCustomBortle(e.target.value)}
+                    placeholder="Bortle scale (1-9)"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Rig */}
@@ -1849,7 +1930,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div className="bg-background p-3 rounded-lg border border-border">
             <span className="text-text-secondary text-xs block mb-1">Lieu</span>
-            <span className="font-semibold text-text">{project.locationSource === 'saintEtienne' ? 'St-Étienne-du-Grès' : 'Pradelles'}</span>
+            <span className="font-semibold text-text">{getPresetLocation(project.locationSource)?.name || project.locationSource}</span>
           </div>
           <div className="bg-background p-3 rounded-lg border border-border">
             <span className="text-text-secondary text-xs block mb-1">Filtre</span>

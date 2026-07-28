@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, User, Sparkles, Loader2, BookOpen, Target, Moon, Cloud, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { PRESET_LOCATIONS } from '../src/data/locations';
 
 export interface AskHalMessage {
   id: string;
@@ -78,8 +79,8 @@ const AskHalView: React.FC = () => {
 
   const handleTargetRanking = async (question: string) => {
     // Get weather and astronomy data
-    const lat = 43.7889;
-    const lon = 4.7533;
+    const lat = PRESET_LOCATIONS[0].lat;
+    const lon = PRESET_LOCATIONS[0].lon;
     
     try {
       // Fetch real data
