@@ -235,6 +235,13 @@ export interface BestTargetFilters {
   perPage?: number;
 }
 
+/**
+ * Fetch best targets tonight using the Telescopius highlights endpoint.
+ *
+ * ⚠️  MANUAL SEARCH ONLY — this function makes a live Telescopius API call.
+ * Do NOT call it automatically on page load or in dashboard services.
+ * Only call on explicit user action (e.g. clicking a "Find Best Targets" button).
+ */
 export async function fetchBestTargets(filters: BestTargetFilters): Promise<TargetSearchResult> {
   const params = new URLSearchParams();
 
@@ -309,7 +316,10 @@ export function authHeaders(): Record<string, string> {
 }
 
 /**
- * Search targets via backend Telescopius proxy with full filter support
+ * Search targets via backend Telescopius proxy with full filter support.
+ *
+ * ⚠️  MANUAL SEARCH ONLY — makes a live Telescopius API call.
+ * Do NOT call automatically on page load. Use only on explicit user action.
  */
 export async function searchTargets(filters: TargetSearchFilters): Promise<TargetSearchResult> {
   const params = new URLSearchParams();

@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { ProjectPlannerPanel } from './ProjectPlannerPanel';
 import ObservationComparison from './ObservationComparison';
+import { SessionPlanExporter } from '../src/components/SessionPlanExporter';
 import { PRESET_LOCATIONS, getPresetLocation } from '../src/data/locations';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
@@ -1109,6 +1110,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
   const [project, setProject] = useState<Project>(initialProject);
   const [showAddObs, setShowAddObs] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPlanExport, setShowPlanExport] = useState(false);
 
   // Edit state
   const [editTitle, setEditTitle] = useState(project.title);
@@ -1954,6 +1956,20 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
       {/* Observation Comparison — Predicted vs Actual SNR */}
       {project.observations.length > 0 && (
         <ObservationComparison project={project} />
+      )}
+
+      {/* Session Plan Export */}
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={() => setShowPlanExport(true)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+        >
+          📋 Export Plan
+        </button>
+      </div>
+
+      {showPlanExport && (
+        <SessionPlanExporter projectId={project.id} onClose={() => setShowPlanExport(false)} />
       )}
     </div>
   );

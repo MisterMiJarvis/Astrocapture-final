@@ -6,7 +6,9 @@
 
 import { DashboardData, DashboardKPIs, ImagingProject, AstroLocation, RigProfileSummary } from '../../types/module1';
 import { fetchWeatherForecast, getWeatherWithCache } from './weatherService';
-import { fetchTargetsTonight } from './targetService';
+import { fetchSavedTargets } from './targetService';
+
+// Verify: dashboardService no longer imports fetchTargetsTonight
 
 const API_BASE = '/api/apls';
 
@@ -22,18 +24,19 @@ function authHeaders(): Record<string, string> {
 }
 
 /**
- * Récupère toutes les données du dashboard
+ * Récupère toutes les données du dashboard.
+ *
+ * NOTE: This function NO LONGER calls Telescopius API automatically.
+ * Targets are loaded exclusively from the database (saved by the user
+ * via the project creation flow). Telescopius is only called on explicit
+ * user action (search → select → save).
  */
 export async function fetchDashboardData(params: { locationId?: string; rigId?: string; date?: string }): Promise<DashboardData> {
   const [location, rig, weather, targetsTonight, activeProjects, kpis] = await Promise.all([
     fetchLocation(params.locationId || 'default'),
     params.rigId ? fetchRigProfile(params.rigId) : fetchDefaultRigProfile(),
     getWeatherWithCache(params.locationId || 'default', 43.7889, 4.7533),
-    fetchTargetsTonight(
-      { lat: 43.7889, lon: 4.7533, rigId: params.rigId },
-      ['UV_IR_Cut', 'L_Ultimate', 'Ha', 'OIII'],
-      { phase: 0.25, altitude: 30, raDeg: 200, decDeg: 10 }
-    ),
+    fetchSavedTargets(),
     fetchActiveProjects(),
     fetchKPIs(),
   ]);

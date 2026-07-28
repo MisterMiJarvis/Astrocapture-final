@@ -197,7 +197,12 @@ export function calculateNovaRank(
 }
 
 /**
- * Récupère les suggestions Telescopius via backend proxy
+ * Récupère les suggestions Telescopius via backend proxy.
+ *
+ * ⚠️  MANUAL SEARCH ONLY — do NOT call this automatically on page load.
+ * This function makes a live Telescopius API call and should only be
+ * triggered by an explicit user action (e.g. clicking "Search" in the
+ * target explorer or project creation form).
  */
 export async function fetchTelescopiusSuggestions(
   lat: number,
@@ -235,7 +240,11 @@ export async function fetchTelescopiusSuggestions(
 }
 
 /**
- * Fetch best targets tonight using highlights endpoint
+ * Fetch best targets tonight using highlights endpoint.
+ *
+ * ⚠️  MANUAL SEARCH ONLY — do NOT call this automatically on page load.
+ * Makes a live Telescopius API call. Should only be triggered by an explicit
+ * user action (e.g. clicking "Find Best Targets" button in the target explorer).
  */
 export async function fetchBestTargetsTonight(
   filters: BestTargetFilters,
@@ -300,8 +309,28 @@ export async function fetchBestTargetsTonight(
 }
 
 /**
- * Récupère les cibles de la nuit avec Nova Rank
- * Uses saved targets from API + Telescopius visibility data
+ * Fetch saved targets from the database only.
+ * This is the function used by the dashboard — it NEVER calls Telescopius.
+ * Returns an empty array if no targets are saved.
+ */
+export async function fetchSavedTargets(): Promise<AstroTarget[]> {
+  try {
+    const res = await fetch('/api/targets', { headers: authHeaders() });
+    if (!res.ok) return [];
+    const saved = await res.json();
+    return saved.map((t: any) => mapApiTarget(t));
+  } catch (err) {
+    console.error('Failed to load saved targets:', err);
+    return [];
+  }
+}
+
+/**
+ * Récupère les cibles de la nuit avec Nova Rank.
+ *
+ * ⚠️  This function now reads ONLY from the database (/api/targets).
+ * It does NOT fall back to Telescopius. If no targets are saved, returns [].
+ * Telescopius is only called via explicit user action (search → select → save).
  */
 export async function fetchTargetsTonight(
   query: TargetsTonightQuery,
@@ -311,7 +340,7 @@ export async function fetchTargetsTonight(
 ): Promise<AstroTarget[]> {
   const { lat, lon, minAltitude = 20, maxMoonSeparation = 60, limit = 20 } = query;
 
-  // Try to load targets from saved DB first
+  // Load targets from DB only — no Telescopius fallback
   let targets: AstroTarget[] = [];
   try {
     const res = await fetch('/api/targets', { headers: authHeaders() });
@@ -323,14 +352,9 @@ export async function fetchTargetsTonight(
     console.error('Failed to load saved targets:', err);
   }
 
-  // If no saved targets, fetch from Telescopius
+  // If no saved targets, return empty — do NOT call Telescopius
   if (targets.length === 0) {
-    try {
-      const suggestions = await fetchTelescopiusSuggestions(lat, lon);
-      targets = suggestions.map(s => mapSuggestionToTarget(s));
-    } catch (err) {
-      console.error('Failed to fetch Telescopius targets:', err);
-    }
+    return [];
   }
 
   const now = new Date();
@@ -357,7 +381,7 @@ function mapApiTarget(t: any): AstroTarget {
   const raDeg = parseRaToDeg(t.ra || t.objectId);
   const decDeg = parseDecToDeg(t.dec || '');
   const altCurrent = calculateAltitude(raDeg, decDeg, lat, lon, now);
-  const types = t.objectType ? t.objectType.split(',') : t.types || [];
+  const types = t.telescopiusTypes || (t.objectType ? t.objectType.split(',') : t.types || []);
 
   return {
     id: t.id,
@@ -376,13 +400,13 @@ function mapApiTarget(t: any): AstroTarget {
     recommendedFilters: recommendFiltersForTypes(types),
     telescopiusTypes: types,
     altitudeCurrent: altCurrent,
-    altitudeMax: t.altitude_max,
+    altitudeMax: t.altitudeMax ?? null,
     isVisible: altCurrent > 0,
     isAboveHorizon: altCurrent > 0,
     isInImagingWindow: altCurrent > 20,
     imagingWindows: [],
-    totalImagingHours: 0,
-    moonSeparation: t.moon_separation,
+    totalImagingHours: t.totalImagingHours ?? 0,
+    moonSeparation: t.moonSeparation ?? null,
     novaRank: 0,
     scoreDetails: { altitudeScore: 0, timeToTransitScore: 0, moonScore: 0, filterScore: 0, visibilityScore: 0, imagingHours: 0, framingFit: 'unknown', coveragePercent: null },
   };
