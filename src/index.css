@@ -108,3 +108,68 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .prose-styles a:hover {
   text-decoration: underline;
 }
+
+/* ─── Print Styles — Session Plan Export ────────────────────────────── */
+@media print {
+  /* Force white background, black text */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the print content */
+  .print-content,
+  .print-content * {
+    visibility: visible;
+  }
+
+  /* Position the print content at the top of the page */
+  .print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 !important;
+  }
+
+  /* Hide modal backdrop and non-printable elements */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure print sections have proper spacing */
+  .print-section {
+    page-break-inside: avoid;
+    margin-bottom: 12pt;
+  }
+
+  /* Force print-friendly colors */
+  .print\:text-black { color: black !important; }
+  .print\:text-gray-700 { color: #374151 !important; }
+  .print\:text-gray-500 { color: #6b7280 !important; }
+  .print\:text-gray-400 { color: #9ca3af !important; }
+  .print\:text-gray-300 { color: #d1d5db !important; }
+  .print\:bg-transparent { background: transparent !important; }
+  .print\:border-gray-300 { border-color: #d1d5db !important; }
+  .print\:border-gray-200 { border-color: #e5e7eb !important; }
+
+  /* Remove dark backgrounds */
+  .bg-surface,
+  .bg-surface-elevated,
+  .bg-background {
+    background: white !important;
+  }
+
+  /* Table borders for print */
+  table {
+    border-collapse: collapse !important;
+  }
+  th, td {
+    border-color: #d1d5db !important;
+  }
+}

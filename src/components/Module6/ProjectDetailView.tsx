@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, TrendingDown, TrendingUp, Award, AlertTriangle, Crosshair } from 'lucide-react';
 import { ProjectDetail, ImagingSession, FilterPlan } from '../../types/module6';
+import { SessionPlanExporter } from '../SessionPlanExporter';
 
 interface ProjectDetailViewProps {
   project: ProjectDetail;
@@ -254,6 +255,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   onSyncTelescopius,
 }) => {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [showPlanExport, setShowPlanExport] = useState(false);
 
   // Guard clause — évite crash si project est undefined
   if (!project) {
@@ -293,13 +295,22 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             {safeProject.targetRa} {safeProject.targetDec} • Priorité: {safeProject.priority}
           </div>
         </div>
-        <button
-          onClick={onSyncTelescopius}
-          className="text-xs px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600
-                     hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
-        >
-          🔄 Sync Telescopius
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPlanExport(true)}
+            className="text-xs px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600
+                       hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+          >
+            📋 Export Plan
+          </button>
+          <button
+            onClick={onSyncTelescopius}
+            className="text-xs px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600
+                       hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+          >
+            🔄 Sync Telescopius
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
@@ -358,6 +369,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         <div className="mt-4 p-3 rounded bg-slate-50 dark:bg-slate-800/50 text-sm text-slate-600 dark:text-slate-300 italic">
           📝 {safeProject.notes}
         </div>
+      )}
+
+      {/* Session Plan Export Modal */}
+      {showPlanExport && (
+        <SessionPlanExporter
+          projectId={safeProject.id}
+          onClose={() => setShowPlanExport(false)}
+        />
       )}
     </div>
   );
