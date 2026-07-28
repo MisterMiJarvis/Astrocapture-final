@@ -1629,7 +1629,8 @@ app.post('/api/targets/from-telescopius', auth, async (c) => {
       targetData.size_width, targetData.size_height, targetData.ra, targetData.dec,
       targetData.ra_deg, targetData.dec_deg, targetData.image_url, existing.id
     );
-    return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(existing.id)));\n  }
+    return c.json(parseTarget(await db.prepare('SELECT * FROM observation_targets WHERE id = ?').get(existing.id)));
+  }
 
   // Insert new target
   await db.prepare(`INSERT INTO observation_targets
@@ -3240,6 +3241,70 @@ app.get('/api/apls/projects/:id/guiding', async (c) => {
   } catch (err: any) {
     console.error('Guiding performance error:', err);
     return c.json({ error: 'Failed to get guiding performance' }, 500);
+  }
+});
+
+// Calibration endpoint — predicted vs actual SNR analysis
+app.get('/api/apls/projects/:id/calibration', auth, async (c) => {
+  try {
+    const projectId = c.req.param('id');
+    const userId = c.get('user').id;
+
+    // Verify project ownership
+    const projectRow = await db.prepare('SELECT * FROM apls_projects WHERE id = ? AND user_id = ?').get(projectId, userId);
+    if (!projectRow) return c.json({ error: 'Project not found' }, 404);
+
+    const project = parseProject(projectRow);
+
+    // Fetch observations
+    const obsRows = await db.prepare('SELECT * FROM apls_project_observations WHERE project_id = ? ORDER BY created_at ASC').all(projectId);
+    const observations = (obsRows as any[]).map(parseObservation);
+
+    if (observations.length === 0) {
+      return c.json({
+        ratio: null,
+        observations_count: 0,
+        suggested_k_calib: null,
+        message: 'No observations yet',
+      });
+    }
+
+    // Get predicted values from exposure plan
+    const primaryPlan = project.exposurePlan?.[0];
+    const predictedTotalTime = primaryPlan?.totalExposureTime ?? 0;
+    const predictedSnr = primaryPlan?.snrValue ?? primaryPlan?.formulaSnapshot?.formulaOutput?.snrValue ?? 0;
+
+    // Compute real total exposure time
+    const realTotalTime = observations.reduce((sum: number, o: any) =>
+      sum + o.exposuresTaken * o.exposureDuration, 0);
+
+    // SNR ratio: real / predicted
+    // SNR_real ≈ SNR_predicted × sqrt(realTotalTime / predictedTotalTime)
+    let ratio = null;
+    if (predictedTotalTime > 0 && predictedSnr > 0) {
+      const snrReal = predictedSnr * Math.sqrt(realTotalTime / predictedTotalTime);
+      ratio = snrReal / predictedSnr;
+    }
+
+    // Suggested k_calib (only if we have enough observations for reliability)
+    let suggestedKCalib = null;
+    const currentKCalib = 5.0; // default k_factor from v9 formula
+    if (ratio !== null && observations.length >= 3) {
+      suggestedKCalib = currentKCalib * ratio;
+    }
+
+    return c.json({
+      ratio: ratio !== null ? parseFloat(ratio.toFixed(4)) : null,
+      observations_count: observations.length,
+      suggested_k_calib: suggestedKCalib !== null ? parseFloat(suggestedKCalib.toFixed(4)) : null,
+      predicted_snr: predictedSnr,
+      predicted_total_time: predictedTotalTime,
+      real_total_time: realTotalTime,
+      reliable: observations.length >= 3,
+    });
+  } catch (err: any) {
+    console.error('Calibration error:', err);
+    return c.json({ error: 'Failed to compute calibration' }, 500);
   }
 });
 

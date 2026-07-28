@@ -47,6 +47,7 @@ import {
   Activity, Award, AlertTriangle, TrendingUp,
 } from 'lucide-react';
 import { ProjectPlannerPanel } from './ProjectPlannerPanel';
+import ObservationComparison from './ObservationComparison';
 import { PRESET_LOCATIONS, getPresetLocation } from '../src/data/locations';
 
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; icon: string; color: string; bg: string }> = {
@@ -1949,6 +1950,11 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
 
       {/* Guiding Performance */}
       <GuidingPerformanceInline projectId={project.id} />
+
+      {/* Observation Comparison — Predicted vs Actual SNR */}
+      {project.observations.length > 0 && (
+        <ObservationComparison project={project} />
+      )}
     </div>
   );
 };
