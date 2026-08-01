@@ -1964,7 +1964,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
           onClick={() => setShowPlanExport(true)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
         >
-          📋 Export Plan
+          📄 Export PDF
         </button>
       </div>
 

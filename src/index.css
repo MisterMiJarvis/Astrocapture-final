@@ -168,8 +168,44 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   /* Table borders for print */
   table {
     border-collapse: collapse !important;
+    width: 100% !important;
+    font-size: 10pt !important;
   }
-  th, td {
-    border-color: #d1d5db !important;
+  th {
+    border-bottom: 2px solid #333 !important;
+    color: #333 !important;
+    font-weight: 600 !important;
+    padding: 4pt 8pt !important;
+    text-align: left !important;
+  }
+  td {
+    border-bottom: 1px solid #ccc !important;
+    color: black !important;
+    padding: 3pt 8pt !important;
+  }
+
+  /* Section headings — bold, clear */
+  .print-section h2 {
+    font-size: 13pt !important;
+    font-weight: 700 !important;
+    border-bottom: 1px solid #999 !important;
+    padding-bottom: 2pt !important;
+    margin-bottom: 6pt !important;
+  }
+
+  /* Main title — prominent */
+  .print-header h1 {
+    font-size: 20pt !important;
+    font-weight: 700 !important;
+  }
+
+  /* Avoid page breaks inside rows */
+  tr {
+    page-break-inside: avoid !important;
+  }
+
+  /* A4 margins */
+  @page {
+    margin: 1.5cm;
   }
 }

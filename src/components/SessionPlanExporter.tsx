@@ -1,6 +1,7 @@
 // ============================================================================
 // COMPOSANT: SessionPlanExporter — Export plan de session imprimable/PDF
 // Feature 3 — Consultable au bord du scope sans rouvrir l'app
+// v2 — Improved print layout, weather conditions, night date
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -53,6 +54,29 @@ function formatDate(iso: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatSeeing(seeing: number | null): string {
+  if (seeing === null || seeing === undefined) return '—';
+  return `${seeing.toFixed(1)}"`;
+}
+
+function formatGuiding(guidingRms: number | null): string {
+  if (guidingRms === null || guidingRms === undefined) return '—';
+  return `${guidingRms.toFixed(2)}"`;
+}
+
+function formatMoonIllumination(illum: number | null): string {
+  if (illum === null || illum === undefined) return '—';
+  return `${(illum * 100).toFixed(0)}%`;
+}
+
+/** Suggests tonight's date (or next clear night) in French format */
+function getNightDateLabel(): string {
+  const now = new Date();
+  // After noon, "tonight" is tonight; before noon, it's still "tonight" (the night we're in)
+  const label = now.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -124,6 +148,9 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
   const totalSubs = project.exposurePlan.reduce((sum, p) => sum + p.subCount, 0);
   const totalTime = project.exposurePlan.reduce((sum, p) => sum + p.totalExposureTime, 0);
   const snrConfig = SNR_TARGET_CONFIG[project.snrTarget as SNRTarget];
+  const lastObservation = project.observations && project.observations.length > 0
+    ? project.observations[project.observations.length - 1]
+    : null;
 
   return (
     <>
@@ -141,7 +168,7 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
                   onClick={handlePrint}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors"
                 >
-                  🖨️ Imprimer / PDF
+                  📄 Exporter PDF
                 </button>
                 <button
                   onClick={onClose}
@@ -163,7 +190,7 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
                   🎯 {project.targetName}
                 </p>
                 <p className="text-sm text-text-muted mt-2 print:text-gray-500">
-                  Plan généré le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  Plan d'observation — Nuit du {getNightDateLabel()}
                 </p>
               </div>
 
@@ -188,6 +215,36 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
                     <p className="text-text print:text-black font-medium">Classe {project.bortle}</p>
                   </div>
                 </div>
+              </section>
+
+              {/* ─── Conditions ─────────────────────────────────────────────── */}
+              <section className="mb-6 print-section">
+                <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+                  🌤️ Conditions d'observation
+                </h2>
+                <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-text-muted print:text-gray-500">Bortle (qualité ciel)</span>
+                    <p className="text-text print:text-black font-medium">Classe {project.bortle}</p>
+                  </div>
+                  <div>
+                    <span className="text-text-muted print:text-gray-500">Seeing (dernière obs.)</span>
+                    <p className="text-text print:text-black font-mono">{formatSeeing(lastObservation?.seeing ?? null)}</p>
+                  </div>
+                  <div>
+                    <span className="text-text-muted print:text-gray-500">Guiding RMS (dernière obs.)</span>
+                    <p className="text-text print:text-black font-mono">{formatGuiding(lastObservation?.guidingRms ?? null)}</p>
+                  </div>
+                  <div>
+                    <span className="text-text-muted print:text-gray-500">Lune (dernière obs.)</span>
+                    <p className="text-text print:text-black font-mono">{formatMoonIllumination(lastObservation?.moonIllumination ?? null)}</p>
+                  </div>
+                </div>
+                {(!lastObservation || (lastObservation.seeing == null && lastObservation.guidingRms == null)) && (
+                  <p className="text-xs text-text-muted print:text-gray-400 italic mt-2">
+                    ℹ️ Conditions basées sur la dernière observation enregistrée. Aucune observation disponible pour le moment.
+                  </p>
+                )}
               </section>
 
               {/* ─── Target ────────────────────────────────────────────────── */}
