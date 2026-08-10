@@ -5,7 +5,6 @@ import { mapNightlyForecast as mapNightlyForecastData } from '../services/weathe
 import { fetchProjects, calculateProgress } from '../src/services/projectService';
 import { Project } from '../src/types/project';
 import { TelescopiusTarget } from '../src/services/targetExplorerService';
-import TargetExplorerView from './TargetExplorerView';
 import { Moon, Target, Camera } from 'lucide-react';
 
 const PRESET_LOCATIONS: Record<string, { lat: number; lon: number }> = {
@@ -180,12 +179,6 @@ const AplsModule1View: React.FC<AplsModule1ViewProps> = ({ locationSource: locat
         </div>
       )}
 
-      {/* Target Explorer */}
-      <TargetExplorerView
-        locationSource={locationSource as any}
-        onLocationChange={onLocationChange as any}
-        onStartProject={onStartProject}
-      />
     </div>
   );
 };
