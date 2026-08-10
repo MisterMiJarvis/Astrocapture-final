@@ -117,14 +117,22 @@ export async function fetchWeatherForecast(config: WeatherServiceConfig): Promis
     hourly.push(hour);
   }
 
-  // Parse nightly summaries (groupement par nuit)
+  // Parse nightly summaries (groupement par nuit astronomique: 20h jour J → 5h jour J+1)
   const nightly: NightlyWeather[] = [];
   const dailyTimes = data.daily?.time || [];
   for (let i = 0; i < dailyTimes.length; i++) {
     const nightDate = new Date(dailyTimes[i]);
+    // Nuit du jour J = 20h-23h du jour J + 0h-5h du jour J+1
+    const nextDay = new Date(nightDate);
+    nextDay.setDate(nextDay.getDate() + 1);
     const nightHours = hourly.filter(h => {
       const hDate = new Date(h.time);
-      return hDate.toDateString() === nightDate.toDateString() && (h.time.getHours() >= 20 || h.time.getHours() <= 5);
+      const hour = h.time.getHours();
+      // Heures du soir (20h-23h) du jour J
+      if (hDate.toDateString() === nightDate.toDateString() && hour >= 20) return true;
+      // Heures du matin (0h-5h) du jour J+1
+      if (hDate.toDateString() === nextDay.toDateString() && hour <= 5) return true;
+      return false;
     });
 
     const avgCloud = nightHours.length > 0
