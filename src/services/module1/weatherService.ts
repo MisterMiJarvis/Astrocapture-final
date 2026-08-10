@@ -77,7 +77,7 @@ function calculateSkyCondition(cloudTotal: number): HourlyWeather['skyCondition'
  * Les 3 sources sont fetch en parallèle puis mergées.
  */
 export async function fetchWeatherForecast(config: WeatherServiceConfig): Promise<WeatherForecast> {
-  const { latitude, longitude, days = 7 } = config;
+  const { latitude, longitude, days = 14 } = config;
 
   const merged = await fetchMergedForecast(latitude, longitude, days);
   const data = merged.hourly as any;
@@ -187,7 +187,7 @@ function getMoonPhaseName(phase: number): string {
  */
 export async function getWeatherWithCache(locationId: string, lat: number, lon: number): Promise<WeatherForecast> {
   // TODO: implémenter le cache SQLite côté backend
-  return fetchWeatherForecast({ latitude: lat, longitude: lon, days: 7 });
+  return fetchWeatherForecast({ latitude: lat, longitude: lon, days: 14 });
 }
 
 /**

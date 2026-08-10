@@ -58,7 +58,7 @@ function findDayStartIndex(times: string[], dayOffset: number): number {
 export async function fetchMergedForecast(
   latitude: number,
   longitude: number,
-  totalDays: number = 7,
+  totalDays: number = 14,
 ): Promise<MergedWeatherData> {
   const lat = latitude.toFixed(2);
   const lon = longitude.toFixed(2);
@@ -349,7 +349,7 @@ export async function fetchMergedForecast(
  */
 export const fetchAstroForecast = async (latitude: number, longitude: number, startDate: Date): Promise<AstroForecastResponse | null> => {
   try {
-    const merged = await fetchMergedForecast(latitude, longitude, 7);
+    const merged = await fetchMergedForecast(latitude, longitude, 14);
     return merged.hourly;
   } catch (error) {
     console.error("Failed to fetch astro weather forecast:", error);

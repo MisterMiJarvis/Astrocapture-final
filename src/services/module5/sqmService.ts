@@ -51,7 +51,7 @@ interface OpenMeteoResponse {
 export async function fetchWeatherForecast(
   lat: number,
   lon: number,
-  days: number = 7
+  days: number = 14
 ): Promise<OpenMeteoResponse | null> {
   try {
     const merged = await fetchMergedForecast(lat, lon, days);
