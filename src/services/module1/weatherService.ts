@@ -1,11 +1,11 @@
 // ============================================================================
 // SERVICE MÉTÉO — Module 1 Dashboard
-// Open-Meteo double flux (Meteoblue + Met Office)
+// Multi-modèles: AROME France HD (J1-J2) + ARPEGE Europe (J3-J4) + GFS (J5+)
+// Merge des 3 sources Open-Meteo via le service partagé
 // ============================================================================
 
 import { WeatherForecast, HourlyWeather, NightlyWeather, WeeklyWeatherDay } from '../../types/module1';
-
-const OPEN_METEO_BASE = '/api/apls/weather';
+import { fetchMergedForecast } from '../../../services/weatherService';
 
 export interface WeatherServiceConfig {
   latitude: number;
@@ -73,31 +73,19 @@ function calculateSkyCondition(cloudTotal: number): HourlyWeather['skyCondition'
 }
 
 /**
- * Fetch météo depuis Open-Meteo avec double flux
+ * Fetch météo multi-modèles (AROME HD + ARPEGE Europe + GFS)
+ * Les 3 sources sont fetch en parallèle puis mergées.
  */
 export async function fetchWeatherForecast(config: WeatherServiceConfig): Promise<WeatherForecast> {
-  const { latitude, longitude, days = 7, timezone = 'auto' } = config;
+  const { latitude, longitude, days = 7 } = config;
 
-  const params = new URLSearchParams({
-    latitude: latitude.toString(),
-    longitude: longitude.toString(),
-    hourly: 'temperature_2m,dewpoint_2m,relative_humidity_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_gusts_10m,precipitation',
-    daily: 'temperature_2m_max,temperature_2m_min,sunrise,sunset,moonrise,moonset,moon_phase',
-    forecast_days: days.toString(),
-    timezone,
-    models: 'meteoblue,met_office',
-  });
-
-  const response = await fetch(`${OPEN_METEO_BASE}/forecast?${params.toString()}`);
-  if (!response.ok) {
-    throw new Error(`Open-Meteo error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
+  const merged = await fetchMergedForecast(latitude, longitude, days);
+  const data = merged.hourly as any;
+  const dailyData = merged.daily;
 
   // Parse hourly data
   const hourly: HourlyWeather[] = [];
-  const hourlyTimes = data.hourly?.time || [];
+  const hourlyTimes = (data as any).time || [];
   for (let i = 0; i < hourlyTimes.length; i++) {
     const temp = data.hourly.temperature_2m?.[i] ?? 0;
     const dewpoint = data.hourly.dewpoint_2m?.[i] ?? 0;

@@ -33,6 +33,7 @@ import {
   calculateEnhancedFilterScore,
 } from '../src/services/filterMapping';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Star, MapPin, Moon, Eye, SlidersHorizontal, RotateCw, Telescope, Sparkles, Target } from 'lucide-react';
+import { VisibilityTimeline } from './VisibilityTimeline';
 
 interface TargetExplorerProps {
   locationSource: 'current' | 'saintEtienne' | 'pradelles';
@@ -1061,6 +1062,21 @@ export const TargetExplorerView: React.FC<TargetExplorerProps> = ({ locationSour
           {selectedTarget.commonNames.length > 0 && (
             <div className="text-sm text-text-secondary">Also known as: {selectedTarget.commonNames.join(', ')}</div>
           )}
+
+          {/* Visibility Timeline */}
+          {(() => {
+            const raHours = selectedTarget.raDeg ?? (selectedTarget.ra ? parseFloat(selectedTarget.ra) * 15 : 0);
+            const decDeg = selectedTarget.decDeg ?? (selectedTarget.dec ? parseFloat(selectedTarget.dec) : 0);
+            return (
+              <VisibilityTimeline
+                targetRaHours={raHours / 15}
+                targetDecDegs={decDeg}
+                lat={coords.lat}
+                lon={coords.lon}
+                targetName={selectedTarget.mainName}
+              />
+            );
+          })()}
 
           {/* Start Project button */}
           {onStartProject && (

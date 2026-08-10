@@ -681,25 +681,10 @@ export async function fetchPlannerWeather(
   lon: number,
   date: Date,
 ): Promise<AstroForecastResponse | null> {
-  const formatDate = (d: Date) => d.toISOString().split('T')[0];
-  const endDate = new Date(date);
-  endDate.setDate(date.getDate() + 2);
-
-  const params = new URLSearchParams({
-    latitude: lat.toFixed(2),
-    longitude: lon.toFixed(2),
-    hourly: 'temperature_2m,dewpoint_2m,relative_humidity_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_gusts_10m,precipitation',
-    models: 'best_match',
-    timezone: 'auto',
-    start_date: formatDate(date),
-    end_date: formatDate(endDate),
-  });
-
   try {
-    const res = await fetch(`/api/apls/weather/forecast?${params.toString()}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.hourly as AstroForecastResponse;
+    const { fetchMergedForecast } = await import('../../../services/weatherService');
+    const merged = await fetchMergedForecast(lat, lon, 7);
+    return merged.hourly;
   } catch {
     return null;
   }

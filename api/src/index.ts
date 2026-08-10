@@ -3544,6 +3544,51 @@ app.post('/api/apls/moon-ephemeris', async (c) => {
 });
 
 // =====================
+// Target Visibility Timeline (Skyfield)
+// =====================
+
+app.post('/api/apls/targets/visibility-timeline', async (c) => {
+  try {
+    const { target_ra_hours, target_dec_degs, year, month, day, lat, lon, tz_offset } = await c.req.json();
+    
+    if (target_ra_hours == null || target_dec_degs == null) {
+      return c.json({ error: 'target_ra_hours and target_dec_degs required' }, 400);
+    }
+    
+    const scriptPath = join(process.cwd(), 'scripts', 'visibility_timeline.py');
+    const input = JSON.stringify({
+      target_ra_hours, target_dec_degs,
+      year: year || new Date().getFullYear(),
+      month: month || (new Date().getMonth() + 1),
+      day: day || new Date().getDate(),
+      lat: lat ?? 43.78,
+      lon: lon ?? 4.73,
+      tz_offset: tz_offset ?? 2,
+    });
+    
+    const result = await new Promise<string>((resolve, reject) => {
+      const proc = execFile('python3', [scriptPath], {
+        timeout: 15000,
+        maxBuffer: 1024 * 1024,
+      }, (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(stderr || err.message));
+        } else {
+          resolve(stdout.trim());
+        }
+      });
+      proc.stdin?.write(input);
+      proc.stdin?.end();
+    });
+    
+    return c.json(JSON.parse(result));
+  } catch (err: any) {
+    console.error('Visibility timeline error:', err);
+    return c.json({ error: err.message || 'Visibility timeline calculation failed' }, 500);
+  }
+});
+
+// =====================
 // RAG QUERY (Astrophotography Knowledge Base)
 // =====================
 

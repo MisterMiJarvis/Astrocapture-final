@@ -21,7 +21,7 @@ import {
 // API Open-Meteo (proxy local)
 // ============================================================================
 
-const OPEN_METEO_BASE = '/api/apls/weather';
+import { fetchMergedForecast } from '../../../services/weatherService';
 
 interface OpenMeteoHourly {
   time: string[];
@@ -46,7 +46,7 @@ interface OpenMeteoResponse {
 }
 
 /**
- * Récupère les données météo prévisionnelles depuis Open-Meteo.
+ * Récupère les données météo prévisionnelles depuis les 3 modèles fusionnés.
  */
 export async function fetchWeatherForecast(
   lat: number,
@@ -54,10 +54,8 @@ export async function fetchWeatherForecast(
   days: number = 7
 ): Promise<OpenMeteoResponse | null> {
   try {
-    const url = `${OPEN_METEO_BASE}/forecast?lat=${lat}&lon=${lon}&days=${days}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Open-Meteo error: ${res.status}`);
-    return await res.json();
+    const merged = await fetchMergedForecast(lat, lon, days);
+    return merged.hourly as unknown as OpenMeteoResponse;
   } catch (err) {
     console.error('Failed to fetch weather forecast:', err);
     return null;

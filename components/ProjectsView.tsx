@@ -1769,6 +1769,20 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         </div>
       </div>
 
+      {/* Session Plan Export */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowPlanExport(true)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+        >
+          📄 Export PDF
+        </button>
+      </div>
+
+      {showPlanExport && (
+        <SessionPlanExporter projectId={project.id} onClose={() => setShowPlanExport(false)} />
+      )}
+
       {/* Progress */}
       <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex items-center justify-between text-sm mb-2">
@@ -1958,19 +1972,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project: initialP
         <ObservationComparison project={project} />
       )}
 
-      {/* Session Plan Export */}
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => setShowPlanExport(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-        >
-          📄 Export PDF
-        </button>
-      </div>
-
-      {showPlanExport && (
-        <SessionPlanExporter projectId={project.id} onClose={() => setShowPlanExport(false)} />
-      )}
     </div>
   );
 };

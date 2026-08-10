@@ -1,7 +1,7 @@
 // ============================================================================
-// COMPOSANT: SessionPlanExporter — Export plan de session imprimable/PDF
-// Feature 3 — Consultable au bord du scope sans rouvrir l'app
-// v2 — Improved print layout, weather conditions, night date
+// COMPOSANT: SessionPlanExporter — Export session plan (printable/PDF)
+// Feature 3 — Consultable at the scope without reopening the app
+// v3 — Fixed print DOM structure, English UI, custom PDF filename
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -53,7 +53,7 @@ function formatSb(sb: number | null): string {
 function formatDate(iso: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function formatSeeing(seeing: number | null): string {
@@ -71,12 +71,264 @@ function formatMoonIllumination(illum: number | null): string {
   return `${(illum * 100).toFixed(0)}%`;
 }
 
-/** Suggests tonight's date (or next clear night) in French format */
+/** Tonight's date label in English */
 function getNightDateLabel(): string {
   const now = new Date();
-  // After noon, "tonight" is tonight; before noon, it's still "tonight" (the night we're in)
-  const label = now.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const label = now.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+// ─── Printable content (shared between screen preview and print-only) ────
+
+function PrintableContent({ project, totalSubs, totalTime, snrConfig, lastObservation }: {
+  project: Project;
+  totalSubs: number;
+  totalTime: number;
+  snrConfig: typeof SNR_TARGET_CONFIG[SNRTarget] | undefined;
+  lastObservation: Project['observations'][0] | null;
+}) {
+  return (
+    <>
+      {/* ─── Header ────────────────────────────────────────────────── */}
+      <div className="mb-6 pb-4 border-b-2 border-border print-header">
+        <h1 className="text-2xl font-display font-bold text-text print:text-black">
+          {project.title}
+        </h1>
+        <p className="text-lg text-text-secondary mt-1 print:text-gray-700">
+          🎯 {project.targetName}
+        </p>
+        <p className="text-sm text-text-muted mt-2 print:text-gray-500">
+          Observation Plan — Night of {getNightDateLabel()}
+        </p>
+      </div>
+
+      {/* ─── Location ──────────────────────────────────────────────── */}
+      <section className="mb-6 print-section">
+        <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+          📍 Observation Site
+        </h2>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="text-text-muted print:text-gray-500">Site</span>
+            <p className="text-text print:text-black font-medium">{formatLocation(project.locationSource)}</p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Coordinates</span>
+            <p className="text-text print:text-black font-mono">
+              {project.lat.toFixed(4)}°, {project.lon.toFixed(4)}°
+            </p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Bortle</span>
+            <p className="text-text print:text-black font-medium">Class {project.bortle}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Conditions ─────────────────────────────────────────────── */}
+      <section className="mb-6 print-section">
+        <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+          🌤️ Observation Conditions
+        </h2>
+        <div className="grid grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className="text-text-muted print:text-gray-500">Bortle (sky quality)</span>
+            <p className="text-text print:text-black font-medium">Class {project.bortle}</p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Seeing (last obs.)</span>
+            <p className="text-text print:text-black font-mono">{formatSeeing(lastObservation?.seeing ?? null)}</p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Guiding RMS (last obs.)</span>
+            <p className="text-text print:text-black font-mono">{formatGuiding(lastObservation?.guidingRms ?? null)}</p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Moon (last obs.)</span>
+            <p className="text-text print:text-black font-mono">{formatMoonIllumination(lastObservation?.moonIllumination ?? null)}</p>
+          </div>
+        </div>
+        {(!lastObservation || (lastObservation.seeing == null && lastObservation.guidingRms == null)) && (
+          <p className="text-xs text-text-muted print:text-gray-400 italic mt-2">
+            ℹ️ Conditions based on the last recorded observation. No observations available yet.
+          </p>
+        )}
+      </section>
+
+      {/* ─── Target ────────────────────────────────────────────────── */}
+      <section className="mb-6 print-section">
+        <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+          🔭 Target
+        </h2>
+        <div className="flex gap-6">
+          <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div>
+              <span className="text-text-muted print:text-gray-500">Name</span>
+              <p className="text-text print:text-black font-medium">{project.targetName}</p>
+            </div>
+            <div>
+              <span className="text-text-muted print:text-gray-500">Type</span>
+              <p className="text-text print:text-black">{project.targetType || '—'}</p>
+            </div>
+            <div>
+              <span className="text-text-muted print:text-gray-500">RA / Dec</span>
+              <p className="text-text print:text-black font-mono">{formatRaDec(project.targetRa, project.targetDec)}</p>
+            </div>
+            <div>
+              <span className="text-text-muted print:text-gray-500">Magnitude</span>
+              <p className="text-text print:text-black font-mono">{formatMagnitude(project.targetMagnitude)}</p>
+            </div>
+            <div>
+              <span className="text-text-muted print:text-gray-500">Size</span>
+              <p className="text-text print:text-black font-mono">{formatSize(project.targetSizeArcmin)}</p>
+            </div>
+            <div>
+              <span className="text-text-muted print:text-gray-500">Surface Brightness</span>
+              <p className="text-text print:text-black font-mono">{formatSb(project.surfaceBrightness)}</p>
+            </div>
+          </div>
+          {project.targetImageUrl && (
+            <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden border border-border print:border-gray-300">
+              <img
+                src={project.targetImageUrl.startsWith('http') ? project.targetImageUrl : `${window.location.origin}${project.targetImageUrl}`}
+                alt={project.targetName}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ─── Equipment ─────────────────────────────────────────────── */}
+      <section className="mb-6 print-section">
+        <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+          🔧 Equipment
+        </h2>
+        <div className="grid grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className="text-text-muted print:text-gray-500">Rig</span>
+            <p className="text-text print:text-black font-medium">{project.rigName || '—'}</p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Focal Length</span>
+            <p className="text-text print:text-black font-mono">
+              {project.focalLength ? `${project.focalLength}mm` : '—'}
+            </p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Aperture</span>
+            <p className="text-text print:text-black font-mono">
+              {project.aperture ? `${project.aperture}mm` : '—'}
+            </p>
+          </div>
+          <div>
+            <span className="text-text-muted print:text-gray-500">Primary Filter</span>
+            <p className="text-text print:text-black font-medium">{project.primaryFilter || '—'}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Exposure Plan ─────────────────────────────────────────── */}
+      <section className="mb-6 print-section">
+        <h2 className="text-base font-semibold text-text mb-3 print:text-black flex items-center gap-2">
+          ⏱️ Exposure Plan
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-border print:border-gray-300">
+                <th className="text-left py-2 pr-4 text-text-muted print:text-gray-500 font-medium">Filter</th>
+                <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">t_sub</th>
+                <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">N_subs</th>
+                <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">Total</th>
+                <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">SNR</th>
+                <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">Sky e⁻/px/s</th>
+                <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">Obj e⁻/px/s</th>
+                <th className="text-right py-2 pl-4 text-text-muted print:text-gray-500 font-medium">Sampling</th>
+              </tr>
+            </thead>
+            <tbody>
+              {project.exposurePlan.map((plan, i) => (
+                <ExposurePlanRow key={i} plan={plan} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ─── Summary ──────────────────────────────────────────────── */}
+      <section className="mb-6 print-section">
+        <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+          📊 Summary
+        </h2>
+        <div className="grid grid-cols-4 gap-4 text-sm">
+          <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
+            <span className="text-text-muted print:text-gray-500 block text-xs">Planned Hours</span>
+            <p className="text-text print:text-black text-lg font-bold font-mono">
+              {project.totalPlannedHours.toFixed(1)}h
+            </p>
+          </div>
+          <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
+            <span className="text-text-muted print:text-gray-500 block text-xs">SNR Target</span>
+            <p className="text-text print:text-black text-lg font-bold">
+              {snrConfig ? `${snrConfig.icon} ${project.snrTarget}` : project.snrTarget}
+            </p>
+            {snrConfig && (
+              <p className="text-xs text-text-muted print:text-gray-500">{snrConfig.label}</p>
+            )}
+          </div>
+          <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
+            <span className="text-text-muted print:text-gray-500 block text-xs">Total subs</span>
+            <p className="text-text print:text-black text-lg font-bold font-mono">{totalSubs}</p>
+          </div>
+          <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
+            <span className="text-text-muted print:text-gray-500 block text-xs">Total Time</span>
+            <p className="text-text print:text-black text-lg font-bold font-mono">
+              {formatExposureTime(totalTime)}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Observations (history) ────────────────────────────────── */}
+      {project.observations && project.observations.length > 0 && (
+        <section className="mb-6 print-section">
+          <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
+            📝 Observations ({project.observations.length})
+          </h2>
+          <div className="space-y-1.5 text-sm">
+            {project.observations.map((obs) => (
+              <div
+                key={obs.id}
+                className="flex items-center gap-3 py-1.5 border-b border-border/50 print:border-gray-200"
+              >
+                <span className="text-text-muted print:text-gray-500 font-mono text-xs w-24">
+                  {formatDate(obs.date)}
+                </span>
+                <span className="text-text print:text-black">
+                  {obs.exposuresTaken} × {obs.exposureDuration}s
+                </span>
+                <span className="text-text-muted print:text-gray-500">
+                  {obs.filter}
+                </span>
+                {obs.notes && (
+                  <span className="text-text-muted print:text-gray-500 italic text-xs ml-auto truncate">
+                    {obs.notes}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─── Footer ────────────────────────────────────────────────── */}
+      <div className="mt-8 pt-4 border-t border-border print:border-gray-300 text-center text-xs text-text-muted print:text-gray-400">
+        AstroCapture — Session plan generated on{' '}
+        {new Date().toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })}
+      </div>
+    </>
+  );
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -106,7 +358,7 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
         setProject(data);
       } catch (err) {
         console.error('Failed to fetch project:', err);
-        setError('Impossible de charger les données du projet.');
+        setError('Failed to load project data.');
       } finally {
         setLoading(false);
       }
@@ -115,7 +367,12 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
   }, [projectId]);
 
   const handlePrint = () => {
+    if (!project) return;
+    const exportDate = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+    const originalTitle = document.title;
+    document.title = `AstroCapture - ${project.targetName} - ${exportDate}`;
     window.print();
+    setTimeout(() => { document.title = originalTitle; }, 500);
   };
 
   if (loading) {
@@ -123,7 +380,7 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div className="bg-surface border border-border rounded-xl p-8 text-text">
           <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-text-secondary text-sm">Chargement du plan de session…</p>
+          <p className="text-text-secondary text-sm">Loading session plan…</p>
         </div>
       </div>
     );
@@ -133,12 +390,12 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div className="bg-surface border border-border rounded-xl p-8 text-center max-w-md">
-          <p className="text-red-400 mb-4">{error || 'Projet introuvable'}</p>
+          <p className="text-red-400 mb-4">{error || 'Project not found'}</p>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-surface-elevated border border-border text-text hover:bg-border-hover transition-colors"
           >
-            Fermer
+            Close
           </button>
         </div>
       </div>
@@ -152,274 +409,43 @@ export const SessionPlanExporter: React.FC<SessionPlanExporterProps> = ({ projec
     ? project.observations[project.observations.length - 1]
     : null;
 
+  const contentProps = { project, totalSubs, totalTime, snrConfig, lastObservation };
+
   return (
     <>
-      {/* ─── Modal Backdrop (screen) ─────────────────────────────────────── */}
+      {/* ─── Print-only content (sibling of modal, NOT inside .no-print) ─── */}
+      <div className="hidden print:block print-content">
+        <PrintableContent {...contentProps} />
+      </div>
+
+      {/* ─── Modal Backdrop (screen only, hidden in print) ──────────────── */}
       <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm no-print">
         <div className="min-h-full flex items-start justify-center p-4 md:p-8">
           <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-4xl my-8">
-            {/* ─── Modal Header (screen only) ─────────────────────────────── */}
-            <div className="flex items-center justify-between p-4 border-b border-border no-print">
+            {/* ─── Modal Header ──────────────────────────────────────────── */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
               <h2 className="text-lg font-display font-bold text-text">
-                📋 Plan de Session
+                📋 Session Plan
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handlePrint}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors"
                 >
-                  📄 Exporter PDF
+                  📄 Export PDF
                 </button>
                 <button
                   onClick={onClose}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-elevated border border-border text-text text-sm hover:bg-border-hover transition-colors"
                 >
-                  ✕ Fermer
+                  ✕ Close
                 </button>
               </div>
             </div>
 
-            {/* ─── Printable Content ──────────────────────────────────────── */}
-            <div className="p-6 md:p-8 print-content">
-              {/* ─── Header ────────────────────────────────────────────────── */}
-              <div className="mb-6 pb-4 border-b-2 border-border print-header">
-                <h1 className="text-2xl font-display font-bold text-text print:text-black">
-                  {project.title}
-                </h1>
-                <p className="text-lg text-text-secondary mt-1 print:text-gray-700">
-                  🎯 {project.targetName}
-                </p>
-                <p className="text-sm text-text-muted mt-2 print:text-gray-500">
-                  Plan d'observation — Nuit du {getNightDateLabel()}
-                </p>
-              </div>
-
-              {/* ─── Location ──────────────────────────────────────────────── */}
-              <section className="mb-6 print-section">
-                <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
-                  📍 Lieu d'observation
-                </h2>
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Site</span>
-                    <p className="text-text print:text-black font-medium">{formatLocation(project.locationSource)}</p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Coordonnées</span>
-                    <p className="text-text print:text-black font-mono">
-                      {project.lat.toFixed(4)}°, {project.lon.toFixed(4)}°
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Bortle</span>
-                    <p className="text-text print:text-black font-medium">Classe {project.bortle}</p>
-                  </div>
-                </div>
-              </section>
-
-              {/* ─── Conditions ─────────────────────────────────────────────── */}
-              <section className="mb-6 print-section">
-                <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
-                  🌤️ Conditions d'observation
-                </h2>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Bortle (qualité ciel)</span>
-                    <p className="text-text print:text-black font-medium">Classe {project.bortle}</p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Seeing (dernière obs.)</span>
-                    <p className="text-text print:text-black font-mono">{formatSeeing(lastObservation?.seeing ?? null)}</p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Guiding RMS (dernière obs.)</span>
-                    <p className="text-text print:text-black font-mono">{formatGuiding(lastObservation?.guidingRms ?? null)}</p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Lune (dernière obs.)</span>
-                    <p className="text-text print:text-black font-mono">{formatMoonIllumination(lastObservation?.moonIllumination ?? null)}</p>
-                  </div>
-                </div>
-                {(!lastObservation || (lastObservation.seeing == null && lastObservation.guidingRms == null)) && (
-                  <p className="text-xs text-text-muted print:text-gray-400 italic mt-2">
-                    ℹ️ Conditions basées sur la dernière observation enregistrée. Aucune observation disponible pour le moment.
-                  </p>
-                )}
-              </section>
-
-              {/* ─── Target ────────────────────────────────────────────────── */}
-              <section className="mb-6 print-section">
-                <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
-                  🔭 Cible
-                </h2>
-                <div className="flex gap-6">
-                  <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                    <div>
-                      <span className="text-text-muted print:text-gray-500">Nom</span>
-                      <p className="text-text print:text-black font-medium">{project.targetName}</p>
-                    </div>
-                    <div>
-                      <span className="text-text-muted print:text-gray-500">Type</span>
-                      <p className="text-text print:text-black">{project.targetType || '—'}</p>
-                    </div>
-                    <div>
-                      <span className="text-text-muted print:text-gray-500">RA / Dec</span>
-                      <p className="text-text print:text-black font-mono">{formatRaDec(project.targetRa, project.targetDec)}</p>
-                    </div>
-                    <div>
-                      <span className="text-text-muted print:text-gray-500">Magnitude</span>
-                      <p className="text-text print:text-black font-mono">{formatMagnitude(project.targetMagnitude)}</p>
-                    </div>
-                    <div>
-                      <span className="text-text-muted print:text-gray-500">Taille</span>
-                      <p className="text-text print:text-black font-mono">{formatSize(project.targetSizeArcmin)}</p>
-                    </div>
-                    <div>
-                      <span className="text-text-muted print:text-gray-500">Surface Brightness</span>
-                      <p className="text-text print:text-black font-mono">{formatSb(project.surfaceBrightness)}</p>
-                    </div>
-                  </div>
-                  {project.targetImageUrl && (
-                    <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden border border-border print:border-gray-300">
-                      <img
-                        src={project.targetImageUrl}
-                        alt={project.targetName}
-                        className="w-full h-full object-cover"
-                        crossOrigin="anonymous"
-                      />
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {/* ─── Equipment ─────────────────────────────────────────────── */}
-              <section className="mb-6 print-section">
-                <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
-                  🔧 Équipement
-                </h2>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Rig</span>
-                    <p className="text-text print:text-black font-medium">{project.rigName || '—'}</p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Focale</span>
-                    <p className="text-text print:text-black font-mono">
-                      {project.focalLength ? `${project.focalLength}mm` : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Ouverture</span>
-                    <p className="text-text print:text-black font-mono">
-                      {project.aperture ? `${project.aperture}mm` : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-text-muted print:text-gray-500">Filtre principal</span>
-                    <p className="text-text print:text-black font-medium">{project.primaryFilter || '—'}</p>
-                  </div>
-                </div>
-              </section>
-
-              {/* ─── Exposure Plan ─────────────────────────────────────────── */}
-              <section className="mb-6 print-section">
-                <h2 className="text-base font-semibold text-text mb-3 print:text-black flex items-center gap-2">
-                  ⏱️ Plan d'exposition
-                </h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-border print:border-gray-300">
-                        <th className="text-left py-2 pr-4 text-text-muted print:text-gray-500 font-medium">Filtre</th>
-                        <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">t_sub</th>
-                        <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">N_subs</th>
-                        <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">Total</th>
-                        <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">SNR</th>
-                        <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">Sky e⁻/px/s</th>
-                        <th className="text-right py-2 px-4 text-text-muted print:text-gray-500 font-medium">Obj e⁻/px/s</th>
-                        <th className="text-right py-2 pl-4 text-text-muted print:text-gray-500 font-medium">Sampling</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {project.exposurePlan.map((plan, i) => (
-                        <ExposurePlanRow key={i} plan={plan} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {/* ─── Summary ──────────────────────────────────────────────── */}
-              <section className="mb-6 print-section">
-                <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
-                  📊 Récapitulatif
-                </h2>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
-                    <span className="text-text-muted print:text-gray-500 block text-xs">Heures planifiées</span>
-                    <p className="text-text print:text-black text-lg font-bold font-mono">
-                      {project.totalPlannedHours.toFixed(1)}h
-                    </p>
-                  </div>
-                  <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
-                    <span className="text-text-muted print:text-gray-500 block text-xs">SNR cible</span>
-                    <p className="text-text print:text-black text-lg font-bold">
-                      {snrConfig ? `${snrConfig.icon} ${project.snrTarget}` : project.snrTarget}
-                    </p>
-                    {snrConfig && (
-                      <p className="text-xs text-text-muted print:text-gray-500">{snrConfig.label}</p>
-                    )}
-                  </div>
-                  <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
-                    <span className="text-text-muted print:text-gray-500 block text-xs">Total subs</span>
-                    <p className="text-text print:text-black text-lg font-bold font-mono">{totalSubs}</p>
-                  </div>
-                  <div className="bg-surface-elevated print:bg-transparent border border-border print:border-gray-300 rounded-lg p-3">
-                    <span className="text-text-muted print:text-gray-500 block text-xs">Temps total</span>
-                    <p className="text-text print:text-black text-lg font-bold font-mono">
-                      {formatExposureTime(totalTime)}
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              {/* ─── Observations (history) ────────────────────────────────── */}
-              {project.observations && project.observations.length > 0 && (
-                <section className="mb-6 print-section">
-                  <h2 className="text-base font-semibold text-text mb-2 print:text-black flex items-center gap-2">
-                    📝 Observations ({project.observations.length})
-                  </h2>
-                  <div className="space-y-1.5 text-sm">
-                    {project.observations.map((obs) => (
-                      <div
-                        key={obs.id}
-                        className="flex items-center gap-3 py-1.5 border-b border-border/50 print:border-gray-200"
-                      >
-                        <span className="text-text-muted print:text-gray-500 font-mono text-xs w-24">
-                          {formatDate(obs.date)}
-                        </span>
-                        <span className="text-text print:text-black">
-                          {obs.exposuresTaken} × {obs.exposureDuration}s
-                        </span>
-                        <span className="text-text-muted print:text-gray-500">
-                          {obs.filter}
-                        </span>
-                        {obs.notes && (
-                          <span className="text-text-muted print:text-gray-500 italic text-xs ml-auto truncate">
-                            {obs.notes}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* ─── Footer ────────────────────────────────────────────────── */}
-              <div className="mt-8 pt-4 border-t border-border print:border-gray-300 text-center text-xs text-text-muted print:text-gray-400">
-                AstroCapture — Plan de session généré le{' '}
-                {new Date().toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}
-              </div>
+            {/* ─── Screen-only preview ───────────────────────────────────── */}
+            <div className="p-6 md:p-8">
+              <PrintableContent {...contentProps} />
             </div>
           </div>
         </div>

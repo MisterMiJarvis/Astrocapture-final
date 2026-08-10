@@ -117,15 +117,20 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     color: black !important;
   }
 
-  /* Hide everything by default */
+  /* Hide everything by default — but not .print-content which may be nested */
   body * {
     visibility: hidden;
   }
 
-  /* Show only the print content */
+  /* Show only the print content and its descendants */
   .print-content,
   .print-content * {
     visibility: visible;
+  }
+
+  /* Override no-print display:none inside print-content — print-content must stay visible */
+  .no-print .print-content {
+    display: block !important;
   }
 
   /* Position the print content at the top of the page */

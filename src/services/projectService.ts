@@ -560,10 +560,10 @@ function rigToInfo(rig: any): RigInfoResponse {
 
 async function getCurrentMoonIllumination(lat: number, lon: number): Promise<number> {
   try {
-    const res = await fetch(`/api/apls/weather/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,cloud_cover&daily=temperature_2m_max,temperature_2m_min,cloud_cover_max,precipitation_sum&timezone=Europe/Paris&forecast_days=3`);
-    if (!res.ok) return 0.5;
-    const data = await res.json();
-    return data.daily?.data?.[0]?.moonPhase ?? 0.5;
+    const { fetchMergedForecast } = await import('../../services/weatherService');
+    const merged = await fetchMergedForecast(lat, lon, 7);
+    const phases = merged.daily.moon_phase;
+    return phases[0] ?? 0.5;
   } catch {
     return 0.5;
   }
