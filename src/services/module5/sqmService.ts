@@ -21,7 +21,7 @@ import {
 // API Open-Meteo (proxy local)
 // ============================================================================
 
-import { fetchMergedForecast } from '../../../services/weatherService';
+import { fetchMergedForecast } from '@/services/weatherService';
 
 interface OpenMeteoHourly {
   time: string[];

@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { WeatherForecast, HourlyWeather, NightlyWeather, WeeklyWeatherDay } from '../../types/module1';
-import { fetchMergedForecast } from '../../../services/weatherService';
+import { fetchMergedForecast } from '@/services/weatherService';
 
 export interface WeatherServiceConfig {
   latitude: number;

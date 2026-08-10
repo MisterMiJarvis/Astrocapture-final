@@ -682,7 +682,7 @@ export async function fetchPlannerWeather(
   date: Date,
 ): Promise<AstroForecastResponse | null> {
   try {
-    const { fetchMergedForecast } = await import('../../../services/weatherService');
+    const { fetchMergedForecast } = await import('@/services/weatherService');
     const merged = await fetchMergedForecast(lat, lon, 7);
     return merged.hourly;
   } catch {

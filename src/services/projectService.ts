@@ -560,7 +560,7 @@ function rigToInfo(rig: any): RigInfoResponse {
 
 async function getCurrentMoonIllumination(lat: number, lon: number): Promise<number> {
   try {
-    const { fetchMergedForecast } = await import('../../services/weatherService');
+    const { fetchMergedForecast } = await import('@/services/weatherService');
     const merged = await fetchMergedForecast(lat, lon, 7);
     const phases = merged.daily.moon_phase;
     return phases[0] ?? 0.5;
