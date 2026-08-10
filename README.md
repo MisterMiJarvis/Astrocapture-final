@@ -8,7 +8,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss)](https://tailwindcss.com)
 [![Hono](https://img.shields.io/badge/Hono-4-E36002)](https://hono.dev)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql)](https://www.postgresql.org)
-[![Release](https://img.shields.io/badge/Release-v3.0.0-blue)](https://github.com/MisterMiJarvis/Astrocapture-final/releases)
+[![Release](https://img.shields.io/badge/Release-v3.1.0-blue)](https://github.com/MisterMiJarvis/Astrocapture-final/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -32,7 +32,8 @@
 - **About** — Photographer profile
 
 ### AstroSuite (Planning Tools)
-- **Target Explorer** — Telescopius-powered deep-sky search with Best Tonight, Priority tab, and Search modes, band filter recommendations (UV/IR Cut, L-Ultimate, Antlia Triband), framing analysis, rig-aware scoring
+- **Dashboard** — 4-night weather outlook + active projects overview
+- **Targets** — Dedicated tab for Telescopius-powered deep-sky search with Best Tonight, Priority tab, and Search modes, band filter recommendations (UV/IR Cut, L-Ultimate, Antlia Triband), framing analysis, rig-aware scoring (lazy-loaded, only fetches when tab is opened)
 - **Rigs** — Telescope/camera/filter profile management, FOV calculator with effective focal length (native × reducer factor), sampling calculator
 - **Framing** — Aladin Lite integration, real-time framing preview, sensor overlay
 - **Filters** — Filter management with real spectral transmission curves, gallery thumbnails per filter (linked via acquisition logs)
@@ -52,7 +53,7 @@
   - Altitude curve, imaging windows, Moon illumination/altitude
   - Remaining exposure time tracking
 - **PHD2 Analysis** — Guiding log analyzer with RMS graphs, drift detection, star loss tracking
-- **Weather** — Astronomy forecast, seeing, moon phase, imaging windows (Open-Meteo)
+- **Weather** — Multi-model astronomy forecast (AROME HD + ARPEGE Europe + GFS merge), seeing, moon phase, imaging windows (Open-Meteo)
 - **Journal** — Session journal with conditions tracking (seeing, transparency, temperature, moon illumination)
 - **Equipment Tracker v2** — Enhanced equipment management with rig profiles, guiding setup, dithering calculator
 - **Gear Reviews** — Equipment reviews and ratings with visitor stats
@@ -93,7 +94,7 @@
 | Cloudscraper | Telescopius API proxy |
 
 ### External APIs & Data
-- **Open-Meteo** — Weather data & astronomy seeing forecasts
+- **Open-Meteo** — Multi-model weather data (Météo-France AROME HD 1.5km + ARPEGE Europe 11km + GFS 13km) & astronomy seeing forecasts
 - **Telescopius** — Deep-sky object data, target visibility, framing
 - **Skyfield (Python)** — NASA DE421 ephemeris for Moon altitude, illumination, angular separation, target altitude, airmass, atmospheric extinction
 
@@ -313,7 +314,7 @@ The exposure engine uses a surface-brightness-based model with real Moon ephemer
 - **NASA DE421** — JPL ephemeris (17MB, not committed)
 - **Telescopius** — Target SB, magnitude, size, type
 - **PostgreSQL** — Rig profiles, filter spectral data, user preferences
-- **Open-Meteo** — Weather forecast (cloud cover, wind, temperature, dewpoint)
+- **Open-Meteo** — Multi-model weather forecast (AROME HD 1.5km + ARPEGE Europe 11km + GFS 13km merge), cloud cover, wind, temperature, dewpoint, seeing
 
 ---
 
@@ -341,6 +342,34 @@ Weather data is averaged **hourly across the entire imaging window duration**, n
 ---
 
 ## Changelog
+
+### v3.1.0 — Multi-Model Weather Merge + Targets Tab + Telescopius Key (2026-08-10)
+
+#### New Features
+- **Multi-model weather merge** — Replaced single-source weather (meteoblue/met_office/best_match) with a 3-source merge:
+  - **AROME France HD** (J1-J2, 1.5 km resolution) — highest precision
+  - **ARPEGE Europe** (J3-J4, 11 km) — mid-range transition
+  - **GFS Seamless** (J5+, 13 km) — long-term forecast
+  - 3 API calls in parallel via `Promise.allSettled` with automatic fallback chain
+  - AROME HD `cloud_cover` nulls patched from ARPEGE Europe
+  - Shared `fetchMergedForecast()` function in `services/weatherService.ts`
+- **Dedicated Targets tab** — Moved TargetExplorer from Dashboard into its own tab in AstroSuite
+  - Dashboard now lighter: 4-night outlook + active projects only
+  - Telescopius API no longer called on every AstroSuite load (lazy-loaded when tab is opened)
+
+#### Updates
+- **Telescopius API key** — Updated proxy API key
+- **Import paths** — Fixed to use `@/services/weatherService` Vite alias instead of relative `../../../` paths
+
+#### Files Modified
+- `services/weatherService.ts` — New `fetchMergedForecast()` with 3-source merge + `fetchAstroForecast()` + `fetchNightlyForecast()` wrappers
+- `src/services/module1/weatherService.ts` — Dashboard Module 1, now uses `fetchMergedForecast`
+- `src/services/module5/sqmService.ts` — SQM weather, now uses `fetchMergedForecast`
+- `src/services/plannerService.ts` — Planner, dynamic import of `fetchMergedForecast`
+- `src/services/projectService.ts` — Moon illumination, dynamic import of `fetchMergedForecast`
+- `components/AstroSuiteView.tsx` — Added `targets` tab, `TargetExplorerView` rendering
+- `components/AplsModule1View.tsx` — Removed `TargetExplorerView` from Dashboard
+- `api/src/telescopius_proxy.py` — Updated API key
 
 ### v3.0.0 — Session-Averaged Weather KPIs + Quality Score Caps (2026-07-14)
 
@@ -420,11 +449,13 @@ Weather data is averaged **hourly across the entire imaging window duration**, n
 ### Done
 - [x] Gallery with tag filtering
 - [x] Processing articles with markdown
-- [x] AstroSuite — Targets, Rigs, Framing, Filters, Exposure, Projects
+- [x] AstroSuite — Dashboard, Targets, Rigs, Framing, Filters, Exposure, Projects
 - [x] Exposure Engine v11 (SB-based, Skyfield Moon ephemeris, atmospheric extinction)
 - [x] PHD2 log analysis
 - [x] Project tracking with KPIs
 - [x] Observation planner with session-averaged weather
+- [x] Multi-model weather merge (AROME HD + ARPEGE Europe + GFS)
+- [x] Dedicated Targets tab (lazy-loaded, reduces API calls)
 - [x] Filter gallery thumbnails
 - [x] PostgreSQL 17 migration
 - [x] PWA support (API paths excluded from cache)
