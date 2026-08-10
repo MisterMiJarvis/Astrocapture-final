@@ -14,7 +14,7 @@ import hashlib
 import requests
 
 TELESCOPIUS_BASE = 'https://api.telescopius.com/v2.2'
-API_KEY = 'f2f28e186a4f09e2305c812848c4c614'
+API_KEY = '1338d4a79922108ac6ad412467586f71'
 
 HEADERS = {
     'Authorization': f'Key {API_KEY}',
