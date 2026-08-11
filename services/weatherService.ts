@@ -36,13 +36,17 @@ function mergeArrays<T>(source1: T[], source2: T[], startIdx: number): T[] {
 
 /**
  * Trouve l'index dans un tableau de timestamps qui correspond au début d'un jour donné.
+ * Les timestamps Open-Meteo (timezone=auto) sont en local time sans suffixe TZ.
+ * On parse directement la date du string (pas de toISOString qui convertit en UTC).
  */
 function findDayStartIndex(times: string[], dayOffset: number): number {
   if (!times || times.length === 0) return 0;
-  const today = new Date(times[0]);
-  const targetDate = new Date(today);
-  targetDate.setDate(today.getDate() + dayOffset);
-  const targetStr = targetDate.toISOString().split('T')[0];
+  // Parser la date du premier timestamp: '2026-08-11T00:00' → '2026-08-11'
+  const firstDate = times[0].split('T')[0];
+  // Calculer la date cible en ajoutant dayOffset jours
+  const [year, month, day] = firstDate.split('-').map(Number);
+  const target = new Date(year, month - 1, day + dayOffset);
+  const targetStr = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
   
   return times.findIndex(t => t.startsWith(targetStr));
 }
