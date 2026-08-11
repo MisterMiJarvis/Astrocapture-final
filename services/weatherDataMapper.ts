@@ -9,6 +9,18 @@ const parseTime = (date: Date, timeStr: string): Date => {
     return newDate;
 };
 
+// Parse Open-Meteo local time strings (timezone=auto, no TZ suffix) as local time.
+// new Date('2026-08-11T22:00') interprets the string as UTC per JS spec, but Open-Meteo
+// with timezone=auto returns hours in the local time of the requested location.
+// We parse the hour/minute directly and use setHours() to create a local time Date.
+const parseLocalTime = (timeStr: string): Date => {
+    const [datePart, timePart] = timeStr.split('T');
+    const [hourStr, minStr] = timePart.split(':');
+    const d = new Date(datePart);
+    d.setHours(parseInt(hourStr), parseInt(minStr || '0'), 0, 0);
+    return d;
+};
+
 const getAntoniadiScale = (seeingValue: number): 'I' | 'II' | 'III' | 'IV' | 'V' => {
     if (seeingValue >= 4.5) return 'I';   // Excellent
     if (seeingValue >= 3.5) return 'II';  // Good
@@ -118,16 +130,7 @@ export const mapAndFilterImagingWindow = (
         const imagingHours: AstroForecastHour[] = [];
 
         data.time.forEach((timeStr, i) => {
-            // Open-Meteo with timezone=auto returns local time strings without TZ suffix
-            // (e.g. "2026-08-11T22:00" = 22:00 in the user's local timezone, NOT UTC)
-            // new Date("2026-08-11T22:00") interprets it as UTC on the server, causing a
-            // timezone offset that leads to wrong hour grouping.
-            // Fix: append the local timezone offset to the time string so Date parses it correctly.
-            // Since we can't know the exact offset, we parse the hour directly from the string.
-            const [datePart, timePart] = timeStr.split('T');
-            const [hourStr, minStr] = timePart.split(':');
-            const hourTime = new Date(datePart);
-            hourTime.setHours(parseInt(hourStr), parseInt(minStr || '0'), 0, 0);
+            const hourTime = parseLocalTime(timeStr);
 
             // Filter to include only hours within our imaging window
             if (hourTime >= windowStart && hourTime <= windowEnd) {
@@ -334,7 +337,7 @@ export const mapNightlyForecast = (data: AstroForecastResponse | null): NightlyF
         let windSpeeds: number[] = [];
 
         data.time.forEach((t, idx) => {
-            const time = new Date(t);
+            const time = parseLocalTime(t);
             if (time >= nightStart && time <= nightEnd) {
                 temps.push(data.temperature_2m[idx]);
                 clouds.push(data.cloud_cover[idx]);

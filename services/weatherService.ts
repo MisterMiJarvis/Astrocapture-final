@@ -62,6 +62,11 @@ export async function fetchMergedForecast(
 ): Promise<MergedWeatherData> {
   const lat = latitude.toFixed(2);
   const lon = longitude.toFixed(2);
+  // Use auto timezone so Open-Meteo returns hours in the local time of the requested location.
+  // This means time strings like '2026-08-11T22:00' are in Paris time (UTC+2), NOT UTC.
+  // new Date('2026-08-11T22:00') interprets this as UTC per the JS spec, which is wrong.
+  // We fix this in weatherDataMapper by parsing the hour directly from the string
+  // and using setHours() which uses the runtime's local timezone.
   const tz = 'auto';
 
   // Lancer les 3 requêtes en parallèle
