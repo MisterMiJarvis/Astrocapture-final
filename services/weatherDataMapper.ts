@@ -118,7 +118,16 @@ export const mapAndFilterImagingWindow = (
         const imagingHours: AstroForecastHour[] = [];
 
         data.time.forEach((timeStr, i) => {
-            const hourTime = new Date(timeStr);
+            // Open-Meteo with timezone=auto returns local time strings without TZ suffix
+            // (e.g. "2026-08-11T22:00" = 22:00 in the user's local timezone, NOT UTC)
+            // new Date("2026-08-11T22:00") interprets it as UTC on the server, causing a
+            // timezone offset that leads to wrong hour grouping.
+            // Fix: append the local timezone offset to the time string so Date parses it correctly.
+            // Since we can't know the exact offset, we parse the hour directly from the string.
+            const [datePart, timePart] = timeStr.split('T');
+            const [hourStr, minStr] = timePart.split(':');
+            const hourTime = new Date(datePart);
+            hourTime.setHours(parseInt(hourStr), parseInt(minStr || '0'), 0, 0);
 
             // Filter to include only hours within our imaging window
             if (hourTime >= windowStart && hourTime <= windowEnd) {
