@@ -1003,6 +1003,38 @@ app.get('/api/dso/search/:name', async (c) => {
       age: null,
       ageUnit: 'years'
     },
+    'NGC6960': {
+      _aliases: ['VEILNEBULAWEST', 'WESTERN VEIL', 'WITCHS BROOM', 'VEIL NEBULA EAST'],
+      id: 'NGC6960',
+      commonName: 'Veil Nebula (West) / Witch\'s Broom',
+      objectType: 'Supernova Remnant',
+      constellation: 'Cygnus',
+      rightAscension: '20 45 38',
+      declination: '+30 42 30',
+      distance: 2400,
+      distanceUnit: 'ly',
+      magnitude: 7.0,
+      catalogDenominations: ['NGC 6960', 'Caldwell 34', "Witch's Broom"],
+      composition: ['Ionized Hydrogen', 'Ionized Oxygen', 'Ionized Sulfur'],
+      age: null,
+      ageUnit: 'years'
+    },
+    'IC5070': {
+      _aliases: ['PELICANNEBULA', 'PELICAN NEBULA'],
+      id: 'IC5070',
+      commonName: 'Pelican Nebula',
+      objectType: 'Emission Nebula',
+      constellation: 'Cygnus',
+      rightAscension: '20 50 48',
+      declination: '+44 20 60',
+      distance: 1800,
+      distanceUnit: 'ly',
+      magnitude: 8.0,
+      catalogDenominations: ['IC 5070', 'Caldwell 20'],
+      composition: ['Ionized Hydrogen'],
+      age: null,
+      ageUnit: 'years'
+    },
     'ORIONNEBULA': {
       _aliases: ['M42', 'NGC1976', 'NGC 1976'],
       id: 'M42',
