@@ -1899,7 +1899,21 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
     try {
       const data = await fetchDsoData(editingPost.objectName);
       setDsoLookup(data);
-      if (!data) setDsoLookupError('No object identity found for this name');
+      if (!data) {
+        setDsoLookupError('No object identity found for this name');
+      } else {
+        // Auto-fill the Object identity section of the form
+        setEditingPost(prev => prev ? {
+          ...prev,
+          objectType: data.objectType || prev.objectType,
+          constellation: data.constellation || prev.constellation,
+          rightAscension: data.rightAscension || prev.rightAscension,
+          declination: data.declination || prev.declination,
+          magnitude: data.magnitude ?? prev.magnitude,
+          distance: data.distance ?? prev.distance,
+          catalogDenominations: data.catalogDenominations || prev.catalogDenominations,
+        } : prev);
+      }
     } catch (err) {
       setDsoLookupError('Failed to fetch object identity');
     } finally {
