@@ -44,7 +44,7 @@ const auth = async (c: any, next: any) => {
 
 app.post('/api/auth/login', async (c) => {
   const { email, password } = await c.req.json();
-  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+  const user = await db.prepare('SELECT * FROM astrocapture_users WHERE email = ?').get(email) as any;
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
@@ -59,7 +59,7 @@ app.get('/api/auth/me', async (c) => {
   }
   try {
     const payload = await Jwt.verify(header.slice(7), JWT_SECRET, 'HS256') as any;
-    const user = await db.prepare('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?').get(payload.id) as any;
+    const user = await db.prepare('SELECT id, email, first_name, last_name, is_admin FROM astrocapture_users WHERE id = ?').get(payload.id) as any;
     if (!user) return c.json({ error: 'User not found' }, 404);
     return c.json({ user: { id: user.id, email: user.email, firstName: user.first_name || '', lastName: user.last_name || '', isAdmin: !!user.is_admin } });
   } catch {
@@ -68,7 +68,7 @@ app.get('/api/auth/me', async (c) => {
 });
 
 app.post('/api/auth/setup', async (c) => {
-  const userCount = (await db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
+  const userCount = (await db.prepare('SELECT COUNT(*) as count FROM astrocapture_users').get() as any).count;
   if (userCount > 0) return c.json({ error: 'Admin already exists' }, 400);
   const { email, password } = await c.req.json();
   if (!email || !password || password.length < 6) {
@@ -76,14 +76,14 @@ app.post('/api/auth/setup', async (c) => {
   }
   const id = crypto.randomUUID();
   const hash = await bcrypt.hash(password, 10);
-  await db.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)').run(id, email, hash);
+  await db.prepare('INSERT INTO astrocapture_users (id, email, password_hash) VALUES (?, ?, ?)').run(id, email, hash);
   const token = await Jwt.sign({ id, email }, JWT_SECRET);
   return c.json({ token, user: { id, email } });
 });
 
 app.post('/api/auth/astro-login', async (c) => {
   const { email, password } = await c.req.json();
-  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+  const user = await db.prepare('SELECT * FROM astrocapture_users WHERE email = ?').get(email) as any;
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
@@ -107,7 +107,7 @@ app.post('/api/auth/astro-login', async (c) => {
 app.get('/api/users', auth, async (c) => {
   const authUser = c.get('user') as AuthUser;
   if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
-  const rows = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users ORDER BY created_at DESC').all();
+  const rows = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM astrocapture_users ORDER BY created_at DESC').all();
   const users = (rows as any[]).map(row => ({
     id: row.id,
     email: row.email,
@@ -126,13 +126,13 @@ app.post('/api/users', auth, async (c) => {
   if (!email || !password || password.length < 6) {
     return c.json({ error: 'Email and password (min 6 chars) required' }, 400);
   }
-  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = await db.prepare('SELECT id FROM astrocapture_users WHERE email = ?').get(email);
   if (existing) return c.json({ error: 'Email already exists' }, 409);
   const id = crypto.randomUUID();
   const hash = await bcrypt.hash(password, 10);
-  await db.prepare('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin) VALUES (?, ?, ?, ?, ?, ?)')
+  await db.prepare('INSERT INTO astrocapture_users (id, email, password_hash, first_name, last_name, is_admin) VALUES (?, ?, ?, ?, ?, ?)')
     .run(id, email, hash, firstName || '', lastName || '', isAdmin ? 1 : 0);
-  const user = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
+  const user = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM astrocapture_users WHERE id = ?').get(id) as any;
   return c.json({
     user: {
       id: user.id,
@@ -150,7 +150,7 @@ app.put('/api/users/:id', auth, async (c) => {
   if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
   const { email, firstName, lastName, password, isAdmin } = await c.req.json();
   const id = c.req.param('id');
-  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+  const user = await db.prepare('SELECT * FROM astrocapture_users WHERE id = ?').get(id) as any;
   if (!user) return c.json({ error: 'User not found' }, 404);
 
   let updates: string[] = [];
@@ -166,9 +166,9 @@ app.put('/api/users/:id', auth, async (c) => {
   }
   if (updates.length === 0) return c.json({ error: 'No fields to update' }, 400);
   params.push(id);
-  await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  await db.prepare(`UPDATE astrocapture_users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
-  const updated = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM users WHERE id = ?').get(id) as any;
+  const updated = await db.prepare('SELECT id, email, first_name, last_name, is_admin, created_at FROM astrocapture_users WHERE id = ?').get(id) as any;
   return c.json({
     user: {
       id: updated.id,
@@ -186,7 +186,7 @@ app.delete('/api/users/:id', auth, async (c) => {
   if (!authUser.isAdmin) return c.json({ error: 'Admin required' }, 403);
   const id = c.req.param('id');
   if (id === authUser.id) return c.json({ error: 'Cannot delete yourself' }, 400);
-  await db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  await db.prepare('DELETE FROM astrocapture_users WHERE id = ?').run(id);
   return c.json({ ok: true });
 });
 
@@ -576,7 +576,7 @@ app.post('/api/posts', auth, async (c) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     id, body.title || '', body.imageUrl || '', body.objectName || '', body.captureDate || '',
     body.equipment || '', body.description || '', JSON.stringify(body.tags || []),
-    body.astrobinUrl || '', body.rawDataUrl || '', body.totalIntegrationTime || 0,
+    body.astrobinUrl || '', body.rawDataUrl || '', Math.round(Number(body.totalIntegrationTime) || 0),
     body.showOnWall ? 1 : 0, now
   );
   // Insert acquisition logs if provided
@@ -585,7 +585,7 @@ app.post('/api/posts', auth, async (c) => {
       const logId = log.id || crypto.randomUUID();
       await db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
         VALUES (?, ?, ?, ?, ?, ?)`).run(
-        logId, id, log.date || '', log.filter || '', log.exposureCount || 0, log.exposureLength || 0
+        logId, id, log.date || '', log.filter || '', Math.round(Number(log.exposureCount) || 0), Math.round(Number(log.exposureLength) || 0)
       );
     }
   }
@@ -606,7 +606,7 @@ app.put('/api/posts/:id', auth, async (c) => {
     body.title ?? '', body.imageUrl ?? '', body.objectName ?? '', body.captureDate ?? '',
     body.equipment ?? '', body.description ?? '', JSON.stringify(body.tags || []),
     body.astrobinUrl ?? '', body.rawDataUrl ?? '',
-    body.totalIntegrationTime ?? 0, body.showOnWall ? 1 : 0, now, id
+    Math.round(Number(body.totalIntegrationTime) ?? 0), body.showOnWall ? 1 : 0, now, id
   );
   // Update acquisition logs: delete old, insert new
   if (body.acquisitionLogs !== undefined) {
@@ -616,7 +616,7 @@ app.put('/api/posts/:id', auth, async (c) => {
         const logId = log.id || crypto.randomUUID();
         await db.prepare(`INSERT INTO acquisition_logs (id, post_id, date, filter, exposure_count, exposure_length)
           VALUES (?, ?, ?, ?, ?, ?)`).run(
-          logId, id, log.date || '', log.filter || '', log.exposureCount || 0, log.exposureLength || 0
+          logId, id, log.date || '', log.filter || '', Math.round(Number(log.exposureCount) || 0), Math.round(Number(log.exposureLength) || 0)
         );
       }
     }
@@ -1894,7 +1894,7 @@ app.get('/api/seed/status', async (c) => {
   const targets = (await db.prepare('SELECT COUNT(*) as c FROM observation_targets').get() as any).c;
   const sessions = (await db.prepare('SELECT COUNT(*) as c FROM observation_sessions').get() as any).c;
   const configs = (await db.prepare('SELECT COUNT(*) as c FROM site_config').get() as any).c;
-  const users = (await db.prepare('SELECT COUNT(*) as c FROM users').get() as any).c;
+  const users = (await db.prepare('SELECT COUNT(*) as c FROM astrocapture_users').get() as any).c;
   const dso = (await db.prepare('SELECT COUNT(*) as c FROM dso_cache').get() as any).c;
   return c.json({ posts, processingPosts: processing, equipment, targets, sessions, configs, users, dsoCache: dso });
 });
@@ -2929,7 +2929,7 @@ console.log(`🔭 AstroCapture API starting on port ${PORT}...`);
 
 // Seed default filters for existing users if they have none
 try {
-  const users = await db.prepare('SELECT id FROM users').all() as any[];
+  const users = await db.prepare('SELECT id FROM astrocapture_users').all() as any[];
   const filterCount = (await db.prepare('SELECT COUNT(*) as c FROM apls_filters').get() as any).c;
   if (filterCount === 0 && users.length > 0) {
     const defaultFilters = [

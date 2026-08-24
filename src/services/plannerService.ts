@@ -399,7 +399,13 @@ export function computePlanner(
 
   function getWeatherForTime(d: Date): WeatherSnapshot | null {
     if (weatherMap.size === 0) return null;
-    const key = d.toISOString().substring(0, 13);
+    // Use local time components to match Open-Meteo timezone=auto forecast keys
+    // (toISOString() would convert to UTC and cause a timezone mismatch)
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const key = `${yyyy}-${mm}-${dd}T${hh}`;
     return weatherMap.get(key) || null;
   }
 

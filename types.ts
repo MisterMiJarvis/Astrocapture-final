@@ -175,7 +175,7 @@ export interface ProcessingPost {
   description: string;
   tags: string[];
   captureDate: string;
-  postType: 'before-after' | 'research' | 'gallery' | 'gear-review';
+  postType: 'before-after' | 'general' | 'gallery' | 'gear-review';
   beforeImageUrl?: string;
   afterImageUrl?: string;
   featuredImageUrl?: string;

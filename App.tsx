@@ -1069,7 +1069,7 @@ const ProcessingView: React.FC<{ posts: ProcessingPost[], config: ProcessingConf
   const getPostTypeLabel = (type: string) => {
       switch (type) {
           case 'before-after': return 'Before & After';
-          case 'research': return 'Research';
+          case 'general': return 'General';
           case 'gallery': return 'Gallery';
           case 'gear-review': return 'Gear Review';
           default: return 'Article';
@@ -1079,7 +1079,7 @@ const ProcessingView: React.FC<{ posts: ProcessingPost[], config: ProcessingConf
   const getPostThumbnail = (post: ProcessingPost) => {
       switch (post.postType) {
           case 'before-after': return post.afterImageUrl;
-          case 'research': return post.featuredImageUrl;
+          case 'general': return post.featuredImageUrl;
           case 'gallery': return post.galleryImages?.[0]?.imageUrl;
           case 'gear-review': return post.gearReviewData?.imageUrl;
           default: return '';
@@ -1240,7 +1240,7 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
     const getPostTypeLabel = (type: string) => {
         switch (type) {
             case 'before-after': return 'Before & After';
-            case 'research': return 'Research Article';
+            case 'general': return 'General Article';
             case 'gallery': return 'Image Gallery';
             default: return 'Article';
         }
@@ -1274,7 +1274,7 @@ const ProcessingPostDetailView: React.FC<{ post: ProcessingPost | undefined, onB
                 </div>
             )}
 
-            {post.postType === 'research' && post.featuredImageUrl && (
+            {post.postType === 'general' && post.featuredImageUrl && (
                 <img
                   src={post.featuredImageUrl}
                   alt={post.title}
@@ -1395,7 +1395,7 @@ const ImageWallView: React.FC<{
             images.push({ id: `${post.id}-after`, url: post.afterImageUrl, alt: `${post.title} (After)` });
           }
           break;
-        case 'research':
+        case 'general':
           if ((post.showFeaturedOnWall ?? true) && post.featuredImageUrl) {
             images.push({ id: `${post.id}-featured`, url: post.featuredImageUrl, alt: post.title });
           }
@@ -1752,7 +1752,7 @@ const AdminImageWallPanel: React.FC<{ posts: Post[], processingPosts: Processing
           id: `proc-after-${p.id}`, url: p.afterImageUrl, label: `${p.title} (After)`,
           isChecked: p.showAfterOnWall ?? true, collection: 'processingPosts', docId: p.id, imageType: 'after'
         });
-      } else if (p.postType === 'research') {
+      } else if (p.postType === 'general') {
         if (p.featuredImageUrl) allImages.push({
           id: `proc-featured-${p.id}`, url: p.featuredImageUrl, label: `${p.title} (Featured)`,
           isChecked: p.showFeaturedOnWall ?? true, collection: 'processingPosts', docId: p.id, imageType: 'featured'
@@ -1836,6 +1836,9 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
   const [acquisitionLogs, setAcquisitionLogs] = React.useState<AcquisitionLogEntry[]>([]);
   const [rigProfiles, setRigProfiles] = React.useState<any[]>([]);
   const [astroFilters, setAstroFilters] = React.useState<any[]>([]);
+  const [dsoLookup, setDsoLookup] = React.useState<DeepSkyObject | null>(null);
+  const [isDsoLookupLoading, setIsDsoLookupLoading] = React.useState(false);
+  const [dsoLookupError, setDsoLookupError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     fetchRigProfiles().then(profiles => setRigProfiles(profiles)).catch(() => {});
@@ -1886,6 +1889,24 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
     setEditingPost(prev => ({ ...prev!, [field]: value }));
   };
 
+  const handleDsoLookup = async () => {
+    if (!editingPost?.objectName?.trim()) {
+      setDsoLookupError('Enter an object name first');
+      return;
+    }
+    setIsDsoLookupLoading(true);
+    setDsoLookupError(null);
+    try {
+      const data = await fetchDsoData(editingPost.objectName);
+      setDsoLookup(data);
+      if (!data) setDsoLookupError('No object identity found for this name');
+    } catch (err) {
+      setDsoLookupError('Failed to fetch object identity');
+    } finally {
+      setIsDsoLookupLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!editingPost) return;
     setIsSaving(true);
@@ -1918,7 +1939,7 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
 
     const tags = Array.isArray(finalPost.tags) ? finalPost.tags : (finalPost.tags as unknown as string).split(',').map(t => t.trim()).filter(Boolean);
 
-    const totalMinutes = acquisitionLogs.reduce((total, log) => total + (log.exposureCount * log.exposureLength) / 60, 0);
+    const totalMinutes = Math.round(acquisitionLogs.reduce((total, log) => total + (log.exposureCount * log.exposureLength) / 60, 0));
 
     try {
       await saveCollectionItem('posts', finalPost.id, { ...finalPost, tags, acquisitionLogs, totalIntegrationTime: totalMinutes });
@@ -1987,7 +2008,41 @@ const AdminGalleryPanel: React.FC<{ posts: Post[] }> = ({ posts }) => {
         <Modal isOpen={isModalOpen} onClose={closeModal} title={editingPost.id.startsWith('post_') ? 'Add New Post' : 'Edit Post'}>
           <div className="space-y-4">
             <Input label="Title" value={editingPost.title} onChange={e => handleFieldChange('title', e.target.value)} />
-            <Input label="Object Name (e.g., M42)" value={editingPost.objectName} onChange={e => handleFieldChange('objectName', e.target.value)} />
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Object Name (e.g., M42)</label>
+              <div className="flex gap-2">
+                <Input value={editingPost.objectName} onChange={e => handleFieldChange('objectName', e.target.value)} className="flex-1" />
+                <Button onClick={handleDsoLookup} variant="secondary" disabled={isDsoLookupLoading} className="!px-3 whitespace-nowrap">
+                  {isDsoLookupLoading ? 'Fetching...' : 'Fetch Object Identity'}
+                </Button>
+              </div>
+            </div>
+
+            {dsoLookupError && <div className="text-sm text-red-500">{dsoLookupError}</div>}
+
+            {dsoLookup && (
+              <div className="bg-surface border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-display font-bold text-sm">Object Identity: {dsoLookup.commonName || dsoLookup.id}</h4>
+                  <button onClick={() => setDsoLookup(null)} className="text-text-secondary hover:text-primary text-sm">✕</button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-text-secondary block">Type</span><span className="font-bold">{dsoLookup.objectType || 'N/A'}</span></div>
+                  <div><span className="text-text-secondary block">Constellation</span><span className="font-bold">{dsoLookup.constellation || 'N/A'}</span></div>
+                  <div><span className="text-text-secondary block">RA</span><span className="font-bold font-mono">{dsoLookup.rightAscension || 'N/A'}</span></div>
+                  <div><span className="text-text-secondary block">Dec</span><span className="font-bold font-mono">{dsoLookup.declination || 'N/A'}</span></div>
+                  <div><span className="text-text-secondary block">Magnitude</span><span className="font-bold">{dsoLookup.magnitude ?? 'N/A'}</span></div>
+                  <div><span className="text-text-secondary block">Distance</span><span className="font-bold">{dsoLookup.distance ? `${dsoLookup.distance.toLocaleString()} ly` : 'N/A'}</span></div>
+                </div>
+                {dsoLookup.catalogDenominations && dsoLookup.catalogDenominations.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {dsoLookup.catalogDenominations.map(name => (
+                      <span key={name} className="px-2 py-0.5 text-xs rounded-full bg-primary/10 border border-primary/20 text-primary/80">{name}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">Description (HTML supported)</label>
@@ -2239,7 +2294,7 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
     const getPostThumbnail = (post: ProcessingPost) => {
         switch (post.postType) {
             case 'before-after': return post.afterImageUrl;
-            case 'research': return post.featuredImageUrl;
+            case 'general': return post.featuredImageUrl;
             case 'gallery': return post.galleryImages?.[0]?.imageUrl;
             default: return '';
         }
@@ -2277,10 +2332,10 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                         <Select
                             label="Post Type"
                             value={editingPost.postType}
-                            onChange={e => handleFieldChange('postType', e.target.value as 'before-after' | 'research' | 'gallery')}
+                            onChange={e => handleFieldChange('postType', e.target.value as 'before-after' | 'general' | 'gallery')}
                         >
                             <option value="before-after">Before & After</option>
-                            <option value="research">Research</option>
+                            <option value="general">General</option>
                             <option value="gallery">Gallery</option>
                         </Select>
 
@@ -2295,7 +2350,7 @@ const AdminProcessingPanel: React.FC<{ posts: ProcessingPost[] }> = ({ posts }) 
                             </div>
                         )}
 
-                        {editingPost.postType === 'research' && (
+                        {editingPost.postType === 'general' && (
                             <div className="space-y-4">
                                 <ImageUploader label="Featured Image" currentImageUrl={editingPost.featuredImageUrl || ''} imageFile={featuredImageFile} onUrlChange={url => handleFieldChange('featuredImageUrl', url)} onFileChange={setFeaturedImageFile} id="featured-img-upload" />
                                 <FileUploader label="Attached Document" currentFileUrl={editingPost.attachedDocumentUrl || ''} file={documentFile} onUrlChange={url => handleFieldChange('attachedDocumentUrl', url)} onFileChange={setDocumentFile} id="doc-upload" icon={<FileIcon size={24} className="text-text-secondary" />} accept=".pdf,.doc,.docx,.txt" />

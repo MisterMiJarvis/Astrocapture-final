@@ -1,8 +1,8 @@
 import { AstroForecastResponse } from '../types';
 
 // ============================================================================
-// MÉTÉO MULTI-MODÈLES — Merge AROME HD + ARPEGE Europe + GFS
-// AROME France HD (1.5 km) pour J1-J2, ARPEGE Europe (11 km) pour J3-J4,
+// MÉTÉO MULTI-MODÈLES — Météo-France Seamless + GFS
+// meteofrance_seamless (merge auto Météo-France) pour J1-J4,
 // GFS (13 km) pour J5+. Appels parallèles, merge des tableaux hourly/daily.
 // ============================================================================
 
@@ -73,23 +73,16 @@ export async function fetchMergedForecast(
   // and using setHours() which uses the runtime's local timezone.
   const tz = 'auto';
 
-  // Lancer les 3 requêtes en parallèle
-  const [aromeRes, arpegeRes, gfsRes] = await Promise.allSettled([
-    // 1. AROME France HD — J1-J2
+  // Lancer les 2 requêtes en parallèle
+  const [seamlessRes, gfsRes] = await Promise.allSettled([
+    // 1. Météo-France Seamless — J1-J4 (merge auto Météo-France: AROME + ARPEGE)
     fetch(
-      `https://api.open-meteo.com/v1/meteofrance?latitude=${lat}&longitude=${lon}` +
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&hourly=${HOURLY_VARS}&daily=${DAILY_VARS}` +
-      `&forecast_days=2&timezone=${tz}&models=arome_france_hd`
-    ).then(r => r.ok ? r.json() : Promise.reject(new Error(`AROME HD: ${r.status}`))),
+      `&forecast_days=4&timezone=${tz}&models=meteofrance_seamless`
+    ).then(r => r.ok ? r.json() : Promise.reject(new Error(`Météo-France Seamless: ${r.status}`))),
 
-    // 2. ARPEGE Europe — J3-J4 (on récupère 4 jours mais on garde que J3-J4)
-    fetch(
-      `https://api.open-meteo.com/v1/meteofrance?latitude=${lat}&longitude=${lon}` +
-      `&hourly=${HOURLY_VARS}&daily=${DAILY_VARS}` +
-      `&forecast_days=4&timezone=${tz}&models=arpege_europe`
-    ).then(r => r.ok ? r.json() : Promise.reject(new Error(`ARPEGE Europe: ${r.status}`))),
-
-    // 3. GFS — J5+ (on récupère 7 jours mais on garde que J5+)
+    // 2. GFS — J5+ (on récupère tous les jours restants)
     fetch(
       `https://api.open-meteo.com/v1/gfs?latitude=${lat}&longitude=${lon}` +
       `&hourly=${HOURLY_VARS}&daily=${DAILY_VARS}` +
@@ -101,54 +94,38 @@ export async function fetchMergedForecast(
   const errors: string[] = [];
 
   // Récupérer les données (avec fallback si une source échoue)
-  let aromeData: any = aromeRes.status === 'fulfilled' ? aromeRes.value : null;
-  let arpegeData: any = arpegeRes.status === 'fulfilled' ? arpegeRes.value : null;
+  let seamlessData: any = seamlessRes.status === 'fulfilled' ? seamlessRes.value : null;
   let gfsData: any = gfsRes.status === 'fulfilled' ? gfsRes.value : null;
 
-  if (!aromeData) {
-    errors.push('AROME HD failed');
-    // Fallback: utiliser ARPEGE pour J1-J2 si AROME échoue
-    if (arpegeData) {
-      aromeData = arpegeData;
-      modelsUsed.push({ range: 'J1-J2', model: 'arpege_europe (fallback, AROME failed)' });
-    } else if (gfsData) {
-      aromeData = gfsData;
-      modelsUsed.push({ range: 'J1-J2', model: 'gfs_seamless (fallback, AROME failed)' });
-    }
-  } else {
-    modelsUsed.push({ range: 'J1-J2', model: 'arome_france_hd' });
-  }
-
-  if (!arpegeData) {
-    errors.push('ARPEGE Europe failed');
-    // Fallback: GFS couvre J3-J4
+  if (!seamlessData) {
+    errors.push('Météo-France Seamless failed');
+    // Fallback: utiliser GFS pour J1-J4 si Seamless échoue
     if (gfsData) {
-      arpegeData = gfsData;
-      modelsUsed.push({ range: 'J3-J4', model: 'gfs_seamless (fallback, ARPEGE failed)' });
+      seamlessData = gfsData;
+      modelsUsed.push({ range: 'J1-J4', model: 'gfs_seamless (fallback, Seamless failed)' });
     }
   } else {
-    modelsUsed.push({ range: 'J3-J4', model: 'arpege_europe' });
+    modelsUsed.push({ range: 'J1-J4', model: 'meteofrance_seamless' });
   }
 
   if (!gfsData) {
     errors.push('GFS failed');
-    // Fallback: ARPEGE pour J5+ (limite à 4 jours donc incomplet)
-    if (arpegeData) {
-      gfsData = arpegeData;
-      modelsUsed.push({ range: 'J5+', model: 'arpege_europe (fallback, GFS failed)' });
+    // Fallback: Seamless pour J5+ (limite à 4 jours donc incomplet)
+    if (seamlessData) {
+      gfsData = seamlessData;
+      modelsUsed.push({ range: 'J5+', model: 'meteofrance_seamless (fallback, GFS failed)' });
     }
   } else {
     modelsUsed.push({ range: 'J5+', model: 'gfs_seamless' });
   }
 
   // Si tout a échoué
-  if (!aromeData && !arpegeData && !gfsData) {
+  if (!seamlessData && !gfsData) {
     throw new Error('All weather models failed: ' + errors.join(', '));
   }
 
   // --- MERGE HOURLY ---
-  // AROME: J1-J2 (48 heures, index 0-47)
-  // ARPEGE: J3-J4 commencent à l'index 48 (jour 3 = heures 48-71, jour 4 = heures 72-95)
+  // Seamless: J1-J4 (96 heures, index 0-95)
   // GFS: J5+ commencent à l'index 96
 
   let mergedHourlyTime: string[] = [];
@@ -163,8 +140,8 @@ export async function fetchMergedForecast(
   let mergedHourlyWindGusts: number[] = [];
   let mergedHourlyPrecip: number[] = [];
 
-  // Source primaire pour J1-J2
-  const primarySource = aromeData || arpegeData || gfsData;
+  // Source primaire pour J1-J4
+  const primarySource = seamlessData || gfsData;
   
   if (primarySource?.hourly) {
     mergedHourlyTime = [...(primarySource.hourly.time || [])];
@@ -180,43 +157,8 @@ export async function fetchMergedForecast(
     mergedHourlyPrecip = [...(primarySource.hourly.precipitation || [])];
   }
 
-  // ⚠️ AROME France HD ne fournit pas cloud_cover (null pour 100% des heures)
-  // Fallback: combler les nulls avec ARPEGE Europe sur J1-J2
-  if (aromeData?.hourly && arpegeData?.hourly) {
-    const aromeCloud = aromeData.hourly.cloud_cover || [];
-    const arpegeCloud = arpegeData.hourly.cloud_cover || [];
-    let patched = 0;
-    for (let i = 0; i < Math.min(aromeCloud.length, arpegeCloud.length); i++) {
-      if (aromeCloud[i] === null && arpegeCloud[i] !== null && arpegeCloud[i] !== undefined) {
-        mergedHourlyCloudCover[i] = arpegeCloud[i];
-        patched++;
-      }
-    }
-    if (patched > 0) {
-      console.log(`[Weather] AROME HD cloud_cover: ${patched} nulls patched from ARPEGE Europe`);
-    }
-  }
-
-  // ARPEGE pour J3-J4 (index 48-95 dans le tableau ARPEGE qui a 4 jours)
-  if (arpegeData?.hourly && arpegeData !== primarySource) {
-    const arpegeStartIdx = findDayStartIndex(arpegeData.hourly.time, 2); // J3 = offset 2
-    if (arpegeStartIdx >= 0) {
-      mergedHourlyTime = mergeArrays(mergedHourlyTime, arpegeData.hourly.time, arpegeStartIdx);
-      mergedHourlyTemp = mergeArrays(mergedHourlyTemp, arpegeData.hourly.temperature_2m || [], arpegeStartIdx);
-      mergedHourlyDewpoint = mergeArrays(mergedHourlyDewpoint, arpegeData.hourly.dewpoint_2m || [], arpegeStartIdx);
-      mergedHourlyHumidity = mergeArrays(mergedHourlyHumidity, arpegeData.hourly.relative_humidity_2m || [], arpegeStartIdx);
-      mergedHourlyCloudCover = mergeArrays(mergedHourlyCloudCover, arpegeData.hourly.cloud_cover || [], arpegeStartIdx);
-      mergedHourlyCloudLow = mergeArrays(mergedHourlyCloudLow, arpegeData.hourly.cloud_cover_low || [], arpegeStartIdx);
-      mergedHourlyCloudMid = mergeArrays(mergedHourlyCloudMid, arpegeData.hourly.cloud_cover_mid || [], arpegeStartIdx);
-      mergedHourlyCloudHigh = mergeArrays(mergedHourlyCloudHigh, arpegeData.hourly.cloud_cover_high || [], arpegeStartIdx);
-      mergedHourlyWindSpeed = mergeArrays(mergedHourlyWindSpeed, arpegeData.hourly.wind_speed_10m || [], arpegeStartIdx);
-      mergedHourlyWindGusts = mergeArrays(mergedHourlyWindGusts, arpegeData.hourly.wind_gusts_10m || [], arpegeStartIdx);
-      mergedHourlyPrecip = mergeArrays(mergedHourlyPrecip, arpegeData.hourly.precipitation || [], arpegeStartIdx);
-    }
-  }
-
-  // GFS pour J5+ (index 96+ dans le tableau GFS qui a 7 jours)
-  if (gfsData?.hourly && gfsData !== primarySource && gfsData !== arpegeData) {
+  // GFS pour J5+ (index 96+ dans le tableau GFS)
+  if (gfsData?.hourly && gfsData !== primarySource) {
     const gfsStartIdx = findDayStartIndex(gfsData.hourly.time, 4); // J5 = offset 4
     if (gfsStartIdx >= 0) {
       mergedHourlyTime = mergeArrays(mergedHourlyTime, gfsData.hourly.time, gfsStartIdx);
@@ -234,7 +176,7 @@ export async function fetchMergedForecast(
   }
 
   // --- MERGE DAILY ---
-  // Même logique: AROME J1-J2, ARPEGE J3-J4, GFS J5+
+  // Même logique: Seamless J1-J4, GFS J5+
   // ⚠️ moon_phase n'est disponible que sur GFS. Pour J1-J4, on prend les valeurs GFS si dispo.
   let mergedDailyTime: string[] = [];
   let mergedDailyTempMax: number[] = [];
@@ -256,26 +198,7 @@ export async function fetchMergedForecast(
     mergedDailyMoonPhase = [...(primarySource.daily.moon_phase || [])];
   }
 
-  if (arpegeData?.daily && arpegeData !== primarySource) {
-    const arpegeDailyStart = arpegeData.daily.time?.findIndex((t: string) => 
-      t === (mergedDailyTime[mergedDailyTime.length - 1] ? 
-        new Date(new Date(mergedDailyTime[mergedDailyTime.length - 1]).getTime() + 86400000).toISOString().split('T')[0] 
-        : null)
-    );
-    // Si on trouve le jour suivant le dernier jour AROME, on merge à partir de là
-    if (arpegeDailyStart !== undefined && arpegeDailyStart >= 0) {
-      mergedDailyTime = mergeArrays(mergedDailyTime, arpegeData.daily.time, arpegeDailyStart);
-      mergedDailyTempMax = mergeArrays(mergedDailyTempMax, arpegeData.daily.temperature_2m_max || [], arpegeDailyStart);
-      mergedDailyTempMin = mergeArrays(mergedDailyTempMin, arpegeData.daily.temperature_2m_min || [], arpegeDailyStart);
-      mergedDailySunrise = mergeArrays(mergedDailySunrise, arpegeData.daily.sunrise || [], arpegeDailyStart);
-      mergedDailySunset = mergeArrays(mergedDailySunset, arpegeData.daily.sunset || [], arpegeDailyStart);
-      mergedDailyMoonrise = mergeArrays(mergedDailyMoonrise, arpegeData.daily.moonrise || [], arpegeDailyStart);
-      mergedDailyMoonset = mergeArrays(mergedDailyMoonset, arpegeData.daily.moonset || [], arpegeDailyStart);
-      mergedDailyMoonPhase = mergeArrays(mergedDailyMoonPhase, arpegeData.daily.moon_phase || [], arpegeDailyStart);
-    }
-  }
-
-  if (gfsData?.daily && gfsData !== primarySource && gfsData !== arpegeData) {
+  if (gfsData?.daily && gfsData !== primarySource) {
     const gfsDailyStart = gfsData.daily.time?.findIndex((t: string) =>
       t === (mergedDailyTime[mergedDailyTime.length - 1] ? 
         new Date(new Date(mergedDailyTime[mergedDailyTime.length - 1]).getTime() + 86400000).toISOString().split('T')[0]
@@ -350,7 +273,7 @@ export async function fetchMergedForecast(
 
 /**
  * Fetches a specialized astrophotography forecast from the merged multi-model API.
- * Uses AROME HD for J1-J2, ARPEGE Europe for J3-J4, GFS for J5+.
+ * Uses meteofrance_seamless for J1-J4, GFS for J5+.
  * @param latitude The user's latitude.
  * @param longitude The user's longitude.
  * @param startDate The start date for the forecast.
@@ -368,7 +291,7 @@ export const fetchAstroForecast = async (latitude: number, longitude: number, st
 
 /**
  * Fetches a 14-day weather forecast for nightly summaries.
- * Uses merged models: AROME HD (J1-J2), ARPEGE Europe (J3-J4), GFS (J5+).
+ * Uses merged models: meteofrance_seamless (J1-J4), GFS (J5+).
  * @param latitude The user's latitude.
  * @param longitude The user's longitude.
  * @returns A promise that resolves to the hourly forecast data.
