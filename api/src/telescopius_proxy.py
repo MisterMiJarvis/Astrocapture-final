@@ -14,7 +14,12 @@ import hashlib
 import requests
 
 TELESCOPIUS_BASE = 'https://api.telescopius.com/v2.2'
-API_KEY = '1338d4a79922108ac6ad412467586f71'
+# API key from environment (never hardcode — repo is public)
+API_KEY = os.environ.get('TELESCOPIUS_API_KEY', '')
+
+if not API_KEY:
+    print(json.dumps({'error': 'TELESCOPIUS_API_KEY environment variable is not set'}, indent=2))
+    sys.exit(1)
 
 HEADERS = {
     'Authorization': f'Key {API_KEY}',

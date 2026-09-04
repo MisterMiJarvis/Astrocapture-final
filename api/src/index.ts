@@ -1,16 +1,20 @@
-import { execSync, execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Jwt } from 'hono/utils/jwt';
 import bcrypt from 'bcryptjs';
 import { mkdirSync, existsSync, writeFileSync, readFileSync, statSync, createReadStream, unlinkSync } from 'fs';
-import { join, extname, basename } from 'path';
+import { join, extname, basename, resolve, sep } from 'path';
 import db from './db.js';
 
 type Variables = { user: { id: string; email: string } };
 const app = new Hono<{ Variables: Variables }>();
-const JWT_SECRET = process.env.JWT_SECRET || 'astrocapture-secret-change-in-prod';
+const JWT_SECRET: string = process.env.JWT_SECRET || '';
+if (!JWT_SECRET || JWT_SECRET === 'astrocapture-secret-change-in-prod') {
+  console.error('[FATAL] JWT_SECRET must be set to a strong random secret (not the public default)');
+  process.exit(1);
+}
 const PORT = parseInt(process.env.PORT || '3002');
 const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), '..', 'public', 'uploads');
 
@@ -195,10 +199,18 @@ app.delete('/api/users/:id', auth, async (c) => {
 // =====================
 
 function callTelescopiusProxy(endpoint: string, params: Record<string, string> = {}): any {
+  // Allowlist endpoints — the python script only knows these keys
+  const allowed = new Set(['quote', 'search', 'highlights', 'solar', 'pictures', 'lists']);
+  if (!allowed.has(endpoint)) {
+    console.error('[Telescopius Proxy Error] Unknown endpoint:', endpoint);
+    return { error: `Unknown endpoint: ${endpoint}` };
+  }
   try {
     const paramsJson = JSON.stringify(params);
-    const result = execSync(
-      `python3 /home/ubuntu/astrocapture/api/src/telescopius_proxy.py ${endpoint} '${paramsJson}'`,
+    // execFileSync: no shell → no OS command injection
+    const result = execFileSync(
+      'python3',
+      ['/home/ubuntu/astrocapture/api/src/telescopius_proxy.py', endpoint, paramsJson],
       { encoding: 'utf-8', timeout: 35000 }
     );
     return JSON.parse(result);
@@ -1896,8 +1908,22 @@ app.post('/api/upload', auth, async (c) => {
 
 // Serve uploaded files
 app.get('/uploads/*', async (c) => {
-  const filename = c.req.path.replace('/uploads/', '');
-  const filepath = join(UPLOAD_DIR, filename);
+  // Path traversal protection: decode, then keep only the basename and verify
+  // the resolved path stays inside UPLOAD_DIR. Upload filenames are uuid.ext,
+  // flat in UPLOAD_DIR, so subdirectories are never legitimate here.
+  let filename: string;
+  try {
+    filename = basename(decodeURIComponent(c.req.path.replace('/uploads/', '')));
+  } catch {
+    return c.json({ error: 'Not found' }, 404);
+  }
+  if (!filename || filename === '.' || filename === '..' || filename.includes('\0')) {
+    return c.json({ error: 'Not found' }, 404);
+  }
+  const filepath = resolve(UPLOAD_DIR, filename);
+  if (!filepath.startsWith(resolve(UPLOAD_DIR) + sep)) {
+    return c.json({ error: 'Not found' }, 404);
+  }
   if (!existsSync(filepath)) return c.json({ error: 'Not found' }, 404);
   const data = await import('fs').then(m => m.readFileSync(filepath));
   return new Response(data, {
@@ -1945,8 +1971,10 @@ app.get('/api/ask-hal', async (c) => {
   try {
     // Step 1: Retrieve relevant chunks using the skill
     const scriptPath = '/home/ubuntu/.openclaw/workspace/skills/astrophotography/scripts/query_smart.py';
-    const result = execSync(
-      `python3 "${scriptPath}" ${JSON.stringify(question)}`,
+    // execFileSync with args array: no shell → no OS command injection via question
+    const result = execFileSync(
+      'python3',
+      [scriptPath, question],
       { encoding: 'utf-8', timeout: 30000, maxBuffer: 1024 * 1024 }
     );
 
@@ -3652,7 +3680,7 @@ app.post('/api/rag-query', async (c) => {
 
 // Initialize PostgreSQL schema then start server
 db.initSchema().then(() => {
-  const server = serve({ fetch: app.fetch, port: PORT });
+  const server = serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' });
   // Increase timeouts for large file uploads (FITS/XISF can be 300MB+)
   if ('timeout' in server) {
     (server as any).timeout = 600000; // 10 minutes

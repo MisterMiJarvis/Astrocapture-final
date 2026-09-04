@@ -13,7 +13,6 @@
     "@hono/node-server": "^1.13.8",
     "@types/pg": "^8.20.0",
     "bcryptjs": "^2.4.3",
-    "cloudscraper": "^4.6.0",
     "hono": "^4.7.9",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.22.0",
