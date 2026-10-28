@@ -38,3 +38,11 @@ public/uploads/
 api/.secrets/
 de421.bsp
 api/cache/telescopius/
+
+# Sauvegardes manuelles
+*.bak
+*.bak-*
+*.bak.*
+
+# Sorties du scanner de securite Strix
+strix_runs/
